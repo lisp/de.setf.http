@@ -1,4 +1,4 @@
-## a modular http implementation:
+## An abstract HTTP implementation:
 
  In the course of processing an HTTP request, the following sorts of things happen:
 
@@ -28,6 +28,8 @@
    - errors and exceptions corresponding to http response status codes
  - method-combination:
    - http:http
+
+-------
 
  The library proposes as the application structure:
 
@@ -200,12 +202,12 @@ by ascribing properties in terms of a model for the protocol.
  This task does not require arbitrary compositions, but rter it suffices to describe the functional components
  in the space of resource and representation specializations and protocol roles.
 
- resources exist at locations in an http-iri namespace. these locations are arranged in subsumption relations.
+ Resources exist at locations in an http-iri namespace. these locations are arranged in subsumption relations.
  an elementary form of this is regular expression subsumption. while, in theory, it would be possible to use that
  criteria to derive relations, a simpler path is to declare the relations. which function is applicable depends
  on which are specialized to cover the set of designated resources.
 
- representations exist at locations in a media type space and the means to generate a representation for a resource
+ Representations exist at locations in a media type space and the means to generate a representation for a resource
  are identified according to the media type(s) which they generate. while concrete types are distinct - eg.,
  `application/turtle`, both `application/turtle` and `application/rdf+xml` are rdf document forms and
  the type `application/x-turtle` is the experimental precursor to `application/turtle`, and, as such to be
@@ -216,13 +218,13 @@ by ascribing properties in terms of a model for the protocol.
  indicates a set of responses and the combined specification is the union of the type, ordered according to
  the range parameter.
 
- the protocol roles reflect the stages in request processing: authentication, pre-processing, processing, and
+ The protocol roles reflect the stages in request processing: authentication, pre-processing, processing, and
  post-processing. according to this approach, a simple application would be describes as
 
     (defconstant +page-content+ "
     <html>
      <head>
-  <title>http test page</title>
+      <title>http test page</title>
       </head>
      <body>
       <h1>test page</h1>
