@@ -261,12 +261,11 @@ by ascribing properties in terms of a model for the protocol.
     (defparameter *a*
       (hunchentoot:start (make-instance 'tbnl::tbnl-acceptor :port 8009 :address "127.0.0.1")))
 
-
 ----
 [1] : http://expressjs.com/  
 [2] : http://8arrow.org/ningle/  
 [3] : https://github.com/fukamachi/caveman/blob/master/README.v2.markdown  
 [4] : https://github.com/ring-clojure/ring  
-      https://github.com/ring-clojure/ring-json  
-      https://github.com/remvee/ring-basic-authentication  
+        https://github.com/ring-clojure/ring-json  
+        https://github.com/remvee/ring-basic-authentication  
 [5] : http://http-kit.org/  
