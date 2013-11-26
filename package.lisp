@@ -5,7 +5,9 @@
 
 
 (defpackage :http-method-package
-  (:use ))
+  (:use )
+  (:documentation
+    "The home package for HTTP verbs"))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (import '(:get :put :head :patch :post :delete :options :trace :connect) :http-method-package))

@@ -243,37 +243,28 @@ whereby operations defined in the graph store protocol are delegated to its resp
   (:post-processing mime:application/sparql-results+xml)
 
   (:get ((resource /*/repositories/*/rdf-graphs) request response content-type accept-type)
-    (return-from sesame-service-response
-      (sesame-response (clone-resource resource '/*/repositories/*/contexts) request response content-type accept-type)))
+    (sesame-response (clone-resource resource '/*/repositories/*/contexts) request response content-type accept-type))
 
   (:get ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:post ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:put ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:delete ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:get ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:post ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:put ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
 
   (:delete ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (return-from sesame-service-response
-      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))))
+    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
