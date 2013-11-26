@@ -244,11 +244,13 @@ by ascribing properties in terms of a model for the protocol.
     (http:def-resource-function respond (resource request response)
       (:get ((resource /test/*) (request t) (response t) (content-type t) (accept-type t))
             (resource-target resource))
-      (:post-process ((resource t) (request t) (response http:response) (content-type t) (accept-type mime:text/html))
+      (:post-process ((resource t)
+                      (request t) (response http:response)
+                      (content-type t) (accept-type mime:text/html))
         (let ((content (call-next-method)))
           (http:send-headers response)
           (http:log :debug *trace-output* +page-content+ content)
-          (write-sequence (format nil  +page-content+ content) (http:response-content-stream response)))))
+          (write-sequence (format nil +page-content+ content) (http:response-content-stream response)))))
     
     
     (defpackage "127.0.0.1"
@@ -261,9 +263,10 @@ by ascribing properties in terms of a model for the protocol.
 
 
 ----
-[1] : expressjs.com/  
+[1] : http://expressjs.com/  
 [2] : http://8arrow.org/ningle/  
 [3] : https://github.com/fukamachi/caveman/blob/master/README.v2.markdown  
 [4] : https://github.com/ring-clojure/ring  
-        
+      https://github.com/ring-clojure/ring-json  
+      https://github.com/remvee/ring-basic-authentication  
 [5] : http://http-kit.org/  
