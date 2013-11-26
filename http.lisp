@@ -553,6 +553,9 @@
      (:keywords ,@keywords)
      ,@options))
 
+#+digitool
+(setf (ccl:assq 'http:def-resource ccl:*fred-special-indent-alist*) 2)
+
 ;;;
 ;;; resource-function method combination
 
