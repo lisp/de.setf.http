@@ -55,6 +55,7 @@
            :condition-text
            :decode-request
            :def-resource-function
+           :def-resource
            :define-dispatch-method
            :dispatch-function
            :encode-response

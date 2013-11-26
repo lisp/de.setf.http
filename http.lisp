@@ -541,6 +541,17 @@
   )
 
 
+;;;
+;;; def-resource
+
+(defmacro http:def-resource ((name pattern &rest keywords) parent-classes slots &rest options)
+  (unless (assoc :metaclass options)
+    (push '(:metaclass http:resource-class) options))
+  `(defclass ,name ,(or parent-classes '(http:resource))
+     ,slots
+     (:pattern . ,pattern)
+     (:keywords ,@keywords)
+     ,@options))
 
 ;;;
 ;;; resource-function method combination

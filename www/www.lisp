@@ -14,13 +14,10 @@
  </html>
 ")
 
-(defclass /test/* (http:resource)
+(http:def-resource (/test/* "/test/([^/]+)" :target) ()
   ((target
     :initform nil :initarg :target
-    :reader resource-target))
-  (:metaclass http:resource-class)
-  (:pattern . "/test/([^/]+)")
-  (:keywords :target))
+    :reader resource-target)))
 
 (http:def-resource-function respond (resource request response)
   (:get ((resource /test/*) (request t) (response t) (content-type t) (accept-type t))
