@@ -340,15 +340,7 @@ Returns the stream that is connected to the client."
 
 
 
-(defmethod http:send-entity-body ((response tbnl-response) (content string))
-  (when (starts-with-one-of-p (or (content-type response) "")
-                              *content-types-for-url-rewrite*)
-    ;; if the Content-Type header starts with one of the strings
-    ;; in *CONTENT-TYPES-FOR-URL-REWRITE* then maybe rewrite the
-    ;; content
-    (setq content (maybe-rewrite-urls-for-session content)))
-  ;; if the content is a string, convert it to the proper external format
-  (setf content (string-to-octets content :external-format (reply-external-format*)))
+(defmethod http:send-entity-body ((response tbnl-response) (content sequence))
   (unless (http:response-headers-sent-p response)
     (setf (content-type*) (maybe-add-charset-to-content-type-header (content-type*) (reply-external-format*)))
     (setf (content-length*) (length content)))
