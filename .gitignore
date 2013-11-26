@@ -1,0 +1,13 @@
+.DS_Store
+.gz
+*.cfsl
+.tmp
+.yardoc
+pkg
+tmp
+*.ttl
+*.srx
+index.html
+*.rdf
+*.srj
+src/test/cases
