@@ -160,7 +160,8 @@ or
           [compojure.handler :only [site]] ; form, query params decode; cookie; session, etc
           [compojure.core :only [defroutes GET POST DELETE ANY context]]
           org.httpkit.server)
-    (defn show-landing-page [req] ;; ordinary clojure function, accepts a request map, returns a response map
+    (defn show-landing-page [req] ;; ordinary clojure function,
+                                  ;; accepts a request map, returns a response map
       ... )
     (defn update-userinfo [req]          ;; ordinary clojure function
       (let [user-id (-> req :params :id)    ; param from uri
