@@ -1,7 +1,7 @@
-;;; -*- Mode: lisp; Syntax: ansi-common-lisp; Base: 10; Package: org.datagraph.spocq.server; -*-
+;;; -*- Mode: lisp; Syntax: ansi-common-lisp; Base: 10; Package: org.datagraph.spocq.server.implementation; -*-
 ;;;  Copyright 2013 [james anderson](mailto:james.anderson@setf.de) All Rights Reserved
 
-(in-package :org.datagraph.spocq.server)
+(in-package :org.datagraph.spocq.server.implementation)
 
 (:documentation "implement the sparql sesame2 protocol
 
@@ -28,7 +28,7 @@ whereby operations defined in the graph store protocol are delegated to its resp
 
 ")
 
-(defconstant +sesame-version+ "6")
+(defparameter +sesame-version+ "6")
 
 
 ;;;
@@ -82,30 +82,30 @@ whereby operations defined in the graph store protocol are delegated to its resp
     :accessor resource-prefix)))
 
 (http:def-resource (/*/repositories/*/rdf-graphs "/([^/]+)/repositories/([^/]+)/rdf-graphs"
-                                                 :account-name :repository-name)
+                                                 :account-name :repository-name :graph-name)
                    (/*/repositories/*)
-  ())
-
-(http:def-resource (/*/repositories/*/rdf-graphs/service "/([^/]+)/repositories/([^/]+)/rdf-graphs/service"
-                                                         :account-name :repository-name)
-                   (/*/repositories/*/rdf-graphs)
-  ())
-
-(http:def-resource (/*/repositories/*/rdf-graphs/service/* "/([^/]+)/repositories/([^/]+)/rdf-graphs/service/([^/]+)"
-                                                         :account-name :repository-name :graph-name)
-                   (/*/repositories/*/rdf-graphs/service)
   ((graph-name
     :initarg :graph-name :initform (error "graph-name is required.")
     :accessor resource-graph-name)))
+
+(http:def-resource (/*/repositories/*/rdf-graphs/service "/([^/]+)/repositories/([^/]+)/rdf-graphs/service"
+                                                         :account-name :repository-name :graph-name)
+                   (/*/repositories/*/rdf-graphs)
+  ())
+
+(http:def-resource (/*/repositories/*/rdf-graphs/* "/([^/]+)/repositories/([^/]+)/rdf-graphs/service/([^/]+)"
+                                                         :account-name :repository-name :graph-name)
+                   (/*/repositories/*/rdf-graphs)
+  ())
 
 
 ;;;
 ;;; response implementations
 
 (http:def-resource-function sesame-protocol-id (resource request response)
-  (:post-processing text/plain :charset "UTF-8")
+  (:post-processing mime:text/plain :charset "UTF-8")
   (:get ((resource /*/protocol) request response)
-    (setf (response-content-disposition response) "protocol.txt" t)
+    (setf (response-content-disposition response) (values "protocol.txt" t))
     (write-string +sesame-version+ (http:response-content-stream response))))
 
 
@@ -122,7 +122,7 @@ whereby operations defined in the graph store protocol are delegated to its resp
 
   (:get ((resource /*/repositories) request response)
     (let ((repositories (account-repositories (resource-account resource))))
-      (make-solution-field :dimensions '(?:id ?:uri ?:title ?:readable ?:writable)
+      (make-solution-field :dimensions '(?::id ?::uri ?::title ?::readable ?::writable)
                            :solutions (loop (loop with agent = (request-agent request)
                                                   for repository in repositories
                                                   collect (list (repository-name repository)
@@ -131,18 +131,6 @@ whereby operations defined in the graph store protocol are delegated to its resp
                                                                 (if (resource-readable-p repository agent) "true" "false")
                                                                 (if (resource-writable-p repository agent) "true" "false"))))))))
 
-
-(http:def-resource-function sesame-repository (resource request response)
-  (:auth :identification authenticate-request-password)
-  (:auth :identification authenticate-request-token)
-  (:auth :identification authenticate-request-session)
-
-  (:post-processing mime:application/sparql-results+json)
-  (:post-processing mime:application/sparql-results+xml)
-  
-  (:get ((resource /*/repositories/*) request response))
-  (:post ((resource /*/repositories/*) request response))
-  (:delete ((resource /*/repositories/*) request response)))
 
 
 (http:def-resource-function sesame-response (resource request response)
@@ -155,44 +143,49 @@ whereby operations defined in the graph store protocol are delegated to its resp
   (:auth :identification authenticate-request-token)
   (:auth :identification authenticate-request-session)
 
-  (:post mime:application/sparql-results+json)
-  (:post mime:application/sparql-results+xml)
-  (:post ((resource t) (request t) (response t) (content-type t) (accept-type mime:text/plain))
+  (:post-processing mime:application/sparql-results+json)
+  (:post-processing mime:application/sparql-results+xml)
+  (:post-processing ((resource t) (request t) (response t) (content-type t) (accept-type mime:text/plain))
     (let ((result (call-next-method)))
-      (begin-response response)
-      (format (response-content-stream response) "~a~a" result +crlf+)))
+      (format (http:response-content-stream response) "~a~a" result +crlf+)))
 
   (:get ((resource /*/repositories) request response)
     "Return a list the accounts repositories"
     (let ((repositories (account-repositories (resource-account resource))))
-      (make-solution-field :dimensions '(?:id ?:uri ?:title ?:readable ?:writable)
+      (make-solution-field :dimensions '(?::id ?::uri ?::title ?::readable ?::writable)
                            :solutions (loop for repository in repositories
                                             collect (list (repository-id repository)
                                                           (iri-lexical-form (repository-uri repository))
                                                           (first-line (repository-description repository))
-                                                          (if (access-authorized (request-agent request) repository <acl:read>) spocq:|true| spocq:|false|)
-                                                          (if (access-authorized (request-agent request) repository <acl:write>) spocq:|true| spocq:|false|))))))
+                                                          (if (access-authorized (request-agent request) repository |acl|:|Read|) spocq:|true| spocq:|false|)
+                                                          (if (access-authorized (request-agent request) repository |acl|:|Write|) spocq:|true| spocq:|false|))))))
 
   (:get ((resource /*/repositories/*) request response content-type accept-type)
-    (graph-store-response resource request response content-type accept-type))
+    (http:redirect
+     (graph-store-response resource request response content-type accept-type)))
 
   (:post ((resource /*/repositories/*) request response content-type accept-type)
-    (graph-store-response resource request response content-type accept-type))
+    (http:redirect
+      (graph-store-response resource request response content-type accept-type)))
 
   (:delete ((resource /*/repositories/*) request response)
     (http:not-implemented))
   
   (:get ((resource /*/repositories/*/statements) request response content-type accept-type)
-    (graph-store-response resource request response content-type accept-type))
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
   (:post ((resource /*/repositories/*/statements) request response content-type accept-type)
-    (graph-store-response resource request response content-type accept-type))
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
   (:put ((resource /*/repositories/*/statements) request response content-type accept-type)
-    (graph-store-response resource request response content-type accept-type))
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
   (:delete ((resource /*/repositories/*/statements) request response content-type accept-type)
-    (graph-store-response resource request response content-type accept-type))
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
   (:get ((resource /*/repositories/*/contexts) request response)
      (multiple-value-bind (solutions dimensions)
@@ -203,19 +196,19 @@ whereby operations defined in the graph store protocol are delegated to its resp
 
   (:get ((resource /*/repositories/*/size) request response)
     (let ((size (repository-statement-count (resource-repository resource))))
-      (make-solution-field :dimensions '(?:size)
-                           :solutions `((size)))))
+      (make-solution-field :dimensions '(?::size)
+                           :solutions `((,size)))))
 
   (:get ((resource /*/repositories/*/namespaces) request response)
     (let ((bindings (namespace-bindings (resource-repository resource))))
-      (make-solution-field :dimensions '(?:prefix ?:namespace)
+      (make-solution-field :dimensions '(?::prefix ?::namespace)
                            :solutions (loop for (prefix . iri) in bindings
                                             collect (list prefix (iri-lexical-form iri))))))
 
   (:delete ((resource /*/repositories/*/namespaces) request response)
     (http:not-implemented))
 
-  (:get ((resource /*/repositories/*/namespaces/*) request response (content-type mime:text/plain))
+  (:get ((resource /*/repositories/*/namespaces/*) request response (request-type t) (content-type mime:text/plain))
     ;; specify the content type explicitly as it differs from the rest,
     ;; emit the response and indicate completion
     (let* ((bindings (namespace-bindings (resource-repository resource)))
@@ -239,32 +232,40 @@ whereby operations defined in the graph store protocol are delegated to its resp
   (:auth :identification authenticate-request-token)
   (:auth :identification authenticate-request-session)
 
-  (:post-processing mime:application/sparql-results+json)
-  (:post-processing mime:application/sparql-results+xml)
+  ;; no response media types as all requests redirect
 
   (:get ((resource /*/repositories/*/rdf-graphs) request response content-type accept-type)
-    (sesame-response (clone-resource resource '/*/repositories/*/contexts) request response content-type accept-type))
+    (http:redirect
+      (sesame-response (clone-resource resource '/*/repositories/*/contexts) request response content-type accept-type)))
 
-  (:get ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:get ((resource /*/repositories/*/rdf-graphs/service) request response content-type accept-type)
+    (http:redirect
+     (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
-  (:post ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:post ((resource /*/repositories/*/rdf-graphs/service) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
-  (:put ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:put ((resource /*/repositories/*/rdf-graphs/service) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
-  (:delete ((resource /*/repositories/*/rdfgraphs/service) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:delete ((resource /*/repositories/*/rdf-graphs/service) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
 
-  (:get ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:get ((resource /*/repositories/*/rdf-graphs/*) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*/*) request response content-type accept-type)))
 
-  (:post ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:post ((resource /*/repositories/*/rdf-graphs/*) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*/*) request response content-type accept-type)))
 
-  (:put ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type))
+  (:put ((resource /*/repositories/*/rdf-graphs/*) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*/*) request response content-type accept-type)))
 
-  (:delete ((resource /*/repositories/*/rdfgraphs/*) request response content-type accept-type)
-    (graph-store-response (clone-resource resource '/*/*) request response content-type accept-type)))
+  (:delete ((resource /*/repositories/*/rdf-graphs/*) request response content-type accept-type)
+    (http:redirect
+      (graph-store-response (clone-resource resource '/*/*/*) request response content-type accept-type))))
