@@ -117,10 +117,11 @@
            :respond-to-request
            :response
            :response-acceptor
-           :response-character-encoding-header
+           :response-character-encoding
            :response-class
+           :response-content-encoding
            :response-content-stream
-           :response-content-type-header
+           :response-content-type
            :response-close-stream-p
            :response-headers-sent-p
            :response-keep-alive-p

@@ -568,7 +568,7 @@
                             (primary http-verb-list-p))
   (:arguments resource request-arg response content-type)
   (:generic-function function)
-  (flet ((categorize-methods (methods)
+  (flet ((qualify-methods (methods)
            (let ((categorized ())
                  (method-keys (http:function-method-keys function)))
              (loop for method in methods
@@ -583,13 +583,19 @@
                                  (t (push method (getf categorized method-key))))))
              (loop for (key methods) on categorized by #'cddr
                    collect key collect (reverse methods)))))
-    `(progn (print (list ,resource ,request-arg ,response ,content-type))
-            ,(compute-effective-resource-function-method function request-arg
-                                                        identification permission
-                                                        around 
-                                                        (categorize-methods pre)
-                                                        (categorize-methods primary)
-                                                        (categorize-methods post)))))
+    `(handler-case (progn (http:log :debug *trace-output* "~a" (list ,resource ,request-arg ,response ,content-type))
+                          ,(compute-effective-resource-function-method function request-arg
+                                                                       identification permission
+                                                                       around 
+                                                                       (qualify-methods pre)
+                                                                       (qualify-methods primary)
+                                                                       (qualify-methods post)))
+       (http:redirect (redirection)
+         ;; if the redirection is internal invoke it, otherwise resignal it
+         (let ((location (http:condition-location redirection)))
+           (if (functionp location)
+             (funcall location)
+             (error redirection)))))))
 
 
 (defun compute-effective-resource-function-method (function request identification permission around
@@ -702,6 +708,69 @@
            (http:send-headers response)
            (get-response-content-stream response)))))
 
+(defsetf http:response-media-type-header (response) (content-type character-encoding)
+  `(values (setf (http:response-content-type ,response) ,content-type)
+           (setf (http:response-character-encoding-header ,response) ,character-encoding)))
+
+(defgeneric (setf http:response-content-type) (content-type response)
+  )
+
+(defgeneric (setf http:response-content-encoding) (content-encoding response)
+  )
+
+(defgeneric (setf http:response-character-encoding) (character-encoding response)
+  )
+
+(defgeneric (setf http:response-location-header) (location response)
+  )
+
+(defgeneric (setf http:response-www-authenticate-header) (authentication-method response)
+  )
+
+(defgeneric (setf http:response-retry-after-header) (time response)
+  )
+
+(defgeneric http:request-etags (request)
+  )
+
+(defgeneric http:request-cache-matched (request etag time)
+  (:method ((request http:request) etag time)
+    (and (find etag (http:request-etags request) :test #'equalp)
+         (loop for request-time in (http:request-if-modified-since request)
+               unless (<= time request-time)
+               return nil)
+         (loop for request-time in (http:request-unmodified-since request)
+               when (<= time request-time)
+               return nil)
+         t)))
+
+(defgeneric http:report-condition-headers (condition response)
+  (:documentation "Given a condition, assert its side-effects on the request
+    state, to be communicated to the client as part of the response.")
+
+  (:method ((condition http:redirect) response)
+    (setf (http:response-location-header response) (http:condition-location condition))
+    (call-next-method))
+
+  (:method ((condition http:not-modified) response)
+    (setf (http:response-media-type-header response) (values mime:text/plain "UTF-8"))
+    (call-next-method))
+
+  (:method ((condition http:unauthorized) response)
+    (setf (http:response-www-authenticate-header response) "Basic")
+    (call-next-method))
+
+  (:method ((condition http:internal-error) response)
+    (let ((time (http:condition-retry-after condition)))
+      (when time
+        (setf (http:response-retry-after-header response) time)))
+    (call-next-method)))
+
+
+
+
+
+
 (defgeneric http:response-headers-sent-p (response)
   (:method ((response http:response))
     (slot-boundp response 'content-stream)))
@@ -759,132 +828,4 @@
 ;;;
 
 
-
-
-
-
-
-(defsetf http:response-media-type-header (response) (content-type character-encoding)
-  `(values (setf (http:response-content-type-header ,response) ,content-type)
-           (setf (http:response-character-encoding-header ,response) ,character-encoding)))
-
-(defgeneric (setf http:response-content-type-header) (content-type response)
-  )
-
-(defgeneric (setf http:response-character-encoding-header) (character-encoding response)
-  )
-
-(defgeneric (setf http:response-location-header) (location response)
-  )
-
-(defgeneric (setf http:response-www-authenticate-header) (authentication-method response)
-  )
-
-(defgeneric (setf http:response-retry-after-header) (time response)
-  )
-
-(defgeneric http:report-condition-headers (condition response)
-  (:documentation "Given a condition, assert its side-effects on the request
-    state, to be communicated to the client as part of the response.")
-
-  (:method ((condition http:redirect) response)
-    (setf (http:response-location-header response) (http:condition-location condition))
-    (call-next-method))
-
-  (:method ((condition http:not-modified) response)
-    (setf (http:response-media-type-header response) (values mime:text/plain "UTF-8"))
-    (call-next-method))
-
-  (:method ((condition http:unauthorized) response)
-    (setf (http:response-www-authenticate-header response) "Basic")
-    (call-next-method))
-
-  (:method ((condition http:internal-error) response)
-    (let ((time (http:condition-retry-after condition)))
-      (when time
-        (setf (http:response-retry-after-header response) time)))
-    (call-next-method)))
-
-
-
-
-;;;
-;;; media type support
-
-;;; unions
-
-(let ((mime-token '(:greedy-repetition 1 nil (:inverted-char-class #\, #\; #\=)))
-      (mime-major-minor '(:sequence
-                          (:register (:greedy-repetition 1 nil (:inverted-char-class #\/)))
-                          #\/
-                          (:register (:greedy-repetition 1 nil (:inverted-char-class #\, #\;)))))
-      (mime-q '(:sequence (:char-class #\q #\q) #\= (:register (:greedy-repetition 1 nil (:char-class #\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9 #\.)))))
-      (mime-accept-params '(:sequence #\; (:alternation mime-q mime-token)))
-      (mime-range-and-parameters '(:sequence mime-major-minor (:greedy-repetition 0 nil mime-accept-params))))
-                                   
-  (setf (cl-ppcre:parse-tree-synonym 'mime-major-minor) mime-major-minor)
-  (setf (cl-ppcre:parse-tree-synonym 'mime-token) mime-token)
-  (setf (cl-ppcre:parse-tree-synonym 'mime-q) mime-q)
-  (setf (cl-ppcre:parse-tree-synonym 'mime-accept-params) mime-accept-params)
-  (setf (cl-ppcre:parse-tree-synonym 'mime-range-and-parameters) mime-range-and-parameters))
-
-
-(defparameter *accept-range-pattern* (cl-ppcre:create-scanner 'mime-range-and-parameters))
-
-;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html")
-;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html;q=1;a=b")
-;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html,application/json,application/rdf+xml")
-;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html;q=2,application/json,application/rdf+xml")
-
-(defun parse-media-range (range)
-  (coerce (nth-value 1 (cl-ppcre:scan-to-strings *accept-range-pattern* range)) 'list))
-
-(defun compute-accept-ordered-types (header)
-  (let* ((accept-ranges (split-string header #\,))
-         (types (loop for range in accept-ranges
-                        for (major minor q) = (or (parse-media-range range)
-                                                  (http:bad-request :message (format nil "Invalid accept range: ~s." range)))
-                        for type = (or (dsu:intern-mime-type-key (format nil "~a/~a"
-                                                                         (if (equal major "*") "_" major)
-                                                                         (if (equal minor "*") "_" minor))
-                                                                 :if-does-not-exist nil)
-                                       (http:not-acceptable "Unacceptable accept type: '~a'" range))
-                        for quality = (cond (q
-                                             (unless (every #'digit-char-p q)
-                                               (http:bad-request :message "Invalid accept field: '~a'" header))
-                                             (parse-integer q))
-                                            (t
-                                             1))
-                        collect (cons type quality))))
-    (mapcar #'first (sort types #'> :key #'rest))))
-
-;;; (compute-accept-ordered-types "text/html")
-
-(defgeneric intern-media-type (acceptor request)
-  (:method (acceptor (header string))
-    (setf header (remove #\space header))
-    (or (gethash header (acceptor-header-instances acceptor))
-        (let* ((ordered-types (compute-accept-ordered-types header)))
-          (let* ((class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
-                 (class (or (find-class class-name)
-                            (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
-            (setf (gethash header (acceptor-header-instances acceptor))
-                  (make-instance class))))))
-
-  (:method (acceptor (request http:request))
-    (let ((header (case (http:request-method request)
-                    ((:post :put :patch) (or (http:request-content-type-header request) (http:bad-request)))
-                    ((:get :head) (or (http:request-accept-header request) "*/*")))))
-      (if header
-        (intern-media-type acceptor header)
-        mime:*/*))))
-
-
-;;; codecs
-
-(defgeneric http:encode-response (content response content-type)
-  )
-
-(defgeneric http:decode-request (request content-type)
-  )
 

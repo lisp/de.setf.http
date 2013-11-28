@@ -26,12 +26,24 @@
 (defmethod http:report-condition-headers ((condition http:condition) (response t))
   (setf (http:response-status-code response) (http:condition-code condition)))
 
-(def-condition http:redirect (http:condition)
+(define-condition http:redirect (http:condition)
   ((code :initform 301 :initarg :code)
-   (text :initform "No Content")
+   (text :initform "Redirect")
    (location
     :initarg :location :initform (error "location is required.")
     :reader http:condition-location)))
+
+(defun http:redirect (&rest args)
+  (declare (dynamic-extent args))
+  (apply #'error 'http:redirect args))
+
+(define-compiler-macro http:redirect (&whole form &rest args)
+  "iff the arguments begin with something other than a keyword, take them as
+ a redirection continuation, signal the redirection with that function instead
+ of a location with the presumption, that there is a handler."
+  (if (keywordp (first args))
+    form
+    `(error 'http:redirect :location (lambda () ,@args))))
 
 (def-condition http:ok (http:condition)
   ((code :initform 200 :allocation :class)
@@ -113,7 +125,6 @@
 (def-condition http::http-version-not-supported (http:error)
   ((code :initform 505 :allocation :class)
    (test :initform "HTTP Version Not SUpported" :allocation :class)))
-
 
 
 ;;;

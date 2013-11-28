@@ -77,8 +77,11 @@
 (defmethod (setf http:response-status-code) (code (response tbnl-response))
   (setf (return-code response) code))
 
-(defmethod (setf http:response-content-type-header) (content-type (response tbnl-response))
+(defmethod (setf http:response-content-type) (content-type (response tbnl-response))
   (setf (header-out :content-type response) content-type))
+
+(defmethod (setf http:response-content-type) ((mime-type mime:mime-type) (response tbnl-response))
+  (setf (http:resposne-content-type response) (mime:mime-type-expression mime-type)))
 
 (defmethod (setf http:response-character-encoding-header) (character-encoding (response tbnl-response))
   (setf (header-out :character-encoding response) character-encoding))
