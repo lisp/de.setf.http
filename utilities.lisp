@@ -108,15 +108,7 @@
                  (class (or (find-class class-name)
                             (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
             (setf (gethash header (acceptor-header-instances acceptor))
-                  (make-instance class))))))
-
-  (:method (acceptor (request http:request))
-    (let ((header (case (http:request-method request)
-                    ((:post :put :patch) (or (http:request-content-type-header request) (http:bad-request)))
-                    ((:get :head) (or (http:request-accept-header request) "*/*")))))
-      (if header
-        (intern-media-type acceptor header)
-        mime:*/*))))
+                  (make-instance class)))))))
 
 
 (defun concrete-media-type (mime-type)

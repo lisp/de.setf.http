@@ -16,15 +16,6 @@
 (defpackage :de.setf.http
   (:nicknames :http)
   (:use )
-  #+:hunchentoot
-  (:import-from :hunchentoot
-               :*acceptor*
-               :*request*
-               :*reply*
-               :*session*
-               :+http-ok+
-               :process-connection
-               :request-class)
   (:export :*acceptor*
            :*log-level*
            :*request*
@@ -86,6 +77,7 @@
            :make-request
            :make-response
            :ok
+           :query-field-value
            :redirect
            :report-condition-headers
            :request
@@ -94,19 +86,26 @@
            :request-acceptor
            :request-auth-token
            :request-authentication
+           :request-cache-matched-p
            :request-class
+           :request-content-length
            :request-content-stream
            :request-content-type
            :request-content-type-header
            :request-effective-method
+           :request-etags
            :request-header
+           :request-if-modified-since
            :request-line-method
            :request-method
+           :request-negotiated-character-encoding
+           :request-negotiated-content-encoding
            :request-path
            :request-post-argument
            :request-session-id
            :request-too-large
            :request-session-cookie-name
+           :request-unmodified-since
            :resource
            :resource-authorization-list
            :resource-class
@@ -117,20 +116,25 @@
            :respond-to-request
            :response
            :response-acceptor
+           :response-accept-ranges
+           :response-cache-control
            :response-character-encoding
            :response-class
            :response-content-encoding
            :response-content-stream
            :response-content-type
            :response-close-stream-p
+           :response-etag
            :response-headers-sent-p
            :response-keep-alive-p
+           :response-last-modified
            :response-location-header
            :response-media-type-header
            :response-protocol
            :response-retry-after-header
            :response-request
            :response-status-code
+           :response-vary
            :response-www-authenticate-header
            :send-entity-body
            :send-headers

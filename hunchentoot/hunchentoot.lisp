@@ -67,6 +67,13 @@
   (cookie-in (session-cookie-name (request-acceptor request))
              request))
 
+(defmethod http:query-field-value ((request request) key)
+  (get-parameter key request))
+
+
+(defmethod http:request-content-length ((request tbnl-request))
+  (let ((header (content-length request)))
+    (when (plusp (length header)) (parse-integer header))))
 
 (defmethod http:request-content-stream ((request tbnl-request))
   (content-stream request))
@@ -81,9 +88,9 @@
   (setf (header-out :content-type response) content-type))
 
 (defmethod (setf http:response-content-type) ((mime-type mime:mime-type) (response tbnl-response))
-  (setf (http:resposne-content-type response) (mime:mime-type-expression mime-type)))
+  (setf (http:response-content-type response) (mime:mime-type-expression mime-type)))
 
-(defmethod (setf http:response-character-encoding-header) (character-encoding (response tbnl-response))
+(defmethod (setf http:response-character-encoding) (character-encoding (response tbnl-response))
   (setf (header-out :character-encoding response) character-encoding))
 
 (defmethod (setf http:response-location-header) (location (response tbnl-response))

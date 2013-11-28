@@ -17,25 +17,24 @@
 (define-condition http:error (http:condition simple-error)
   ())
 
-(defmacro def-condition (name classes &rest args)
-  `(progn (defun ,name (&rest args)
-            (declare (dynamic-extent args))
-            (apply #'error ',name args))
-          (define-condition ,name ,classes ,@args)))
+(defmacro def-condition (name classes slots &rest options)
+  (let ((code (getf (rest (assoc 'code slots)) :initform)))
+    `(progn (defun ,name (&rest args)
+              (declare (dynamic-extent args))
+              (apply #'error ',name args))
+            ,@(when code
+                `((defconstant ,name ,code)))
+            (define-condition ,name ,classes ,slots ,@options))))
 
 (defmethod http:report-condition-headers ((condition http:condition) (response t))
   (setf (http:response-status-code response) (http:condition-code condition)))
 
-(define-condition http:redirect (http:condition)
+(def-condition http:redirect (http:condition)
   ((code :initform 301 :initarg :code)
    (text :initform "Redirect")
    (location
     :initarg :location :initform (error "location is required.")
     :reader http:condition-location)))
-
-(defun http:redirect (&rest args)
-  (declare (dynamic-extent args))
-  (apply #'error 'http:redirect args))
 
 (define-compiler-macro http:redirect (&whole form &rest args)
   "iff the arguments begin with something other than a keyword, take them as

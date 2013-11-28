@@ -486,11 +486,31 @@
     agent is authorized to perform the request's method on the given resource."))
 
 
+(defgeneric http:request-accept-type (request)
+  (:method ((request http:request))
+    (let ((header (http:request-accept-header request)))
+      (when header (intern-media-type (http:request-acceptor request) request)))))
+
+(defgeneric http:request-accept-header (request)
+  )
+
 (defgeneric http:request-content-stream (request)
   )
 
-(defgeneric http:request-path (request)
+(defgeneric http:request-content-length (request)
   )
+
+(defgeneric http:request-content-type-header (request)
+  )
+
+(defgeneric http:request-content-type (request)
+  (:method ((request http:request))
+    (if (slot-boundp request 'content-type)
+      (request-content-type request)
+      (setf (request-content-type request)
+            (let ((header (http:request-content-type-header request)))
+              (when header
+                (mime:mime-type header)))))))
 
 (defgeneric http:request-line-method (request)
   )
@@ -513,25 +533,13 @@
                         (as-method-key post-method)
                         (http:request-line-method request)))))))))))
 
-
-(defgeneric http:request-content-type-header (request)
+(defgeneric http:request-negotiated-character-encoding (request)
   )
 
-(defgeneric http:request-content-type (request)
-  (:method ((request http:request))
-    (if (slot-boundp request 'content-type)
-      (request-content-type request)
-      (setf (request-content-type request)
-            (let ((header (http:request-content-type-header request)))
-              (when header
-                (mime:mime-type header)))))))
+(defgeneric http:request-negotiated-content-encoding (request)
+  )
 
-(defgeneric http:request-accept-type (request)
-  (:method ((request http:request))
-    (let ((header (http:request-accept-header request)))
-      (when header (intern-media-type (http:request-acceptor request) request)))))
-
-(defgeneric http:request-accept-header (request)
+(defgeneric http:request-path (request)
   )
 
 (defgeneric http:request-header (request key)
@@ -539,6 +547,17 @@
 
 (defgeneric http:request-post-argument (request key)
   )
+
+(defgeneric http:query-field-value (request key)
+  )
+
+(defmethod intern-media-type (acceptor (request http:request))
+    (let ((header (case (http:request-method request)
+                    ((:post :put :patch) (or (http:request-content-type-header request) (http:bad-request)))
+                    ((:get :head) (or (http:request-accept-header request) "*/*")))))
+      (if header
+        (intern-media-type acceptor header)
+        mime:*/*)))
 
 
 ;;;
@@ -663,19 +682,19 @@
                                                         lambda-list
                                                         (append lambda-list `((,(gensym "content-type") t) (,(gensym "accept-type") t))))
                                                      ,@body))))
-                                             (:post-process
+                                             ((:post-process :post-processing)
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (ldiff clause after-qualifiers)))
+                                                     (qualifiers (cons :post-process (rest (ldiff clause after-qualifiers)))))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
-                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type (first after-qualifiers)) (accept-type t))
+                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first after-qualifiers)) (accept-type t))
                                                      (http:encode-response (call-next-method) response content-type)))))
-                                             (:pre-processing
+                                             ((:pre-process :pre-processing)
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (ldiff clause after-qualifiers)))
+                                                     (qualifiers (cons :pre-process (rest (ldiff clause after-qualifiers)))))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
-                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type (first after-qualifiers)))
+                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
                                                      (http:decode-request resource request content-type)))))
                                              (:auth
                                               (if (consp (third clause))
@@ -700,6 +719,12 @@
 ;;;
 ;;; response
 
+(defgeneric http:response-accept-ranges (ranges response)
+  )
+
+(defgeneric http:response-cache-control (value response)
+  )
+
 (defgeneric http:response-content-stream (response)
   (:method ((response http:response))
     (cond ((get-response-content-stream response))
@@ -710,7 +735,7 @@
 
 (defsetf http:response-media-type-header (response) (content-type character-encoding)
   `(values (setf (http:response-content-type ,response) ,content-type)
-           (setf (http:response-character-encoding-header ,response) ,character-encoding)))
+           (setf (http:response-character-encoding ,response) ,character-encoding)))
 
 (defgeneric (setf http:response-content-type) (content-type response)
   )
@@ -719,6 +744,12 @@
   )
 
 (defgeneric (setf http:response-character-encoding) (character-encoding response)
+  )
+
+(defgeneric (setf http:response-etag) (tag response)
+  )
+
+(defgeneric (setf http:response-last-modified) (timestamp response)
   )
 
 (defgeneric (setf http:response-location-header) (location response)
@@ -730,10 +761,15 @@
 (defgeneric (setf http:response-retry-after-header) (time response)
   )
 
+(defgeneric http:response-vary (value response)
+  )
+
+
+
 (defgeneric http:request-etags (request)
   )
 
-(defgeneric http:request-cache-matched (request etag time)
+(defgeneric http:request-cache-matched-p (request etag time)
   (:method ((request http:request) etag time)
     (and (find etag (http:request-etags request) :test #'equalp)
          (loop for request-time in (http:request-if-modified-since request)
