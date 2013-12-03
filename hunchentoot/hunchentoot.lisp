@@ -19,9 +19,10 @@
   (:default-initargs
     :request-class 'tbnl-request
     :response-class 'tbnl-response))
+
+#+(or)
 (print (cons (find-class 'tbnl-acceptor)
              (sb-mop:class-direct-default-initargs (find-class 'tbnl-acceptor))))
-
 
 (defmethod initialize-instance ((instance tbnl-acceptor) &rest initargs
                                 &key  response-class)
@@ -57,26 +58,7 @@
 (defmethod http:acceptor-request-class ((acceptor acceptor))
   (acceptor-request-class acceptor))
 
-(defmethod http:request-auth-token ((request request))
-  (header-in :auth_token request))
 
-(defmethod http:request-authentication ((request request))
-  (authorization request))
-
-(defmethod http:request-session-id ((request request))
-  (cookie-in (session-cookie-name (request-acceptor request))
-             request))
-
-(defmethod http:query-field-value ((request request) key)
-  (get-parameter key request))
-
-
-(defmethod http:request-content-length ((request tbnl-request))
-  (let ((header (content-length request)))
-    (when (plusp (length header)) (parse-integer header))))
-
-(defmethod http:request-content-stream ((request tbnl-request))
-  (content-stream request))
 
 (defmethod http:response-status-code ((response tbnl-response))
   (return-code response))
@@ -102,6 +84,31 @@
 (defmethod (setf http:response-retry-after-header) (time (response tbnl-response))
   (setf (header-out :retry-after response) time))
 
+
+
+(defmethod http:request-auth-token ((request request))
+  (header-in :auth_token request))
+
+(defmethod http:request-authentication ((request request))
+  (authorization request))
+
+(defmethod http:request-session-id ((request request))
+  (cookie-in (session-cookie-name (request-acceptor request))
+             request))
+
+(defmethod http:request-content-length ((request tbnl-request))
+  (let ((header (content-length request)))
+    (when (plusp (length header)) (parse-integer header))))
+
+(defmethod http:request-content-stream ((request tbnl-request))
+  (content-stream request))
+
+(defmethod http:request-query-argument ((request request) key)
+  (get-parameter key request))
+
+(defmethod http:request-post-argument ((request request) key)
+  (post-parameter key request))
+
 (defmethod http:request-path ((request tbnl-request))
   (script-name request))
 
@@ -117,8 +124,6 @@
 (defmethod http:request-content-type-header ((request tbnl-request))
   (header-in :content-type request))
 
-(defclass tbnl-acceptor (http:acceptor acceptor)
-  ())
 
 
 

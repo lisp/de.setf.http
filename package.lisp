@@ -77,7 +77,6 @@
            :make-request
            :make-response
            :ok
-           :query-field-value
            :redirect
            :report-condition-headers
            :request
@@ -102,6 +101,7 @@
            :request-negotiated-content-encoding
            :request-path
            :request-post-argument
+           :request-query-argument
            :request-session-id
            :request-too-large
            :request-session-cookie-name
