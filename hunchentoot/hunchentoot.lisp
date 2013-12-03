@@ -103,11 +103,19 @@
 (defmethod http:request-content-stream ((request tbnl-request))
   (content-stream request))
 
+(defmethod http:request-post-argument ((request request) key)
+  (post-parameter key request))
+
+(defmethod http:request-post-arguments ((request request) key)
+  (loop for (name . value) in (post-parameters* request)
+        when (equal name key) collect value))
+
 (defmethod http:request-query-argument ((request request) key)
   (get-parameter key request))
 
-(defmethod http:request-post-argument ((request request) key)
-  (post-parameter key request))
+(defmethod http:request-query-arguments ((request request) key)
+  (loop for (name . value) in (get-parameters* request)
+        when (equal name key) collect value))
 
 (defmethod http:request-path ((request tbnl-request))
   (script-name request))

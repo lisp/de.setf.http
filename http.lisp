@@ -548,7 +548,13 @@
 (defgeneric http:request-post-argument (request key)
   )
 
+(defgeneric http:request-post-arguments (request key)
+  )
+
 (defgeneric http:request-query-argument (request key)
+  )
+
+(defgeneric http:request-query-arguments (request key)
   )
 
 (defmethod intern-media-type (acceptor (request http:request))

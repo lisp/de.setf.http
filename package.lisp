@@ -101,7 +101,9 @@
            :request-negotiated-content-encoding
            :request-path
            :request-post-argument
+           :request-post-arguments
            :request-query-argument
+           :request-query-arguments
            :request-session-id
            :request-too-large
            :request-session-cookie-name
