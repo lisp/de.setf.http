@@ -26,7 +26,7 @@
                   `(flet ((call-log ()
                             (http:log ,,level ,destination ,format-control ,@args)
                             t))
-                     (declare (dynamic-extent (function call-write-log)))
+                     (declare (dynamic-extent (function call-log)))
                      (call-if-log-level-qualifies ,,level (function call-log)))))))
   (def-log-op :fatal)
   (def-log-op :critical)
@@ -83,19 +83,20 @@
          (types (loop for range in accept-ranges
                         for (major minor q) = (or (parse-media-range range)
                                                   (http:bad-request :message (format nil "Invalid accept range: ~s." range)))
-                        for type = (or (dsu:intern-mime-type-key (format nil "~a/~a"
-                                                                         (if (equal major "*") "_" major)
-                                                                         (if (equal minor "*") "_" minor))
-                                                                 :if-does-not-exist nil)
-                                       (http:not-acceptable "Unacceptable accept type: '~a'" range))
+                        for type = (dsu:intern-mime-type-key (format nil "~a/~a" major minor))
                         for quality = (cond (q
                                              (unless (every #'digit-char-p q)
                                                (http:bad-request :message "Invalid accept field: '~a'" header))
                                              (parse-integer q))
                                             (t
                                              1))
-                        collect (cons type quality))))
-    (mapcar #'first (sort types #'> :key #'rest))))
+                        if type
+                        collect (cons type quality)
+                        else
+                        do (http:log-warn http:*acceptor* "The mime type '~a/~a' is not defined." major minor))))
+    (if types
+      (mapcar #'first (sort types #'> :key #'rest))
+      (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
 
 ;;; (compute-accept-ordered-types "text/html")
 

@@ -135,6 +135,7 @@
            :response-protocol
            :response-retry-after-header
            :response-request
+           :response-socket-stream
            :response-status-code
            :response-vary
            :response-www-authenticate-header

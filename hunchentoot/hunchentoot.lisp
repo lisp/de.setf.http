@@ -198,26 +198,26 @@
                                (setf *hunchentoot-stream* (make-chunked-stream *hunchentoot-stream*)
                                      (chunked-stream-input-chunking-p *hunchentoot-stream*) t))
                               (t (hunchentoot-error "Client tried to use chunked encoding, but acceptor is configured to not use it."))))))
-                  (let* ((http:*request* (http:make-request acceptor
-                                                            :socket socket
-                                                            :headers-in headers-in
-                                                            :content-stream *hunchentoot-stream*
-                                                            :method method
-                                                            :uri url-string
-                                                            :server-protocol protocol))
-                         (*request* http:*request*)
+                  (let* ((*request* (http:make-request acceptor
+                                                       :socket socket
+                                                       :headers-in headers-in
+                                                       :content-stream *hunchentoot-stream*
+                                                       :method method
+                                                       :uri url-string
+                                                       :server-protocol protocol))
                          (*reply* (http:make-response acceptor
                                                       :request *request*
                                                       :keep-alive-p (keep-alive-p *request*)
                                                       :server-protocol protocol
-                                                      :content-stream *hunchentoot-stream*))
+                                                      ;; stream initially used for the headers
+                                                      :content-stream (flex:make-flexi-stream socket-stream :external-format +latin-1+)))
+                         (http:*request* *request*)
                          (http:*response* *reply*)
                          (*tmp-files* nil)
-                         (*headers-sent* nil)
                          (*session* nil))
                     (with-acceptor-request-count-incremented (acceptor)
                       (catch 'request-processed
-                        (http:respond-to-request acceptor http:*request* *reply*)))
+                        (http:respond-to-request acceptor *request* *reply*)))
                     (finish-output (http:response-content-stream *reply*))
                     ;; access log message
                     (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
@@ -276,8 +276,7 @@ directly write to the stream in this case.
 Returns the stream that is connected to the client."
   
   (unless (http:response-headers-sent-p response)
-    (let ((header-stream (flex:make-flexi-stream (http:response-content-stream response)
-                                                 :external-format +latin-1+))
+    (let ((header-stream (http:response-content-stream response))
           (content-length nil)
           (external-format +utf-8+)
           (head-request-p (eq :head (request-method (http:response-request response))))
@@ -325,7 +324,7 @@ Returns the stream that is connected to the client."
           (cond (keep-alive-p
                  (setf *close-hunchentoot-stream* nil)
                  (when (and (acceptor-read-timeout (http:response-acceptor response))
-                            (or (not (eq (server-protocol response) :http/1.1))
+                            (or (not (eq (http:response-protocol response) :http/1.1))
                                 keep-alive-requested-p))
                    ;; persistent connections are implicitly assumed for
                    ;; HTTP/1.1, but we return a 'Keep-Alive' header if the
@@ -345,21 +344,18 @@ Returns the stream that is connected to the client."
       
         ;; depending on whether content length was set and/or the content-type
         ;; adjust and cache the entity body stream
-        (let* ((body-stream (cond (external-format
-                                   (unless (eq external-format +latin-1+)
-                                     (setf (flex:flexi-stream-external-format header-stream) external-format))
-                                   header-stream)
-                                  (t
-                                   (http:response-content-stream response)))))
-          (when chunked-p
-            (unless (typep body-stream 'chunked-stream)
-              (setq body-stream (make-chunked-stream body-stream)))
-            (setf (chunked-stream-output-chunking-p body-stream) t))
-          (setf (http:response-content-stream response) body-stream)
-          
-          ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
-          (raw-post-data :force-binary t)
-          body-stream)))))
+        (when external-format
+          (unless (eq external-format +latin-1+)
+            (setf (flex:flexi-stream-external-format header-stream) external-format)))
+        ;; wrap the initial stream for chunking
+        (when (and chunked-p (not (typep header-stream 'chunked-stream)))
+          (let ((body-stream (make-chunked-stream header-stream)))
+            (setf (chunked-stream-output-chunking-p body-stream) t)
+            (setf (http:response-content-stream response) body-stream)))
+        
+        ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
+        (raw-post-data :force-binary t)
+        (http:response-content-stream response)))))
 
 
 

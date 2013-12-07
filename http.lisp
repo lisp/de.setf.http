@@ -178,11 +178,14 @@
     :initarg :request
     :reader http:response-request
     :documentation "the request respective this active response.")
+   (state
+    :initform nil
+    :accessor response-state)
    (content-stream
-    :initarg :content-stream
+    :initarg :content-stream :initform (error "content-stream is required.")
     :reader get-response-content-stream :writer (setf http:response-content-stream))
-   (server-protocol
-    :initarg :server-protocol
+   (protocol
+    :initarg :server-protocol :initarg :protocol
     :accessor http:response-protocol)
    (close-stream-p
     :initform nil :initarg :close-stream-p
@@ -301,7 +304,9 @@
     (funcall (http:acceptor-dispatch-function acceptor)
              (http:request-path request)
              request
-             response)))
+             response))
+  (:method :after ((acceptor http:acceptor) (request t) (response t))
+    (setf (response-state response) :complete)))
 
 
 ;;;
@@ -700,8 +705,12 @@
                                                      (qualifiers (cons :pre-process (rest (ldiff clause after-qualifiers)))))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
-                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
-                                                     (http:decode-request resource request content-type)))))
+
+                                                  (if (second after-qualifiers)
+                                                    `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
+                                                       (,name resource request response content-type ,(second after-qualifiers)))
+                                                    `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
+                                                       (http:decode-request resource request content-type))))))
                                              (:auth
                                               (if (consp (third clause))
                                                 `(:method ,@clause)
@@ -733,11 +742,12 @@
 
 (defgeneric http:response-content-stream (response)
   (:method ((response http:response))
-    (cond ((get-response-content-stream response))
-          (t
-           ;; if it was not configured, then send the headers and try again
-           (http:send-headers response)
-           (get-response-content-stream response)))))
+    ;; ensure the headers are sent
+    (ecase (response-state response)
+      ((nil)
+       (http:send-headers response))
+      ((:headers :content :complete)))
+    (get-response-content-stream response)))
 
 (defsetf http:response-media-type-header (response) (content-type character-encoding)
   `(values (setf (http:response-content-type ,response) ,content-type)
@@ -754,6 +764,12 @@
 
 (defgeneric (setf http:response-etag) (tag response)
   )
+
+(defgeneric http:response-headers-sent-p (response)
+  (:method ((response http:response))
+    (case (response-state response)
+      ((nil :headers) nil)
+      (t t))))
 
 (defgeneric (setf http:response-last-modified) (timestamp response)
   )
@@ -810,13 +826,6 @@
 
 
 
-
-
-
-(defgeneric http:response-headers-sent-p (response)
-  (:method ((response http:response))
-    (slot-boundp response 'content-stream)))
-
 (defgeneric http:send-headers (response)
   (:documentation
     "Given a response instance, which has been modified to reflect the intended
@@ -824,7 +833,11 @@
     code, reason phrase, response header fields and entity header fields through
     it. As per the response content type and length, save that character stream
     or the original binary stream, possibly augmented with a chunking wrapper
-    as the response content stream."))
+    as the response content stream.")
+  (:method :before ((response http:response))
+    (setf (response-state response) :headers))
+  (:method :after ((response http:response))
+    (setf (response-state response) :body)))
 
 (defgeneric http:send-entity-body (response body)
   (:documentation
