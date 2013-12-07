@@ -52,6 +52,7 @@
            :define-dispatch-method
            :dispatch-function
            :encode-response
+           :encode-rfc1123
            :error
            :function-method-keys
            :function-package
@@ -77,6 +78,7 @@
            :make-request
            :make-response
            :ok
+           :parse-rfc1123
            :redirect
            :report-condition-headers
            :request
@@ -95,10 +97,10 @@
            :request-etags
            :request-header
            :request-if-modified-since
-           :request-line-method
            :request-method
            :request-negotiated-character-encoding
            :request-negotiated-content-encoding
+           :request-original-method
            :request-path
            :request-post-argument
            :request-post-arguments

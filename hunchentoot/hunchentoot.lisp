@@ -60,6 +60,64 @@
 
 
 
+(defmethod http:request-acceptor ((request tbnl-request))
+  (request-acceptor request))
+
+(defmethod http:request-accept-header ((request tbnl-request))
+  (header-in :accept request))
+
+(defmethod http:request-content-type-header ((request tbnl-request))
+  (header-in :content-type request))
+
+(defmethod http:request-auth-token ((request request))
+  (header-in :auth_token request))
+
+(defmethod http:request-authentication ((request request))
+  (authorization request))
+
+(defmethod http:request-content-length ((request tbnl-request))
+  (let ((header (content-length request)))
+    (when (plusp (length header)) (parse-integer header))))
+
+(defmethod http:request-content-stream ((request tbnl-request))
+  (content-stream request))
+
+(defmethod http:request-if-modified-since ((request request))
+  (let ((date (header-in :if-modified-since request)))
+    (when date
+      (http:parse-rfc-1123-date date))))
+
+(defmethod http:request-original-method ((request tbnl-request))
+  (request-method request))
+
+(defmethod http:request-path ((request tbnl-request))
+  (script-name request))
+
+(defmethod http:request-post-argument ((request request) key)
+  (post-parameter key request))
+
+(defmethod http:request-post-arguments ((request request) key)
+  (loop for (name . value) in (post-parameters* request)
+        when (equal name key) collect value))
+
+(defmethod http:request-query-argument ((request request) key)
+  (get-parameter key request))
+
+(defmethod http:request-query-arguments ((request request) key)
+  (loop for (name . value) in (get-parameters* request)
+        when (equal name key) collect value))
+
+(defmethod http:request-session-id ((request request))
+  (cookie-in (session-cookie-name (request-acceptor request))
+             request))
+
+(defmethod http:request-unmodified-since ((request request))
+  (let ((date (header-in :unmodified-since request)))
+    (when date
+      (http:parse-rfc-1123-date date))))
+
+
+
 (defmethod http:response-status-code ((response tbnl-response))
   (return-code response))
 
@@ -83,55 +141,6 @@
 
 (defmethod (setf http:response-retry-after-header) (time (response tbnl-response))
   (setf (header-out :retry-after response) time))
-
-
-
-(defmethod http:request-auth-token ((request request))
-  (header-in :auth_token request))
-
-(defmethod http:request-authentication ((request request))
-  (authorization request))
-
-(defmethod http:request-session-id ((request request))
-  (cookie-in (session-cookie-name (request-acceptor request))
-             request))
-
-(defmethod http:request-content-length ((request tbnl-request))
-  (let ((header (content-length request)))
-    (when (plusp (length header)) (parse-integer header))))
-
-(defmethod http:request-content-stream ((request tbnl-request))
-  (content-stream request))
-
-(defmethod http:request-post-argument ((request request) key)
-  (post-parameter key request))
-
-(defmethod http:request-post-arguments ((request request) key)
-  (loop for (name . value) in (post-parameters* request)
-        when (equal name key) collect value))
-
-(defmethod http:request-query-argument ((request request) key)
-  (get-parameter key request))
-
-(defmethod http:request-query-arguments ((request request) key)
-  (loop for (name . value) in (get-parameters* request)
-        when (equal name key) collect value))
-
-(defmethod http:request-path ((request tbnl-request))
-  (script-name request))
-
-(defmethod http:request-line-method ((request tbnl-request))
-  (request-method request))
-
-(defmethod http:request-acceptor ((request tbnl-request))
-  (request-acceptor request))
-
-(defmethod http:request-accept-header ((request tbnl-request))
-  (header-in :accept request))
-
-(defmethod http:request-content-type-header ((request tbnl-request))
-  (header-in :content-type request))
-
 
 
 

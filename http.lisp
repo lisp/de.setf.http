@@ -99,7 +99,8 @@
     "Binds the reified request content type or NIL if none was specified.
     (See http:request-content-type)")
    (method
-     :accessor request-method
+     :initform nil
+     :reader get-request-method :writer setf-request-method
      :documentation
      "Binds the effective request method resective over-riding headers.
      (See http:request-method)"))
@@ -517,26 +518,28 @@
               (when header
                 (mime:mime-type header)))))))
 
-(defgeneric http:request-line-method (request)
+(defgeneric http:request-if-modified-since (request)
+  )
+
+(defgeneric http:request-original-method (request)
   )
 
 (defgeneric http:request-method (request)
   (:method ((request http:request))
-    (if (slot-boundp request 'content-type)
-      (request-method request)
-      (setf (request-method request)
-            (flet ((as-method-key (string)
-                     (or (find-symbol (string-upcase string) *http-method-package*)
-                         (http:not-implemented :method string))))
-              (let ((header-method (http:request-header request :x-http-method-override)))
-                (if header-method
-                  (as-method-key header-method)
-                  (if (and (eq (http:request-method request) :post)
-                           (eq (http:request-content-type request) mime:application/x-www-form-urlencoded))
-                    (let ((post-method (http:request-post-argument request :_method)))
-                      (if post-method
-                        (as-method-key post-method)
-                        (http:request-line-method request)))))))))))
+    (or (get-request-method request)
+        (setf-request-method (flet ((as-method-key (string)
+                                      (or (find-symbol (string-upcase string) *http-method-package*)
+                                          (http:not-implemented :method string))))
+                               (let ((header-method (http:request-header request :x-http-method-override)))
+                                 (if header-method
+                                   (as-method-key header-method)
+                                   (if (and (eq (http:request-method request) :post)
+                                            (eq (http:request-content-type request) mime:application/x-www-form-urlencoded))
+                                     (let ((post-method (http:request-post-argument request :_method)))
+                                       (if post-method
+                                         (as-method-key post-method)
+                                         (http:request-original-method request)))))))
+                             request))))
 
 (defgeneric http:request-negotiated-character-encoding (request)
   )
@@ -570,6 +573,8 @@
         (intern-media-type acceptor header)
         mime:*/*)))
 
+(defgeneric http:request-unmodified-since (request)
+  )
 
 ;;;
 ;;; def-resource

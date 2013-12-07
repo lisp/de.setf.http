@@ -125,3 +125,33 @@
   )
 
 
+;;; times
+
+(defparameter *rdf1123-date-time-scanner*
+  (cl-ppcre:create-scanner "([a-zA-z]{3}), ([0-9]{2}) ([a-zA-z]{3}) ([0-9]{4}) ([0-9]{2}):([0-9]{2}):([0-9]{2}) GMT"))
+;;; (nth-value 1 (cl-ppcre:scan-to-strings *rdf1123-date-time-scanner* "Wed, 30 May 2007 18:47:52 GMT"))
+
+(defun http:parse-rfc1123 (value &key junk-allowed)
+  (let ((substrings (coerce (nth-value 1 (cl-ppcre:scan-to-strings *rdf1123-date-time-scanner* value)) 'list)))
+    (if substrings
+      (destructuring-bind (wkday day month year hour minute second)
+                          substrings
+        (declare (ignore wkday))
+        (encode-universal-time (parse-integer second)
+                               (parse-integer minute)
+                               (parse-integer hour)
+                               (parse-integer day)
+                               (date:decode-month-name month)
+                               (parse-integer year)
+                               0))
+      (unless junk-allowed
+        (error "Invalid rdf1123 date-time: ~s." value)))))
+
+(defgeneric http:encode-rfc1123 (value &optional stream)
+  (:method ((value integer) &optional (stream nil))
+    (multiple-value-bind (second minute hour day month year weekday)
+                         (decode-universal-time value 0)
+      (format stream "~a, ~d ~:(~a~) ~4,'0d ~2,'0d:~2,'0d:~2,'0d GMT"
+              (date:day-in-week-name weekday 3) day (date:month-name month 3) year hour minute second)))
+  (:method ((value spocq:date-time) &optional stream)
+    (encode-rfc1123 (date-time-universal-time value) stream)))
