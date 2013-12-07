@@ -152,6 +152,4 @@
     (multiple-value-bind (second minute hour day month year weekday)
                          (decode-universal-time value 0)
       (format stream "~a, ~d ~:(~a~) ~4,'0d ~2,'0d:~2,'0d:~2,'0d GMT"
-              (date:day-in-week-name weekday 3) day (date:month-name month 3) year hour minute second)))
-  (:method ((value spocq:date-time) &optional stream)
-    (encode-rfc1123 (date-time-universal-time value) stream)))
+              (date:day-in-week-name weekday 3) day (date:month-name month 3) year hour minute second))))
