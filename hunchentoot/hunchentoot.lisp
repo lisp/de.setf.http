@@ -85,7 +85,7 @@
 (defmethod http:request-if-modified-since ((request request))
   (let ((date (header-in :if-modified-since request)))
     (when date
-      (http:parse-rfc-1123-date date))))
+      (http:parse-rfc-1123 date))))
 
 (defmethod http:request-original-method ((request tbnl-request))
   (request-method request))
@@ -114,7 +114,7 @@
 (defmethod http:request-unmodified-since ((request request))
   (let ((date (header-in :unmodified-since request)))
     (when date
-      (http:parse-rfc-1123-date date))))
+      (http:parse-rfc-1123 date))))
 
 
 
