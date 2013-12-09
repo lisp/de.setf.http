@@ -207,14 +207,14 @@ input chunking is enabled.  Re-fills buffer is necessary."
   "Writes one byte by simply adding it to the end of the output
 buffer iff output chunking is enabled.  The buffer is flushed
 if necessary."
-  (if (chunka::chunked-stream-output-chunking-p stream)
-    (with-slots (chunka::output-index chunka::output-buffer) stream
-      (when (>= chunka::output-index chunka::+output-buffer-size+)
+  (if (chunked-stream-output-chunking-p stream)
+    (with-slots (chunga::output-index chunga::output-buffer) stream
+      (when (>= chunga::output-index chunga::+output-buffer-size+)
         (flush-buffer stream))
-      (setf (aref chunka::output-buffer chunka::output-index) byte)
-      (incf chunka::output-index)
+      (setf (aref chunga::output-buffer chunga::output-index) byte)
+      (incf chunga::output-index)
       byte)
-    (write-byte byte (chunka:chunked-stream-stream stream))))
+    (write-byte byte (chunked-stream-stream stream))))
 
 
 ;;; stream-fresh-line : inherited
