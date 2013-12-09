@@ -22,7 +22,7 @@
 
 (defclass http:stream (stream)
   ((media-type
-    :initform (make-instance 'mime:text-plain :charset :utf-8)
+    :initform (make-instance 'mime:text/plain :charset :utf-8)
     :reader stream-media-type :writer setf-stream-media-type)
    (eof-marker
     :initform :eof :initarg :eof-marker

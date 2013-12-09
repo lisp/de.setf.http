@@ -14,7 +14,7 @@
   :depends-on (:de.setf.utility.mime
                :closer-mop
                :cl-ppcre
-               :chunga
+               :chunga                  ; direct for the cgi version
                #+sbcl :sb-cltl2
                )
   :description
