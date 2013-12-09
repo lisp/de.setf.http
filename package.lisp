@@ -15,9 +15,6 @@
 
 (defpackage :de.setf.http
   (:nicknames :http)
-  (:use :chunga                         ; for chunking operator names
-        :trivial-gray-streams           ; for stream operator names
-        )
   (:export :*acceptor*
            :*log-level*
            :*request*
@@ -160,6 +157,9 @@
   (:use :common-lisp
         :de.setf.utility
         ;; :de.setf.utility.codecs
+        :chunga                         ; for chunking operator names
+        :trivial-gray-streams           ; for stream operator names
         #+sbcl :sb-cltl2))
+
 
 
