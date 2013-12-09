@@ -27,5 +27,6 @@
                (:file "parameters")
                (:file "utilities")
                (:file "conditions")
+               (:file "stream")
                (:file "http")
                ))

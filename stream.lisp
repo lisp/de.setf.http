@@ -24,9 +24,6 @@
   ((media-type
     :initform (make-instance 'mime:text/plain :charset :utf-8)
     :reader stream-media-type :writer setf-stream-media-type)
-   (eof-marker
-    :initform :eof :initarg :eof-marker
-    :accessor stream-eof-marker)
    (eol-marker
     :initform #\newline :initarg :eol-marker
     :accessor stream-eol-marker)))
@@ -39,7 +36,13 @@
  character values from input from the device.")
    (unread-characters
     :initform ()
-    :accessor stream-unread-characters)))
+    :accessor stream-unread-characters)
+   (line-buffer
+    :initform (make-array 32 :element-type 'character :fill-pointer 0 :adjustable t)
+    :reader stream-line-buffer)
+   (eof-marker
+    :initform :eof :initarg :eof-marker
+    :accessor stream-eof-marker)))
 
 (defclass http:output-stream (http:stream chunga:chunked-output-stream)
   ((encoder
@@ -97,7 +100,7 @@
 input chunking is enabled.  Re-fills buffer is necessary."
   (cond ((chunked-stream-input-chunking-p stream)
          (if (or (chunga::chunked-input-available-p stream)
-                 (fill-buffer stream))
+                 (chunga::fill-buffer stream))
            (with-slots (chunga::input-buffer chunga::input-index) stream
              (prog1 (aref chunga::input-buffer chunga::input-index)
                (incf chunga::input-index)))
@@ -211,7 +214,7 @@ if necessary."
   (if (chunked-stream-output-chunking-p stream)
     (with-slots (chunga::output-index chunga::output-buffer) stream
       (when (>= chunga::output-index chunga::+output-buffer-size+)
-        (flush-buffer stream))
+        (chunga::flush-buffer stream))
       (setf (aref chunga::output-buffer chunga::output-index) byte)
       (incf chunga::output-index)
       byte)
