@@ -96,7 +96,7 @@
   "Reads one byte from STREAM.  Checks the chunk buffer first, if
 input chunking is enabled.  Re-fills buffer is necessary."
   (cond ((chunked-stream-input-chunking-p stream)
-         (if (or (chunked-input-available-p stream)
+         (if (or (chunga::chunked-input-available-p stream)
                  (fill-buffer stream))
            (with-slots (chunga::input-buffer chunga::input-index) stream
              (prog1 (aref chunga::input-buffer chunga::input-index)
@@ -155,9 +155,10 @@ input chunking is enabled.  Re-fills buffer is necessary."
 
 
 (defmethod stream-read-sequence
-          ((stream http:input-stream) (sequence string) (start 0) end &key)
+          ((stream http:input-stream) (sequence string) start end &key)
   "Read a character sequence from an open stream, construct characters, and
   return the the next position. Iff the first byte read shows eof, return nil."
+  (unless start (setf start 0))
   (setf end (or end (length sequence)))
   (with-slots (decoder) stream
     (if (> end start)
@@ -202,7 +203,7 @@ input chunking is enabled.  Re-fills buffer is necessary."
 
 ;;; output
 
-(defun chunked-stream-write-byte ((stream http:output-stream) byte)
+(defun chunked-stream-write-byte (stream byte)
   ;; transliterated from stream-write-byte (chunked-stream)
   "Writes one byte by simply adding it to the end of the output
 buffer iff output chunking is enabled.  The buffer is flushed
