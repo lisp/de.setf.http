@@ -14,6 +14,7 @@
   :depends-on (:de.setf.utility.mime
                :closer-mop
                :cl-ppcre
+               :chunga
                #+sbcl :sb-cltl2
                )
   :description

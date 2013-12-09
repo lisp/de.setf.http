@@ -15,7 +15,7 @@
 
 (defpackage :de.setf.http
   (:nicknames :http)
-  (:use )
+  (:use :chunga)
   (:export :*acceptor*
            :*log-level*
            :*request*
@@ -60,6 +60,7 @@
            :function-resource-class
            :function-resource-function-class
            :http
+           :input-stream
            :length-required
            :log
            :log-trace
@@ -78,6 +79,7 @@
            :make-request
            :make-response
            :ok
+           :output-stream
            :parse-rfc1123
            :redirect
            :report-condition-headers
@@ -144,6 +146,7 @@
            :response-www-authenticate-header
            :send-entity-body
            :send-headers
+           :stream
            :unauthorized
            :unsupported-content-type
            :internal-error
