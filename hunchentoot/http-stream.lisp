@@ -39,7 +39,7 @@
  character values from input from the device.")
    (unread-characters
     :initform ()
-    :accessor stream-unread-characters))
+    :accessor stream-unread-characters)))
 
 (defclass http:output-stream (http:stream chunga:chunked-output-stream)
   ((encoder
