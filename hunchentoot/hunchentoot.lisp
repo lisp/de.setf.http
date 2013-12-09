@@ -117,21 +117,21 @@
       (http:parse-rfc1123 date))))
 
 
+(defmethod (setf http:response-content-disposition) ((disposition-type string) (response tbnl-response))
+  (setf (header-out :content-disposition response) disposition-type))
 
-(defmethod http:response-status-code ((response tbnl-response))
-  (return-code response))
+(defmethod (setf http:response-content-disposition) ((disposition cons) (response tbnl-response))
+  (destructuring-bind (disposition-type . arguments) disposition
+    (setf (header-out :content-disposition response) (format nil "~a~{;~a=\"~a\"~}" disposition-type arguments))))
 
-(defmethod (setf http:response-status-code) (code (response tbnl-response))
-  (setf (return-code response) code))
+(defmethod (setf http:response-character-encoding) (character-encoding (response tbnl-response))
+  (setf (header-out :character-encoding response) character-encoding))
 
 (defmethod (setf http:response-content-type) (content-type (response tbnl-response))
   (setf (header-out :content-type response) content-type))
 
 (defmethod (setf http:response-content-type) ((mime-type mime:mime-type) (response tbnl-response))
   (setf (http:response-content-type response) (mime:mime-type-expression mime-type)))
-
-(defmethod (setf http:response-character-encoding) (character-encoding (response tbnl-response))
-  (setf (header-out :character-encoding response) character-encoding))
 
 (defmethod (setf http:response-location-header) (location (response tbnl-response))
   (setf (header-out :location response) location))
@@ -141,6 +141,47 @@
 
 (defmethod (setf http:response-retry-after-header) (time (response tbnl-response))
   (setf (header-out :retry-after response) time))
+
+(defmethod http:response-status-code ((response tbnl-response))
+  (return-code response))
+
+(defmethod (setf http:response-status-code) (code (response tbnl-response))
+  (setf (return-code response) code))
+
+
+;;;
+;;; the native hunchentoot control structure is/was
+;;; process-connection
+;;; -> get-request-data (including headers)
+;;; -> get-post-data (optionally), or otherwise consume request body entity
+;;; -> send-headers (possibly implicitly from a call to another operator
+;;;    -> send-output
+;;;       -> send-response
+;;; in which
+;;; - the request content stream was created on-the-fly to process post content only
+;;; - the resonse status line and the headers are actually emitted by
+;;; send-response, with argument presence indicating the intended control-flow.
+;;; all, somewhat less than intuitive: it reads as if the invocation through
+;;; send-output ues the output stream and sens content or just prepares the
+;;; stream, based on content presence while send-headers indicates with null
+;;; content, the intent to emit headers only.
+;;; - various streams were wrapped around the initial socket stream as required:
+;;;  - for request content, one stream for chunking and around that another for decoding
+;;;  - for response content, just the chunking stream, with no provision for character output
+;;;
+;;; rather than depend on argument value side-effects and changes to dynamic bindings,
+;;; this control structure
+;;; - creates the requisite streams as chunking streams with reader/writer closures
+;;; to be used by the stream-* operators for character encoding or by the application
+;;; directly for optimization to read/write straight through for non-chunked io. the streams
+;;; permit direct specification of character encoding and do not require buffer conversion.
+;;; - employs two functions to produce the response
+;;;   send-headers
+;;;   send-entity-body
+;;; to do just that. the application is to invoke them in the correct order, or
+;;; leave it to the first reference to the response content stream to trigger
+;;; header generation
+
 
 
 
@@ -228,11 +269,13 @@
                       (catch 'request-processed
                         (http:respond-to-request acceptor *request* *reply*)))
                     (finish-output (http:response-content-stream *reply*))
+                    (reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                     ;; access log message
                     (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                  (finish-output *hunchentoot-stream*)
+                  ;;(finish-output *hunchentoot-stream*)
                   
                   (setq *hunchentoot-stream* (reset-connection-stream *acceptor* *hunchentoot-stream*))
+                  (finish-output socket-stream)
                   (when *close-hunchentoot-stream*
                     (return)))))))
       (progn
@@ -248,26 +291,6 @@
 (defmethod http:log (level (destination http:acceptor) format-control &rest arguments)
   (declare (dynamic-extent arguments))
   (apply #'acceptor-log-message destination level format-control arguments))
-
-
-;;;
-;;; the native hunchentoot control structure is
-;;; send-headers
-;;; -> send-output
-;;;    -> send-response
-;;; in which the resonse status line and the headers are actually emitted by
-;;; send-response, with argument presence indicating the intended control-flow.
-;;; all, somewhat less than intuitive: it reads as if the invocation through
-;;; send-output ues the output stream and sens content or just prepares the
-;;; stream, based on content presence while send-headers indicates with null
-;;; content, the intent to emit headers only.
-;;;
-;;; rather than depend on argument value side-effects the two functions
-;;;   send-headers
-;;;   send-entity-body
-;;; do just that. the application is to invoke them in the correct order, or
-;;; leave it to the first reference to the response content stream to trigger
-;;; header generation
 
 
 
@@ -354,12 +377,13 @@ Returns the stream that is connected to the client."
         ;; depending on whether content length was set and/or the content-type
         ;; adjust and cache the entity body stream
         (when external-format
-          (unless (eq external-format +latin-1+)
-            (setf (flex:flexi-stream-external-format header-stream) external-format)))
+          (setf (flex:flexi-stream-external-format header-stream) external-format))
         ;; wrap the initial stream for chunking
         (when (and chunked-p (not (typep header-stream 'chunked-stream)))
           (let ((body-stream (make-chunked-stream header-stream)))
             (setf (chunked-stream-output-chunking-p body-stream) t)
+            #+(or)(when external-format
+              (setf (flex:flexi-stream-external-format body-stream) external-format))
             (setf (http:response-content-stream response) body-stream)))
         
         ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.

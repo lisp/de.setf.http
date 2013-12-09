@@ -601,7 +601,6 @@
                             (pre (:pre-process . *))
                             (post (:post-process . *))
                             (primary http-verb-list-p))
-  (:arguments resource request-arg response content-type)
   (:generic-function function)
   (flet ((qualify-methods (methods)
            (let ((categorized ())
@@ -618,22 +617,25 @@
                                  (t (push method (getf categorized method-key))))))
              (loop for (key methods) on categorized by #'cddr
                    collect key collect (reverse methods)))))
-    `(handler-case (progn (http:log :debug *trace-output* "~a" (list ,resource ,request-arg ,response ,content-type))
-                          ,(compute-effective-resource-function-method function request-arg
-                                                                       identification permission
-                                                                       around 
-                                                                       (qualify-methods pre)
-                                                                       (qualify-methods primary)
-                                                                       (qualify-methods post)))
-       (http:redirect (redirection)
-         ;; if the redirection is internal invoke it, otherwise resignal it
-         (let ((location (http:condition-location redirection)))
-           (if (functionp location)
-             (funcall location)
-             (error redirection)))))))
+    (let ((form
+           `(handler-case
+              ,(compute-effective-resource-function-method function
+                                                           identification permission
+                                                           around 
+                                                           (qualify-methods pre)
+                                                           (qualify-methods primary)
+                                                           (qualify-methods post))
+              (http:redirect (redirection)
+                             ;; if the redirection is internal invoke it, otherwise resignal it
+                             (let ((location (http:condition-location redirection)))
+                               (if (functionp location)
+                                 (funcall location)
+                                 (error redirection)))))))
+      (pprint form)
+      form)))
 
 
-(defun compute-effective-resource-function-method (function request identification permission around
+(defun compute-effective-resource-function-method (function identification permission around
                                                            pre-by-method primary-by-method post-by-method)
   ;; arrange the methods to effect authentication, generate content, and encode it.
   ;; in addition wrap/pre/post process with before/after/round methods
@@ -652,16 +654,16 @@
                                      (http:unauthorized))))
          (content-method-clauses (loop for key in (http:function-method-keys function)
                                        for pre-methods = (or (getf pre-by-method key)
-                                                             (when (member key '(:post :put :patch)) '((make-method (http::unsupported-media-type)))))
+                                                             (when (member key '(:post :put :patch :get :head))
+                                                                `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
                                        ;; for each given verb, require a primary method, should the verb appear
                                        for primary-methods = (or (getf primary-by-method key)
                                                                  '((make-method (http:not-implemented))))
                                        for post-methods = (or (getf post-by-method key)
-                                                              (when (member key '(:post :put :patch :get :head))
-                                                                `((make-method (when (http:request-header :accept ,request) (http::not-acceptable))))))
+                                                              (when (member key '(:post :put :patch)) '((make-method (http::unsupported-media-type)))))
                                        for method-list = (append post-methods primary-methods pre-methods)
                                        collect `(,key ,@method-list)))
-         (main-clause `(case (http:request-method ,request)
+         (main-clause `(case (http:request-method http:*request*)
                          ,@(loop for (method-key . method-list) in content-method-clauses
                                  collect `(,method-key (call-method ,(first method-list) ,(rest method-list))))
                          (t (http:not-implemented)))))
@@ -700,22 +702,21 @@
                                                      ,@body))))
                                              ((:post-process :post-processing)
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (cons :post-process (rest (ldiff clause after-qualifiers)))))
-                                                (if (consp (first after-qualifiers))
-                                                  `(:method ,@clause)
-                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first after-qualifiers)) (accept-type t))
-                                                     (http:encode-response (call-next-method) response content-type)))))
-                                             ((:pre-process :pre-processing)
-                                              (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
                                                      (qualifiers (cons :pre-process (rest (ldiff clause after-qualifiers)))))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
-
                                                   (if (second after-qualifiers)
                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
                                                        (,name resource request response content-type ,(second after-qualifiers)))
                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
-                                                       (http:decode-request resource request content-type))))))
+                                                       (http:encode-response (call-next-method) response content-type))))))
+                                             ((:pre-process :pre-processing)
+                                              (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
+                                                     (qualifiers (cons :post-process (rest (ldiff clause after-qualifiers)))))
+                                                (if (consp (first after-qualifiers))
+                                                  `(:method ,@clause)
+                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first after-qualifiers)) (accept-type t))
+                                                     (http:decode-request resource request content-type)))))
                                              (:auth
                                               (if (consp (third clause))
                                                 `(:method ,@clause)
@@ -759,6 +760,9 @@
            (setf (http:response-character-encoding ,response) ,character-encoding)))
 
 (defgeneric (setf http:response-content-type) (content-type response)
+  )
+
+(defgeneric (setf http:response-content-disposition) (disposition response)
   )
 
 (defgeneric (setf http:response-content-encoding) (content-encoding response)

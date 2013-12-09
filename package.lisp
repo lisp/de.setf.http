@@ -124,6 +124,7 @@
            :response-cache-control
            :response-character-encoding
            :response-class
+           :response-content-disposition
            :response-content-encoding
            :response-content-stream
            :response-content-type
@@ -150,6 +151,7 @@
            ))
 
 (defpackage :de.setf.http.implementation
+  (:nicknames :http.i)
   (:use :common-lisp
         :de.setf.utility
         ;; :de.setf.utility.codecs

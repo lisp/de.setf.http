@@ -119,7 +119,8 @@
 ;;; codecs
 
 (defgeneric http:encode-response (content response content-type)
-  )
+  (:method ((content null) (response t) (content-type t))
+    ))
 
 (defgeneric http:decode-request (request content-type)
   )
