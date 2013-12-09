@@ -55,9 +55,6 @@
 (defmethod stream-direction ((stream http:input-stream))
   :input)
 
-(defmethod stream-direction ((stream http:io-stream))
-  :io)
-
 (defmethod stream-element-type ((stream http:stream))
   "Return the element type corresponding to the current media type"
   (if (mime:binary-mime-type-p (stream-media-type stream))
