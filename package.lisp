@@ -15,7 +15,9 @@
 
 (defpackage :de.setf.http
   (:nicknames :http)
-  (:use :chunga)
+  (:use :chunga                         ; for chunking operator names
+        :trivial-gray-streams           ; for stream operator names
+        )
   (:export :*acceptor*
            :*log-level*
            :*request*

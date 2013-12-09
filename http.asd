@@ -15,6 +15,7 @@
                :closer-mop
                :cl-ppcre
                :chunga                  ; direct for the cgi version
+               :trivial-gray-streams    ; likewise
                #+sbcl :sb-cltl2
                )
   :description
