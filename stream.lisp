@@ -22,7 +22,10 @@
 
 (defclass http:stream (stream)
   ((media-type
-    :reader http:stream-media-type :writer setf-stream-media-type)
+    :reader http:stream-media-type :writer setf-stream-media-type
+    :documentation "Binds the media type instance, whichh encapsulates the
+     character encoding. The setf operator modifies the codec operators as
+     a sode-effect.")
    (eol-marker
     :initform #\newline :initarg :eol-marker
     :accessor stream-eol-marker)))
@@ -30,9 +33,9 @@
 (defclass http:input-stream (http:stream chunga:chunked-input-stream)
   ((decoder
     :type function
-    :reader  stream-decoder :writer setf-device-decoder
+    :reader stream-decoder :writer setf-stream-decoder
     :documentation "Optionally binds a function which is then used to decode
- character values from input from the device.")
+ character values from input from the stream.")
    (unread-characters
     :initform ()
     :accessor stream-unread-characters)
@@ -46,16 +49,17 @@
 (defclass http:output-stream (http:stream chunga:chunked-output-stream)
   ((encoder
     :type function
-    :reader  device-encoder :writer setf-device-encoder
-    :documentation "Optionally binds a function which is then used to encode
- character values for output to the device.")))
+    :reader  stream-encoder :writer setf-stream-encoder
+    :documentation "Binds a function which is then used to encode character
+     values for output to the stream. If no media type is specified, text/plain
+     with utf-8 encoding is used.")))
 
 
 
 (defmethod initialize-instance ((instance http:stream) &key
                                 (media-type (make-instance 'mime:text/plain :charset :utf-8)))
   (call-next-method)
-  (setf (http:stream-media-type stream) (mime:mime-type media-type)))
+  (setf (http:stream-media-type instance) (mime:mime-type media-type)))
 
 (defmethod stream-direction ((stream http:output-stream))
   :output)
@@ -65,7 +69,7 @@
 
 (defmethod stream-element-type ((stream http:stream))
   "Return the element type corresponding to the current media type"
-  (if (mime:binary-mime-type-p (stream-media-type stream))
+  (if (mime:binary-mime-type-p (http:stream-media-type stream))
     '(unsigned-byte 8)
     'character))
 
@@ -74,21 +78,21 @@
   (:method ((type mime:*/*) (stream http:stream))
     (setf-stream-media-type type stream)
     (slot-makunbound stream 'decoder)
-    (slot-makunbound device 'encoder)
+    (slot-makunbound stream 'encoder)
     (update-stream-codecs stream type)
     type)
   (:method ((type t) (stream http:stream))
     (setf (http:stream-media-type stream) (mime:mime-type type))))
 
  
-(defmethod update-device-codecs ((stream http:stream))
+(defmethod update-stream-codecs ((stream http:stream))
   (let ((media-type (http:stream-media-type stream)))
     (multiple-value-bind (decoder encoder)
                          (compute-charset-codecs media-type)
       (unless (slot-boundp stream 'decoder)
-        (setf-device-decoder decoder stream))
+        (setf-stream-decoder decoder stream))
       (unless (slot-boundp stream 'encoder)
-        (setf-device-encoder encoder stream)))
+        (setf-stream-encoder encoder stream)))
     media-type))
 
 
@@ -151,15 +155,15 @@ input chunking is enabled.  Re-fills buffer is necessary."
 ;;; stream-read-byte : inherited
 
 (defmethod stream-read-char ((stream http:input-stream))
-  "Read a character from an open channel on an amqp-device according to the channel's current encoding.
+  "Read a character from an open stream according to its current encoding.
   At EOF return the stream-eof-marker."
   (with-slots (decoder) stream
     (or (funcall decoder #'chunked-stream-read-byte stream) (stream-eof-marker stream))))
 
 
 (defmethod stream-read-char-no-hang ((stream http:input-stream))
-  "If input is already available from an open channel on an amqp-device read the next character according
- to the channel's current encoding. If none is available, return NIL. At EOF return the stream-eof-marker."
+  "If input is already available from an open stream read the next character according
+ to its current encoding. If none is available, return NIL. At EOF return the stream-eof-marker."
   (with-slots (body-position body-length) stream
     (if (stream-listen stream)
       (stream-read-char stream)
@@ -222,8 +226,8 @@ input chunking is enabled.  Re-fills buffer is necessary."
                (let ((cache (stream-unread-characters stream)))
                  (prog1 (first cache)
                    (unless (setf (stream-unread-characters stream) (rest cache))
-                     (setf-device-decoder old-decoder stream))))))
-        (setf-device-decoder #'unread-decoder stream)
+                     (setf-stream-decoder old-decoder stream))))))
+        (setf-stream-decoder #'unread-decoder stream)
         nil))))
 
 
