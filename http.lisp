@@ -701,7 +701,7 @@
          ;; the most-specific only
          (encode-methods (if encode-methods
                            (let* ((method (first encode-methods))
-                                  (qualifiers (fifth (c2mop:method-qualifiers method))))
+                                  (qualifiers (fifth (method-qualifiers method))))
                              (ecase (second qualifiers)
                                (:as method)
                                ((nil) `(make-method (progn (setf (http:response-content-type http:*response*)
