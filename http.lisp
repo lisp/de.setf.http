@@ -650,7 +650,7 @@
                  :encode encode
                  :primary primary))
     (if (and encode (eq (second (method-qualifiers (first encode))) :as))
-      `(call-method (first encode) ())
+      `(call-method ,(first encode) ())
       (let* ((form
               `(handler-case
                  ,(compute-effective-resource-function-method function
@@ -701,27 +701,31 @@
          ;; the most-specific only
          (decode-method (or (first decode-methods) '(make-method (http::unsupported-media-type))))
          ;; the most-specific only
-         (encode-methods (if encode-methods
-                           (let* ((method (first encode-methods))
-                                  (qualifiers (method-qualifiers method))
-                                  (specializer (fifth (c2mop:method-specializers method))))
-                             `(make-method (progn (setf (http:response-content-type http:*response*)
-                                                        (list ',(class-name specializer)
-                                                              :charset
-                                                              (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8)))
-                                                  (call-method ,method ()))))
-                           `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
-         (content-method-clauses (loop for key in (http:function-method-keys function)
-                                       ;; for each given verb, require a primary method, should the verb appear
-                                       for primary-methods = (or (getf primary-by-method key)
-                                                                 '((make-method (http:not-implemented))))
-                                       collect `(,key ,@primary-methods)))
-         (content-method `(make-method (case (http:request-method http:*request*)
-                                        ,@(loop for (method-key . methods) in content-method-clauses
-                                                collect `(,method-key (call-method ,(first methods) ,(rest methods))))
-                                        (t (http:not-implemented)))))
-         (combined-methods (append encode-methods (list content-method) decode-methods))
-         (main-clause `(call-method ,(first combined-methods) ,(rest combined-methods))))
+         (encode-method (if encode-methods
+                          (first encode-methods)
+                          `(make-method (when (or (eq :get (http:request-method http:*request*))
+                                                  (http:request-accept-header http:*request*))
+                                          (http::not-acceptable)))))
+         (mime-type-clause (when encode-methods
+                             (let* ((method (first encode-methods))
+                                    (specializer (fifth (c2mop:method-specializers method))))
+                               `(setf (http:response-content-type http:*response*)
+                                      (list ',(class-name specializer)
+                                            :charset
+                                            (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8))))))
+         (content-clause `(case (http:request-method http:*request*)
+                            ,@(loop for key in (http:function-method-keys function)
+                                    ;; for each verb allowed by the operator, require a primary method.
+                                    for methods = (getf primary-by-method key)
+                                    collect `(,key ,(if methods
+                                                      `(call-method ,(first methods) ,(append (rest methods) (list decode-method)))
+                                                      '(http:not-implemented))))
+                            (t (http:not-implemented))))
+         (main-clause `(call-method ,encode-method
+                                    ,(if mime-type-clause
+                                       `((make-method (multiple-value-prog1 ,content-clause
+                                                        ,mime-type-clause)))
+                                       `((make-method ,content-clause))))))
     (when authentication-clause
       (setf main-clause `(progn ,authentication-clause ,main-clause)))
     (let* ((form (if around
@@ -729,7 +733,6 @@
                    main-clause)))
       form)))
 
-;;; (compute-effective-resource-function-method 'request '(basic session) '(around) '(:get (get1 get2) :put (put1) :post (post1)) '(:get (test/html text/plain) :put (put-form) :post (post-form)))
 
 
 (defmacro http:def-resource-function (name lambda-list &rest clauses)
@@ -766,7 +769,9 @@
                                                         (,name resource request response content-type ,(second after-qualifiers))))
                                                     ((nil)
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
-                                                        (http:encode-response (call-next-method) response content-type)))))))
+                                                        ;; encode as per the derived response content type, which will be an instance of the
+                                                        ;; specializer class, but include the character set encoding
+                                                        (http:encode-response (call-next-method) response (http:response-content-type response))))))))
                                              (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
                                                      (qualifiers (ldiff clause after-qualifiers)))
