@@ -129,6 +129,7 @@
            :response-content-encoding
            :response-content-stream
            :response-content-type
+           :response-content-type-header
            :response-close-stream-p
            :response-etag
            :response-headers-sent-p

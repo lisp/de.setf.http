@@ -649,24 +649,14 @@
                  :decode decode
                  :encode encode
                  :primary primary))
-    (let* ((accept-types (loop for method in encode
-                               for specializer = (fifth (c2mop:method-specializers method))
-                               collect (class-name specializer)))
-           (form
+    (let* ((form
            `(handler-case
-              (flet ((compute-media-type (accept-type)
-                       (list (etypecase accept-type
-                               ,@(loop for media-type in accept-types
-                                       collect `(,media-type ',media-type)))
-                             :charset (or (mime:mime-type-charset accept-type) :utf-8))))
-                (setf (http:response-content-type http:*response*)
-                      (compute-media-type (http:request-accept-type (http:request))))
-                ,(compute-effective-resource-function-method function
-                                                             identification permission
-                                                             around 
-                                                             decode
-                                                             (qualify-methods primary)
-                                                             encode))
+              ,(compute-effective-resource-function-method function
+                                                           identification permission
+                                                           around 
+                                                           decode
+                                                           (qualify-methods primary)
+                                                           encode)
               (http:redirect (redirection)
                              ;; if the redirection is internal invoke it, otherwise resignal it
                              (let ((location (http:condition-location redirection)))
@@ -675,6 +665,18 @@
                                  (error redirection)))))))
       (pprint form)
       form)))
+#|
+(accept-types (loop for method in encode
+                               for specializer = (fifth (c2mop:method-specializers method))
+                               collect (class-name specializer)))
+           
+(flet ((compute-media-type (accept-type)
+                       (list (etypecase accept-type
+                               ,@(loop for media-type in accept-types
+                                       collect `(,media-type ',media-type)))
+                             :charset (or (mime:mime-type-charset accept-type) :utf-8))))
+                (setf (http:response-content-type http:*response*)
+                      (compute-media-type (http:request-accept-type (http:request))))|#
 
 
 (defun compute-effective-resource-function-method (function identification permission around
@@ -694,8 +696,20 @@
                                                 ,@(loop for method in permission
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
-         (decode-methods (or decode-methods '((make-method (http::unsupported-media-type)))))
-         (encode-methods (or encode-methods `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
+         ;; the most-specific only
+         (decode-method (or (first decode-methods) '(make-method (http::unsupported-media-type))))
+         ;; the most-specific only
+         (encode-methods (if encode-methods
+                           (let* ((method (first encode-methods))
+                                  (qualifiers (fifth (c2mop:method-qualifiers method))))
+                             (ecase (second qualifiers)
+                               (:as method)
+                               ((nil) `(make-method (progn (setf (http:response-content-type http:*response*)
+                                                                 '(,(class-name specializer)
+                                                                   :charset
+                                                                   (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8)))
+                                                           (call-method ,method ()))))))
+                           `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
          (content-method-clauses (loop for key in (http:function-method-keys function)
                                        ;; for each given verb, require a primary method, should the verb appear
                                        for primary-methods = (or (getf primary-by-method key)
@@ -745,11 +759,13 @@
                                                      (qualifiers (ldiff clause after-qualifiers)))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
-                                                  (if (second after-qualifiers)
-                                                    `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
-                                                       (,name resource request response content-type ,(second after-qualifiers)))
-                                                    `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
-                                                       (http:encode-response (call-next-method) response content-type))))))
+                                                  (ecase (second qualifiers)
+                                                    (:as
+                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
+                                                        (,name resource request response content-type ,(second after-qualifiers))))
+                                                    ((nil)
+                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
+                                                        (http:encode-response (call-next-method) response content-type)))))))
                                              (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
                                                      (qualifiers (ldiff clause after-qualifiers)))
@@ -802,6 +818,9 @@
        (get-response-content-stream response)))))
 
 
+(defgeneric (setf http:response-content-type-header) (content-type-header response)
+  )
+
 (defgeneric (setf http:response-content-type) (content-type response)
   (:method ((content-type cons) (response http:response))
     (setf (http:response-content-type response)
@@ -811,8 +830,9 @@
   (:method ((content-type mime:mime-type) (response http:response))
     (setf (http:stream-media-type (get-response-content-stream response))
           content-type)
-    (setf (http:response-content-type response)
-          (format nil "~a~@[; charset=~a~]" (type-of content-type) (mime:mime-type-charset content-type)))))
+    (setf (http:response-content-type-header response)
+          (format nil "~a~@[; charset=~a~]" (type-of content-type) (mime:mime-type-charset content-type)))
+    content-type))
 
 
 (defgeneric http:response-content-type (response)

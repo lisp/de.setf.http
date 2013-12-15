@@ -77,10 +77,13 @@
 
 (defgeneric (setf http:stream-media-type) (type stream)
   (:method ((type mime:mime-type) (stream http:stream))
-    (setf-stream-media-type type stream)
-    (slot-makunbound stream 'decoder)
-    (slot-makunbound stream 'encoder)
-    (update-stream-codecs stream)
+    (let ((old-type (http:stream-media-type stream)))
+      (setf-stream-media-type type stream)
+      (unless (and old-type
+                   (equalp (mime:mimt-type-char-set old-type) (mime:mimt-type-char-set type)))
+        (slot-makunbound stream 'decoder)
+        (slot-makunbound stream 'encoder)
+        (update-stream-codecs stream)))
     type)
   (:method ((type t) (stream http:stream))
     (setf (http:stream-media-type stream) (mime:mime-type type))))
