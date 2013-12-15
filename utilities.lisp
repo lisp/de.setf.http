@@ -111,7 +111,7 @@
     (intern-media-type header (or (find-symbol (string-upcase accept-charset-header) :keyword)
                                   (http::not-acceptable))))
 
-  (:method (acceptor (header string) (accept-charset t))
+  (:method ((header string) (accept-charset t))
     (let* ((ordered-types (compute-accept-ordered-types header)))
       (let* ((class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
              (class (or (find-class class-name)
