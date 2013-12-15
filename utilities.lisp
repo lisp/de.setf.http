@@ -93,7 +93,7 @@
                         if type
                         collect (cons type quality)
                         else
-                        do (http:log-warn http:*acceptor* "The mime type '~a/~a' is not defined." major minor))))
+                        do (http:log-warn (http:acceptor) "The mime type '~a/~a' is not defined." major minor))))
     (if types
       (mapcar #'first (sort types #'> :key #'rest))
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
