@@ -788,7 +788,7 @@
        ;; configure the response stream. must be delayed to this point, rathr than as a side-effect
        ;; of setting the response content type, as that would change the encoding for the headers
        (let ((stream (get-response-content-stream response)))
-         (setf (http:stream-media-type stream (response-content-type response)))
+         (setf (http:stream-media-type stream) (response-content-type response))
          stream))
       ((:headers :content :complete)
        ;; the stream has already been referenced and configured
