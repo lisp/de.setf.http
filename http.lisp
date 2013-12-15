@@ -788,18 +788,16 @@
        ;; configure the response stream. must be delayed to this point, rathr than as a side-effect
        ;; of setting the response content type, as that would change the encoding for the headers
        (let ((stream (get-response-content-stream response)))
-         (setf (http:stream-media-type stream) (response-content-type response))
+         (setf (http:stream-media-type stream) (http:response-content-type response))
          stream))
       ((:headers :content :complete)
        ;; the stream has already been referenced and configured
-       (response-content-type response)))))
-
-(defsetf http:response-media-type-header (response) (content-type character-encoding)
-  `(values (setf (http:response-content-type ,response) ,content-type)
-           (setf (http:response-character-encoding ,response) ,character-encoding)))
+       (get-response-content-stream response)))))
 
 (defgeneric (setf http:response-content-type) (content-type response)
-  )
+  (:method ((content-type mime:mime-type) (response http:response))
+    (setf (http:response-content-type response)
+          (format nil "~a~@[; charset=~a" (type-of content-type) (mime:mime-type-charset mime-type)))))
 
 (defgeneric (setf http:response-content-disposition) (disposition response)
   )
@@ -859,7 +857,6 @@
     (call-next-method))
 
   (:method ((condition http:not-modified) response)
-    (setf (http:response-media-type-header response) (values mime:text/plain "UTF-8"))
     (call-next-method))
 
   (:method ((condition http:unauthorized) response)

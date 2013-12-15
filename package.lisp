@@ -136,7 +136,6 @@
            :response-keep-alive-p
            :response-last-modified
            :response-location-header
-           :response-media-type-header
            :response-protocol
            :response-retry-after-header
            :response-request
