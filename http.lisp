@@ -691,11 +691,12 @@
                          ,@(loop for (method-key post-methods primary-methods pre-methods) in content-method-clauses
                                  for method-list = (append post-methods primary-methods pre-methods)
                                  for accept-methods = (remove-if-not #'(lambda (m) (typep m 'standard-method)) pre-methods)
+                                 for accept-types = (loop for method in accept-methods
+                                                          for specializer = (fifth (c2mop:generic-function-methods method))
+                                                          collect (class-name specializer))
                                  collect `(,method-key
                                            ,@(when accept-methods
-                                               `((setf (response-content-type http:*response* (,(compute-media (loop for method in accept-methods
-                                                                                                                     for specializer = (fifth (c2mop:generic-function-methods method))
-                                                                                                                     for type = (class-name specializer)))
+                                               `((setf (response-content-type http:*response* (,(compute-media-type-constructor accept-types)
                                                                                                ,accept-type
                                                                                                (or (mime:mime-type-charset ,accept-type) :utf-8))))))
                                            (call-method ,(first method-list) ,(rest method-list))))
@@ -797,7 +798,7 @@
 (defgeneric (setf http:response-content-type) (content-type response)
   (:method ((content-type mime:mime-type) (response http:response))
     (setf (http:response-content-type response)
-          (format nil "~a~@[; charset=~a~]" (type-of content-type) (mime:mime-type-charset mime-type)))))
+          (format nil "~a~@[; charset=~a~]" (type-of content-type) (mime:mime-type-charset content-type)))))
 
 (defgeneric (setf http:response-content-disposition) (disposition response)
   )
