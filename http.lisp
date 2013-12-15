@@ -614,6 +614,7 @@
                             (primary http-verb-list-p))
   (:arguments resource request response request-content-type response-content-type)
   (:generic-function function)
+  (progn resource request response request-content-type)
   (flet ((qualify-methods (methods)
            (let ((categorized ())
                  (method-keys (http:function-method-keys function)))
@@ -654,7 +655,6 @@
      (list (etypecase accept-type
              ,@(loop for media-type in media-types
                      for class-name = (type-of media-type)
-                     unless 
                      collect (list class-name class-name)))
            :charset character-encoding)))
 
