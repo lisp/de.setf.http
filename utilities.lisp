@@ -103,20 +103,16 @@
 
 
 
-(defgeneric intern-media-type (accept-header accept-charset-header)
+(defgeneric intern-media-type (accept-header accept-charset)
   (:method (header (accept-charset-header null))
     (intern-media-type header :utf-8))
 
-  (:method (header (accept-charset-header string))
-    (intern-media-type header (or (find-symbol (string-upcase accept-charset-header) :keyword)
-                                  (http::not-acceptable))))
-
   (:method ((header string) (accept-charset t))
-    (let* ((ordered-types (compute-accept-ordered-types header)))
-      (let* ((class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
-             (class (or (find-class class-name)
-                        (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
-        (make-instance class :charset accept-charset)))))
+    (let* ((ordered-types (compute-accept-ordered-types header))
+           (class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
+           (class (or (find-class class-name)
+                      (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
+      (make-instance class :charset accept-charset))))
 
 
 (defun concrete-media-type (mime-type)

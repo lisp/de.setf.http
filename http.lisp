@@ -498,7 +498,7 @@
 (defgeneric http:request-accept-type (request)
   (:method ((request http:request))
     (let ((accept (http:request-accept-header request))
-          (charset (or (http:request-accept-charset-header request) :utf-8)))
+          (charset (or (http:request-accept-charset request) :utf-8)))
       (when accept
         (setf accept (remove #\space accept))
         (or (gethash (cons accept charset) (acceptor-header-instances http:*acceptor*))
@@ -508,7 +508,7 @@
 (defgeneric http:request-accept-header (request)
   )
 
-(defgeneric http:request-accept-charset-header (request)
+(defgeneric http:request-accept-charset (request)
   )
 
 (defgeneric http:request-content-stream (request)

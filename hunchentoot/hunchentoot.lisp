@@ -64,7 +64,17 @@
   (request-acceptor request))
 
 (defmethod http:request-accept-header ((request tbnl-request))
+  ;; return the string or nil
   (header-in :accept request))
+
+(defmethod http:request-accept-charset ((request tbnl-request))
+  (let ((header (header-in :accept-charset request)))
+    (when header
+      ;; it is acceptable only iff it is a known keyword.
+      ;; otherwise there can be no known encoder
+      (find-symbol (string-upcase header) :keyword) (http::not-acceptable))))
+
+
 
 (defmethod http:request-content-type-header ((request tbnl-request))
   (header-in :content-type request))
@@ -259,7 +269,8 @@
                                                       :request *request*
                                                       :keep-alive-p (keep-alive-p *request*)
                                                       :server-protocol protocol
-                                                      ;; stream initially used for the headers
+                                                      ;; create the output stream which supports character output for the headers
+                                                      ;; with the initial character encoding set to ascii
                                                       :content-stream (flex:make-flexi-stream socket-stream :external-format +latin-1+)))
                          (http:*request* *request*)
                          (http:*response* *reply*)

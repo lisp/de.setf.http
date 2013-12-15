@@ -83,6 +83,7 @@
            :redirect
            :report-condition-headers
            :request
+           :request-accept-charset
            :request-accept-header
            :request-accept-type
            :request-acceptor
