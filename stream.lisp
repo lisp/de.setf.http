@@ -80,7 +80,7 @@
     (let ((old-type (http:stream-media-type stream)))
       (setf-stream-media-type type stream)
       (unless (and old-type
-                   (equalp (mime:mime-type-char-set old-type) (mime:mime-type-char-set type)))
+                   (equalp (mime:mime-type-charset old-type) (mime:mime-type-charset type)))
         (slot-makunbound stream 'decoder)
         (slot-makunbound stream 'encoder)
         (update-stream-codecs stream)))
