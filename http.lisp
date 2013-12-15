@@ -797,8 +797,14 @@
 
 (defgeneric (setf http:response-content-type) (content-type response)
   (:method ((content-type mime:mime-type) (response http:response))
+    (setf (http:stream-media-type (get-response-content-stream response))
+          content-type)
     (setf (http:response-content-type response)
           (format nil "~a~@[; charset=~a~]" (type-of content-type) (mime:mime-type-charset content-type)))))
+
+(defgeneric http:response-content-type (response)
+  (:method ((response http:response))
+    (http:stream-media-type (get-response-content-stream response))))
 
 (defgeneric (setf http:response-content-disposition) (disposition response)
   )
