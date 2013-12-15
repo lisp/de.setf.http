@@ -184,7 +184,10 @@
     :accessor response-state)
    (content-stream
     :initarg :content-stream :initform (error "content-stream is required.")
-    :reader get-response-content-stream :writer (setf http:response-content-stream))
+    :reader get-response-content-stream :writer (setf http:response-content-stream)
+    :documentation "The response stream is instantiated on-demand to emit the
+    response body. It supports both chunking and character encoding with the
+    settings taken from the respective headers at the time it is first used.")
    (protocol
     :initarg :server-protocol :initarg :protocol
     :accessor http:response-protocol)
@@ -494,10 +497,18 @@
 
 (defgeneric http:request-accept-type (request)
   (:method ((request http:request))
-    (let ((header (http:request-accept-header request)))
-      (when header (intern-media-type (http:request-acceptor request) request)))))
+    (let ((accept (http:request-accept-header request))
+          (charset (or (http:request-accept-charset-header request) :utf-8)))
+      (when accept
+        (setf accept (remove #\space accept))
+        (or (gethash (cons accept charset) (acceptor-header-instances http:*acceptor*))
+            (setf (gethash (cons accept charset) (acceptor-header-instances http:*acceptor*))
+                  (intern-media-type accept charset)))))))
 
 (defgeneric http:request-accept-header (request)
+  )
+
+(defgeneric http:request-accept-charset-header (request)
   )
 
 (defgeneric http:request-content-stream (request)
@@ -601,6 +612,7 @@
                             (pre (:pre-process . *))
                             (post (:post-process . *))
                             (primary http-verb-list-p))
+  (:arguments resource request response request-content-type response-content-type)
   (:generic-function function)
   (flet ((qualify-methods (methods)
            (let ((categorized ())
@@ -624,7 +636,8 @@
                                                            around 
                                                            (qualify-methods pre)
                                                            (qualify-methods primary)
-                                                           (qualify-methods post))
+                                                           (qualify-methods post)
+                                                           response-content-type)
               (http:redirect (redirection)
                              ;; if the redirection is internal invoke it, otherwise resignal it
                              (let ((location (http:condition-location redirection)))
@@ -634,9 +647,20 @@
       (pprint form)
       form)))
 
+(defun compute-media-type-constructor (media-types)
+  (setf media-types (remove-if #'(lambda (media-type) (c2mop:class-direct-subclasses (class-of media-type)))
+                               media-types))
+  `(lambda (accept-type character-encoding)
+     (list (etypecase accept-type
+             ,@(loop for media-type in media-types
+                     for class-name = (type-of media-type)
+                     unless 
+                     collect (list class-name class-name)))
+           :charset character-encoding)))
 
 (defun compute-effective-resource-function-method (function identification permission around
-                                                           pre-by-method primary-by-method post-by-method)
+                                                           pre-by-method primary-by-method post-by-method
+                                                           accept-type)
   ;; arrange the methods to effect authentication, generate content, and encode it.
   ;; in addition wrap/pre/post process with before/after/round methods
   ;;
@@ -661,11 +685,20 @@
                                                                  '((make-method (http:not-implemented))))
                                        for post-methods = (or (getf post-by-method key)
                                                               (when (member key '(:post :put :patch)) '((make-method (http::unsupported-media-type)))))
-                                       for method-list = (append post-methods primary-methods pre-methods)
+                                       for method-list = (list post-methods primary-methods pre-methods)
                                        collect `(,key ,@method-list)))
          (main-clause `(case (http:request-method http:*request*)
-                         ,@(loop for (method-key . method-list) in content-method-clauses
-                                 collect `(,method-key (call-method ,(first method-list) ,(rest method-list))))
+                         ,@(loop for (method-key post-methods primary-methods pre-methods) in content-method-clauses
+                                 for method-list = (append post-methods primary-methods pre-methods)
+                                 for accept-methods = (remove-if-not #'(lambda (m) (typep m 'standard-method)) pre-methods)
+                                 collect `(,method-key
+                                           ,@(when accept-methods
+                                               `((setf (response-content-type http:*response* (,(compute-media (loop for method in accept-methods
+                                                                                                                     for specializer = (fifth (c2mop:generic-function-methods method))
+                                                                                                                     for type = (class-name specializer)))
+                                                                                               ,accept-type
+                                                                                               (or (mime:mime-type-charset ,accept-type) :utf-8))))))
+                                           (call-method ,(first method-list) ,(rest method-list))))
                          (t (http:not-implemented)))))
     (when authentication-clause
       (setf main-clause `(progn ,@(when authentication-clause (list authentication-clause)) ,main-clause)))
@@ -751,9 +784,15 @@
     ;; ensure the headers are sent
     (ecase (response-state response)
       ((nil)
-       (http:send-headers response))
-      ((:headers :content :complete)))
-    (get-response-content-stream response)))
+       (http:send-headers response)
+       ;; configure the response stream. must be delayed to this point, rathr than as a side-effect
+       ;; of setting the response content type, as that would change the encoding for the headers
+       (let ((stream (get-response-content-stream response)))
+         (setf (http:stream-media-type stream (response-content-type response)))
+         stream))
+      ((:headers :content :complete)
+       ;; the stream has already been referenced and configured
+       (response-content-type response)))))
 
 (defsetf http:response-media-type-header (response) (content-type character-encoding)
   `(values (setf (http:response-content-type ,response) ,content-type)

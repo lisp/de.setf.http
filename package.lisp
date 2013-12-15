@@ -146,6 +146,7 @@
            :send-entity-body
            :send-headers
            :stream
+           :stream-media-type
            :unauthorized
            :unsupported-content-type
            :internal-error

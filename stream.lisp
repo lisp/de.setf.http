@@ -22,8 +22,7 @@
 
 (defclass http:stream (stream)
   ((media-type
-    :initform (make-instance 'mime:text/plain :charset :utf-8)
-    :reader stream-media-type :writer setf-stream-media-type)
+    :reader http:stream-media-type :writer setf-stream-media-type)
    (eol-marker
     :initform #\newline :initarg :eol-marker
     :accessor stream-eol-marker)))
@@ -52,6 +51,12 @@
  character values for output to the device.")))
 
 
+
+(defmethod initialize-instance ((instance http:stream) &key
+                                (media-type (make-instance 'mime:text/plain :charset :utf-8)))
+  (call-next-method)
+  (setf (http:stream-media-type stream) (mime:mime-type media-type)))
+
 (defmethod stream-direction ((stream http:output-stream))
   :output)
 
@@ -63,6 +68,28 @@
   (if (mime:binary-mime-type-p (stream-media-type stream))
     '(unsigned-byte 8)
     'character))
+
+
+(defgeneric (setf http:stream-media-type) (type stream)
+  (:method ((type mime:*/*) (stream http:stream))
+    (setf-stream-media-type type stream)
+    (slot-makunbound stream 'decoder)
+    (slot-makunbound device 'encoder)
+    (update-stream-codecs stream type)
+    type)
+  (:method ((type t) (stream http:stream))
+    (setf (http:stream-media-type stream) (mime:mime-type type))))
+
+ 
+(defmethod update-device-codecs ((stream http:stream))
+  (let ((media-type (http:stream-media-type stream)))
+    (multiple-value-bind (decoder encoder)
+                         (compute-charset-codecs media-type)
+      (unless (slot-boundp stream 'decoder)
+        (setf-device-decoder decoder stream))
+      (unless (slot-boundp stream 'encoder)
+        (setf-device-encoder encoder stream)))
+    media-type))
 
 
 ;;;
