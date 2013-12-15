@@ -273,7 +273,7 @@
                                                       :server-protocol protocol
                                                       ;; create the output stream which supports character output for the headers
                                                       ;; with the initial character encoding set to ascii
-                                                      :content-stream (flex:make-flexi-stream socket-stream :external-format +latin-1+)))
+                                                      :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
                          (http:*request* *request*)
                          (http:*response* *reply*)
                          (*tmp-files* nil)
@@ -387,7 +387,7 @@ Returns the stream that is connected to the client."
               do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
         (format header-stream "~C~C" #\Return #\Linefeed)
       
-        ;; depending on whether content length was set and/or the content-type
+       #| ;; depending on whether content length was set and/or the content-type
         ;; adjust and cache the entity body stream
         (when external-format
           (setf (flex:flexi-stream-external-format header-stream) external-format))
@@ -397,7 +397,7 @@ Returns the stream that is connected to the client."
             (setf (chunked-stream-output-chunking-p body-stream) t)
             #+(or)(when external-format
               (setf (flex:flexi-stream-external-format body-stream) external-format))
-            (setf (http:response-content-stream response) body-stream)))
+            (setf (http:response-content-stream response) body-stream))) |#
         
         ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
         (raw-post-data :force-binary t)

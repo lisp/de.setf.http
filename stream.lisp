@@ -26,17 +26,23 @@
     :documentation "Binds the media type instance, whichh encapsulates the
      character encoding. The setf operator modifies the codec operators as
      a sode-effect.")
+   (encoder
+    :type function
+    :reader  stream-encoder :writer setf-stream-encoder
+    :documentation "Binds a function which is then used to encode character
+     values for output to the stream. If no media type is specified, text/plain
+     with utf-8 encoding is used.")
+   (decoder
+    :type function
+    :reader stream-decoder :writer setf-stream-decoder
+    :documentation "Optionally binds a function which is then used to decode
+     character values from input from the stream.")
    (eol-marker
     :initform #\newline :initarg :eol-marker
     :accessor stream-eol-marker)))
 
 (defclass http:input-stream (http:stream chunga:chunked-input-stream)
-  ((decoder
-    :type function
-    :reader stream-decoder :writer setf-stream-decoder
-    :documentation "Optionally binds a function which is then used to decode
- character values from input from the stream.")
-   (unread-characters
+  ((unread-characters
     :initform ()
     :accessor stream-unread-characters)
    (line-buffer
@@ -47,12 +53,7 @@
     :accessor stream-eof-marker)))
 
 (defclass http:output-stream (http:stream chunga:chunked-output-stream)
-  ((encoder
-    :type function
-    :reader  stream-encoder :writer setf-stream-encoder
-    :documentation "Binds a function which is then used to encode character
-     values for output to the stream. If no media type is specified, text/plain
-     with utf-8 encoding is used.")))
+  ())
 
 
 
@@ -79,21 +80,22 @@
     (setf-stream-media-type type stream)
     (slot-makunbound stream 'decoder)
     (slot-makunbound stream 'encoder)
-    (update-stream-codecs stream type)
+    (update-stream-codecs stream)
     type)
   (:method ((type t) (stream http:stream))
     (setf (http:stream-media-type stream) (mime:mime-type type))))
 
  
-(defmethod update-stream-codecs ((stream http:stream))
-  (let ((media-type (http:stream-media-type stream)))
-    (multiple-value-bind (decoder encoder)
-                         (compute-charset-codecs media-type)
-      (unless (slot-boundp stream 'decoder)
-        (setf-stream-decoder decoder stream))
-      (unless (slot-boundp stream 'encoder)
-        (setf-stream-encoder encoder stream)))
-    media-type))
+(defgeneric update-stream-codecs (stream)
+  (:method ((stream http:stream))
+    (let ((media-type (http:stream-media-type stream)))
+      (multiple-value-bind (decoder encoder)
+                           (compute-charset-codecs media-type)
+        (unless (slot-boundp stream 'decoder)
+          (setf-stream-decoder decoder stream))
+        (unless (slot-boundp stream 'encoder)
+          (setf-stream-encoder encoder stream)))
+      media-type)))
 
 
 ;;;
