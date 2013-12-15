@@ -22,24 +22,27 @@
 
 (defclass http:stream (stream)
   ((media-type
+    :initarg :media-type
     :reader http:stream-media-type :writer setf-stream-media-type
     :documentation "Binds the media type instance, whichh encapsulates the
      character encoding. The setf operator modifies the codec operators as
      a sode-effect.")
    (encoder
-    :type function
+    :initarg :encoder :type function
     :reader  stream-encoder :writer setf-stream-encoder
     :documentation "Binds a function which is then used to encode character
      values for output to the stream. If no media type is specified, text/plain
      with utf-8 encoding is used.")
    (decoder
-    :type function
+    :initarg :decoder :type function
     :reader stream-decoder :writer setf-stream-decoder
     :documentation "Optionally binds a function which is then used to decode
      character values from input from the stream.")
    (eol-marker
     :initform #\newline :initarg :eol-marker
-    :accessor stream-eol-marker)))
+    :accessor stream-eol-marker))
+  (:default-initargs
+    :media-type (make-instance 'mime:text/plain :charset :utf-8)))
 
 (defclass http:input-stream (http:stream chunga:chunked-input-stream)
   ((unread-characters
@@ -57,10 +60,8 @@
 
 
 
-(defmethod initialize-instance ((instance http:stream) &key
-                                (media-type (make-instance 'mime:text/plain :charset :utf-8)))
-  (call-next-method)
-  (setf (http:stream-media-type instance) (mime:mime-type media-type)))
+(defmethod initialize-instance :after ((instance http:stream) &key)
+  (update-stream-codecs instance))
 
 (defmethod stream-direction ((stream http:output-stream))
   :output)
