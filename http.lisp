@@ -649,22 +649,24 @@
                  :decode decode
                  :encode encode
                  :primary primary))
-    (let* ((form
-           `(handler-case
-              ,(compute-effective-resource-function-method function
-                                                           identification permission
-                                                           around 
-                                                           decode
-                                                           (qualify-methods primary)
-                                                           encode)
-              (http:redirect (redirection)
-                             ;; if the redirection is internal invoke it, otherwise resignal it
-                             (let ((location (http:condition-location redirection)))
-                               (if (functionp location)
-                                 (funcall location)
-                                 (error redirection)))))))
-      (pprint form)
-      form)))
+    (if (and encode (eq (second (method-qualifiers (first encode))) :as))
+      `(call-method (first encode) ())
+      (let* ((form
+              `(handler-case
+                 ,(compute-effective-resource-function-method function
+                                                              identification permission
+                                                              around 
+                                                              decode
+                                                              (qualify-methods primary)
+                                                              encode)
+                 (http:redirect (redirection)
+                                ;; if the redirection is internal invoke it, otherwise resignal it
+                                (let ((location (http:condition-location redirection)))
+                                  (if (functionp location)
+                                    (funcall location)
+                                    (error redirection)))))))
+        (pprint form)
+        form))))
 #|
 (accept-types (loop for method in encode
                                for specializer = (fifth (c2mop:method-specializers method))
@@ -701,14 +703,13 @@
          ;; the most-specific only
          (encode-methods (if encode-methods
                            (let* ((method (first encode-methods))
-                                  (qualifiers (fifth (method-qualifiers method))))
-                             (ecase (second qualifiers)
-                               (:as method)
-                               ((nil) `(make-method (progn (setf (http:response-content-type http:*response*)
-                                                                 '(,(class-name specializer)
-                                                                   :charset
-                                                                   (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8)))
-                                                           (call-method ,method ()))))))
+                                  (qualifiers (method-qualifiers method))
+                                  (specializer (fifth (c2mop:method-specializers method))))
+                             `(make-method (progn (setf (http:response-content-type http:*response*)
+                                                        (list ',(class-name specializer)
+                                                              :charset
+                                                              (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8)))
+                                                  (call-method ,method ()))))
                            `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
          (content-method-clauses (loop for key in (http:function-method-keys function)
                                        ;; for each given verb, require a primary method, should the verb appear
