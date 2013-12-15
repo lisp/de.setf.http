@@ -142,9 +142,6 @@
 (defmethod (setf http:response-content-type) ((content-type string) (response tbnl-response))
   (setf (header-out :content-type response) content-type))
 
-(defmethod (setf http:response-content-type) ((mime-type mime:mime-type) (response tbnl-response))
-  (setf (http:response-content-type response) (mime:mime-type-expression mime-type)))
-
 (defmethod (setf http:response-location-header) (location (response tbnl-response))
   (setf (header-out :location response) location))
 

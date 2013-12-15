@@ -76,7 +76,7 @@
 
 
 (defgeneric (setf http:stream-media-type) (type stream)
-  (:method ((type mime:*/*) (stream http:stream))
+  (:method ((type mime:mime-type) (stream http:stream))
     (setf-stream-media-type type stream)
     (slot-makunbound stream 'decoder)
     (slot-makunbound stream 'encoder)
