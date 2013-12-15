@@ -20,6 +20,8 @@
     :request-class 'tbnl-request
     :response-class 'tbnl-response))
 
+(defun http:acceptor () tbnl:*acceptor*)
+
 #+(or)
 (print (cons (find-class 'tbnl-acceptor)
              (sb-mop:class-direct-default-initargs (find-class 'tbnl-acceptor))))

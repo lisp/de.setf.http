@@ -103,7 +103,7 @@ whereby operations defined in the graph store protocol are delegated to its resp
 ;;; response implementations
 
 (http:def-resource-function sesame-protocol-id (resource request response)
-  (:post-processing mime:text/plain :charset "UTF-8")
+  (:encode mime:text/plain :charset "UTF-8")
   (:get ((resource /*/protocol) request response)
     (setf (response-content-disposition response) (values "protocol.txt" t))
     (write-string +sesame-version+ (http:response-content-stream response))))
@@ -117,8 +117,8 @@ whereby operations defined in the graph store protocol are delegated to its resp
   (:auth :identification authenticate-request-token)
   (:auth :identification authenticate-request-session)
 
-  (:post-processing mime:application/sparql-results+json)
-  (:post-processing mime:application/sparql-results+xml)
+  (:encode mime:application/sparql-results+json)
+  (:encode mime:application/sparql-results+xml)
 
   (:get ((resource /*/repositories) request response)
     (let ((repositories (account-repositories (resource-account resource))))
@@ -143,9 +143,9 @@ whereby operations defined in the graph store protocol are delegated to its resp
   (:auth :identification authenticate-request-token)
   (:auth :identification authenticate-request-session)
 
-  (:post-processing mime:application/sparql-results+json)
-  (:post-processing mime:application/sparql-results+xml)
-  (:post-processing ((resource t) (request t) (response t) (content-type t) (accept-type mime:text/plain))
+  (:encode mime:application/sparql-results+json)
+  (:encode mime:application/sparql-results+xml)
+  (:encode ((resource t) (request t) (response t) (content-type t) (accept-type mime:text/plain))
     (let ((result (call-next-method)))
       (format (http:response-content-stream response) "~a~a" result +crlf+)))
 

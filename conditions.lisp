@@ -5,9 +5,10 @@
 
 (define-condition http:condition (simple-condition)
   ((code
+    :initform -1
     :reader http:condition-code)
    (text
-    :initarg :text
+    :initform "" :initarg :text
     :reader http:condition-text)
    (message
     :initarg :message :initform nil

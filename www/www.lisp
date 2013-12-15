@@ -22,7 +22,7 @@
 (http:def-resource-function respond (resource request response)
   (:get ((resource /test/*) (request t) (response t) (content-type t) (accept-type t))
         (resource-target resource))
-  (:post-process ((resource t) (request t) (response http:response) (content-type t) (accept-type mime:text/html))
+  (:encode ((resource t) (request t) (response http:response) (content-type t) (accept-type mime:text/html))
     (let ((content (call-next-method)))
       (http:send-headers response)
       (http:log :debug *trace-output* +page-content+ content)

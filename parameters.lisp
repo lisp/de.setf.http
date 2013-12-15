@@ -4,7 +4,7 @@
 (in-package :de.setf.http.implementation)
 
 
-(declaim (special http:*acceptor* http:*request* http::*reply*))
+(declaim (special http:*request* http::*reply*))
 
 (defparameter http:*response* nil)
 

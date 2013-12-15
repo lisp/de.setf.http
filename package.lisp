@@ -15,8 +15,7 @@
 
 (defpackage :de.setf.http
   (:nicknames :http)
-  (:export :*acceptor*
-           :*log-level*
+  (:export :*log-level*
            :*request*
            :*response*
            :*session*

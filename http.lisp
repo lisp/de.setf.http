@@ -25,6 +25,9 @@
 ")
 
 
+(declaim (ftype (function () http:acceptor) http:acceptor))
+(defun http:request () http:*request*)
+
 (defclass http:acceptor ()
   ((http:dispatch-function
     :initform (error "dispatch-function is required.") :initarg :dispatch-function
@@ -44,6 +47,7 @@
     "The acceptor class implements pattern-based http request path dispatching
     based on methods implemented in the package which corresponds to the
     acceptor's host name."))
+
 
 
 (defclass http:agent ()
@@ -103,7 +107,15 @@
      :reader get-request-method :writer setf-request-method
      :documentation
      "Binds the effective request method resective over-riding headers.
-     (See http:request-method)"))
+     (See http:request-method)")
+   (accept-type
+    :initform nil
+    :reader get-request-accept-type :writer setf-request-accept-type
+    :documentation "Binds the interned media type which is computed from the
+     request accept header and accept-charset header upon first reference.
+     This is supplied to the resource function, to be used to discriminate
+     response generation methods and to derive the response content type
+     from the applicable methods."))
   (:documentation
     "Each request is represented with an instance of this class. It serves as
      a protocol class and to extend the respective class from any concrete
@@ -292,7 +304,8 @@
                            `(lambda (resource request response)
                               (,handler-name resource
                                              request response
-                                             (http:request-content-type request) (http:request-accept-type request)))
+                                             (http:request-content-type request)
+                                             (http:request-accept-type request)))
                            :qualifiers '()
                            :lambda-list '(resource request response)
                            :specializers (list resource-class t-class t-class)))))
@@ -497,13 +510,15 @@
 
 (defgeneric http:request-accept-type (request)
   (:method ((request http:request))
-    (let ((accept (http:request-accept-header request))
-          (charset (or (http:request-accept-charset request) :utf-8)))
-      (when accept
-        (setf accept (remove #\space accept))
-        (or (gethash (cons accept charset) (acceptor-header-instances http:*acceptor*))
-            (setf (gethash (cons accept charset) (acceptor-header-instances http:*acceptor*))
-                  (intern-media-type accept charset)))))))
+    (or (get-request-accept-type request)
+        (setf-request-accept-type (let ((accept (http:request-accept-header request))
+                                        (charset (or (http:request-accept-charset request) :utf-8)))
+                                    (when accept
+                                      (setf accept (remove #\space accept))
+                                      (or (gethash (cons accept charset) (acceptor-header-instances (http:acceptor)))
+                                          (setf (gethash (cons accept charset) (acceptor-header-instances (http:acceptor)))
+                                                (intern-media-type accept charset)))))
+                                  request))))
 
 (defgeneric http:request-accept-header (request)
   )
@@ -609,36 +624,49 @@
                            ((identification (:auth :identification))
                             (permission (:auth :permission))
                             (around (:around) )
-                            (pre (:pre-process . *))
-                            (post (:post-process . *))
+                            (decode (:decode . *))
+                            (encode (:encode . *))
                             (primary http-verb-list-p))
-  (:arguments resource request response request-content-type response-content-type)
   (:generic-function function)
-  (progn resource request response request-content-type)
   (flet ((qualify-methods (methods)
            (let ((categorized ())
                  (method-keys (http:function-method-keys function)))
              (loop for method in methods
                    do (loop with qualifiers = (method-qualifiers method)
-                            for method-key in (if (null (set-difference qualifiers '(:pre-process :post-process)))
+                            for method-key in (if (null (set-difference qualifiers '(:decode :encode)))
                                                 method-keys
                                                 qualifiers)
                             do (case method-key
-                                 ((:pre-process :post-process) )
+                                 ((:decode :encode) )
                                  (* (loop for method-key in method-keys
                                           do (push method (getf categorized method-key))))
                                  (t (push method (getf categorized method-key))))))
              (loop for (key methods) on categorized by #'cddr
                    collect key collect (reverse methods)))))
-    (let ((form
+    (print (list :identification identification
+                 :permission permission
+                 :around around
+                 :decode decode
+                 :encode encode
+                 :primary primary))
+    (let* ((accept-types (loop for method in encode
+                               for specializer = (fifth (c2mop:method-specializers method))
+                               collect (class-name specializer)))
+           (form
            `(handler-case
-              ,(compute-effective-resource-function-method function
-                                                           identification permission
-                                                           around 
-                                                           (qualify-methods pre)
-                                                           (qualify-methods primary)
-                                                           (qualify-methods post)
-                                                           response-content-type)
+              (flet ((compute-media-type (accept-type)
+                       (list (etypecase accept-type
+                               ,@(loop for media-type in accept-types
+                                       collect (list media-type media-type)))
+                             :charset (or (mime:mime-type-charset accept-type) :utf-8))))
+                (setf (http:response-content-type http:*response*)
+                      (compute-media-type (http:request-accept-type (http:request))))
+                ,(compute-effective-resource-function-method function
+                                                             identification permission
+                                                             around 
+                                                             decode
+                                                             (qualify-methods primary)
+                                                             encode))
               (http:redirect (redirection)
                              ;; if the redirection is internal invoke it, otherwise resignal it
                              (let ((location (http:condition-location redirection)))
@@ -648,21 +676,11 @@
       (pprint form)
       form)))
 
-(defun compute-media-type-constructor (media-types)
-  (setf media-types (remove-if #'(lambda (media-type) (c2mop:class-direct-subclasses (class-of media-type)))
-                               media-types))
-  `(lambda (accept-type character-encoding)
-     (list (etypecase accept-type
-             ,@(loop for media-type in media-types
-                     for class-name = (type-of media-type)
-                     collect (list class-name class-name)))
-           :charset character-encoding)))
 
 (defun compute-effective-resource-function-method (function identification permission around
-                                                           pre-by-method primary-by-method post-by-method
-                                                           accept-type)
+                                                           decode-methods primary-by-method encode-methods)
   ;; arrange the methods to effect authentication, generate content, and encode it.
-  ;; in addition wrap/pre/post process with before/after/round methods
+  ;; in addition wrap/decode/encode process with before/after/round methods
   ;;
   ;; 1. around wraps everything
   ;; 2. execute authentication methods (unordered) as an (or ...) and require a true result.
@@ -676,33 +694,21 @@
                                                 ,@(loop for method in permission
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
+         (decode-methods (or decode-methods '((make-method (http::unsupported-media-type)))))
+         (encode-methods (or encode-methods `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
          (content-method-clauses (loop for key in (http:function-method-keys function)
-                                       for pre-methods = (or (getf pre-by-method key)
-                                                             (when (member key '(:post :put :patch :get :head))
-                                                                `((make-method (when (http:request-accept-header http:*request*) (http::not-acceptable))))))
                                        ;; for each given verb, require a primary method, should the verb appear
                                        for primary-methods = (or (getf primary-by-method key)
                                                                  '((make-method (http:not-implemented))))
-                                       for post-methods = (or (getf post-by-method key)
-                                                              (when (member key '(:post :put :patch)) '((make-method (http::unsupported-media-type)))))
-                                       for method-list = (list post-methods primary-methods pre-methods)
-                                       collect `(,key ,@method-list)))
-         (main-clause `(case (http:request-method http:*request*)
-                         ,@(loop for (method-key post-methods primary-methods pre-methods) in content-method-clauses
-                                 for method-list = (append post-methods primary-methods pre-methods)
-                                 for accept-methods = (remove-if-not #'(lambda (m) (typep m 'standard-method)) pre-methods)
-                                 for accept-types = (loop for method in accept-methods
-                                                          for specializer = (fifth (c2mop:generic-function-methods method))
-                                                          collect (class-name specializer))
-                                 collect `(,method-key
-                                           ,@(when accept-methods
-                                               `((setf (response-content-type http:*response* (,(compute-media-type-constructor accept-types)
-                                                                                               ,accept-type
-                                                                                               (or (mime:mime-type-charset ,accept-type) :utf-8))))))
-                                           (call-method ,(first method-list) ,(rest method-list))))
-                         (t (http:not-implemented)))))
+                                       collect `(,key ,@primary-methods)))
+         (content-method `(make-method (case (http:request-method http:*request*)
+                                        ,@(loop for (method-key . methods) in content-method-clauses
+                                                collect `(,method-key (call-method ,(first methods) ,(rest methods))))
+                                        (t (http:not-implemented)))))
+         (combined-methods (append encode-methods (list content-method) decode-methods))
+         (main-clause `(call-method ,(first combined-methods) ,(rest combined-methods))))
     (when authentication-clause
-      (setf main-clause `(progn ,@(when authentication-clause (list authentication-clause)) ,main-clause)))
+      (setf main-clause `(progn ,authentication-clause ,main-clause)))
     (let* ((form (if around
                    `(call-method ,(first around) (,@(rest around) (make-method ,main-clause)))
                    main-clause)))
@@ -734,9 +740,9 @@
                                                         lambda-list
                                                         (append lambda-list `((,(gensym "content-type") t) (,(gensym "accept-type") t))))
                                                      ,@body))))
-                                             ((:post-process :post-processing)
+                                             (:encode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (cons :pre-process (rest (ldiff clause after-qualifiers)))))
+                                                     (qualifiers (ldiff clause after-qualifiers)))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
                                                   (if (second after-qualifiers)
@@ -744,9 +750,9 @@
                                                        (,name resource request response content-type ,(second after-qualifiers)))
                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
                                                        (http:encode-response (call-next-method) response content-type))))))
-                                             ((:pre-process :pre-processing)
+                                             (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (cons :post-process (rest (ldiff clause after-qualifiers)))))
+                                                     (qualifiers (ldiff clause after-qualifiers)))
                                                 (if (consp (first after-qualifiers))
                                                   `(:method ,@clause)
                                                   `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first after-qualifiers)) (accept-type t))
