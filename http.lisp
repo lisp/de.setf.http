@@ -539,7 +539,13 @@
 (defgeneric http:request-content-length (request)
   )
 
-(defgeneric http:request-media-type-header (request)
+(defgeneric http:request-content-type-header (request)
+  )
+
+(defgeneric http:request-if-modified-since (request)
+  )
+
+(defgeneric http:request-original-method (request)
   )
 
 (defgeneric http:request-media-type (request)
@@ -550,12 +556,6 @@
             (let ((header (http:request-content-type-header request)))
               (when header
                 (mime:mime-type header)))))))
-
-(defgeneric http:request-if-modified-since (request)
-  )
-
-(defgeneric http:request-original-method (request)
-  )
 
 (defgeneric http:request-method (request)
   (:method ((request http:request))
