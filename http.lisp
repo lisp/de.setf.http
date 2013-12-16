@@ -630,7 +630,7 @@
 
 (defmethod add-method :after ((function http:resource-function) method)
   "As a side effect of adding a method, accumulate the method key for documentation."
-  (let ((http-qualifiers (intersection http:+method-keys+ (c2mop:method-qualifiers method))))
+  (let ((http-qualifiers (intersection http:+method-keys+ (method-qualifiers method))))
     (when http-qualifiers
       (setf (http:function-method-keys function)
             (union (http:function-method-keys function) http-qualifiers)))))
