@@ -132,6 +132,8 @@
            :response-compute-media-type
            :response-content-disposition
            :response-content-encoding
+           :response-content-length
+           :response-content-length-header
            :response-content-stream
            :response-content-type-header
            :response-close-stream-p

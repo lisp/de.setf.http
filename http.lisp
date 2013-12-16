@@ -833,6 +833,12 @@
 (defgeneric http:response-cache-control (value response)
   )
 
+(defgeneric http:response-content-length (value response)
+  (setf (http:response-content-length-header response) (when value (prin1-to-string value))))
+
+(defgeneric http:response-content-length-header (value response)
+  )
+
 (defgeneric http:response-compute-media-type (response class &key charset)
   (:method ((response http:response) (type mime:mime-type) &rest args)
     (declare (dynamic-extent args))

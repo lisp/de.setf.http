@@ -138,6 +138,9 @@
   (destructuring-bind (disposition-type . arguments) disposition
     (setf (header-out :content-disposition response) (format nil "~a~{;~a=\"~a\"~}" disposition-type arguments))))
 
+(defmethod http:response-content-length-header ((value t) (response tbnl-response))
+  (setf (header-out :content-length response) character-encoding))
+
 (defmethod (setf http:response-character-encoding) (character-encoding (response tbnl-response))
   (setf (header-out :character-encoding response) character-encoding))
 
