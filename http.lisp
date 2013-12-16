@@ -567,7 +567,7 @@
                                  (if header-method
                                    (as-method-key header-method)
                                    (if (and (eq (http:request-method request) :post)
-                                            (typep (http:request-content-type request) 'mime:application/x-www-form-urlencoded))
+                                            (typep (http:request-media-type request) 'mime:application/x-www-form-urlencoded))
                                      (let ((post-method (http:request-post-argument request :_method)))
                                        (if post-method
                                          (as-method-key post-method)
@@ -598,6 +598,7 @@
 (defgeneric http:request-query-arguments (request key)
   )
 
+#+(or)                                  ; artifactual
 (defmethod intern-media-type (acceptor (request http:request))
     (let ((header (case (http:request-method request)
                     ((:post :put :patch) (or (http:request-content-type-header request) (http:bad-request)))

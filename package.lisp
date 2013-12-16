@@ -93,12 +93,12 @@
            :request-class
            :request-content-length
            :request-content-stream
-           :request-content-type
            :request-content-type-header
            :request-effective-method
            :request-etags
            :request-header
            :request-if-modified-since
+           :request-media-type
            :request-method
            :request-negotiated-character-encoding
            :request-negotiated-content-encoding
