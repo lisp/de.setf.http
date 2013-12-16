@@ -200,6 +200,11 @@
     :documentation "The response stream is instantiated on-demand to emit the
     response body. It supports both chunking and character encoding with the
     settings taken from the respective headers at the time it is first used.")
+   (content-type
+    :initarg :content-type :initform nil
+    :accessor http:response-content-type
+    :documentation "Caches the intended media type (incl character encoding) to
+     be used to configure the response content stream.")
    (protocol
     :initarg :server-protocol :initarg :protocol
     :accessor http:response-protocol)
@@ -710,9 +715,8 @@
                              (let* ((method (first encode-methods))
                                     (specializer (fifth (c2mop:method-specializers method))))
                                `(setf (http:response-content-type http:*response*)
-                                      (list ',(class-name specializer)
-                                            :charset
-                                            (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8))))))
+                                      (http:response-compute-content-type http:*response* ,(class-name specializer)
+                                                                          :charset (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8))))))
          (content-clause `(case (http:request-method http:*request*)
                             ,@(loop for key in (http:function-method-keys function)
                                     ;; for each verb allowed by the operator, require a primary method.
@@ -723,8 +727,7 @@
                             (t (http:not-implemented))))
          (main-clause `(call-method ,encode-method
                                     ,(if mime-type-clause
-                                       `((make-method (multiple-value-prog1 ,content-clause
-                                                        ,mime-type-clause)))
+                                       `((make-method (progn ,mime-type-clause ,content-clause)))
                                        `((make-method ,content-clause))))))
     (when authentication-clause
       (setf main-clause `(progn ,authentication-clause ,main-clause)))
@@ -771,7 +774,9 @@
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
                                                         ;; encode as per the derived response content type, which will be an instance of the
                                                         ;; specializer class, but include the character set encoding
-                                                        (http:encode-response (call-next-method) response (http:response-content-type response))))))))
+                                                        (let ((effective-content-type (http:response-content-type response)))
+                                                          (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
+                                                          (http:encode-response (call-next-method) response effective-content-type))))))))
                                              (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
                                                      (qualifiers (ldiff clause after-qualifiers)))
@@ -808,6 +813,12 @@
 (defgeneric http:response-cache-control (value response)
   )
 
+(defgeneric http:response-compute-content-type (response class &key charset)
+  (:method ((response http:response) (type mime:mime-type) &rest args)
+    (declare (dynamic-extent args))
+    (apply #'mime:mime-type type args)))
+
+
 (defgeneric http:response-content-stream (response)
   (:method ((response http:response))
     ;; ensure the headers are sent
@@ -819,10 +830,9 @@
        (let ((stream (get-response-content-stream response)))
          (setf (http:stream-media-type stream) (http:response-content-type response))
          stream))
-      ((:headers :content :complete)
+      ((:headers :body :complete)
        ;; the stream has already been referenced and configured
        (get-response-content-stream response)))))
-
 
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
   )
@@ -834,8 +844,6 @@
               (error "invalid media type: ~s" content-type))))
 
   (:method ((content-type mime:mime-type) (response http:response))
-    (setf (http:stream-media-type (get-response-content-stream response))
-          content-type)
     (setf (http:response-content-type-header response)
           (format nil "~a~@[; charset=~a~]" (type-of content-type) (mime:mime-type-charset content-type)))
     content-type))

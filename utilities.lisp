@@ -122,8 +122,9 @@
 ;;; codecs
 
 (defgeneric http:encode-response (content response content-type)
-  (:method ((content null) (response t) (content-type t))
-    ))
+  (:method ((content null) (response t) (content-type t)))
+  (:method ((content t) (response t) (content-type mime:text/plain))
+    (format (http:response-content-stream response) "~a" content)))
 
 (defgeneric http:decode-request (request content-type)
   )

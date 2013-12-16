@@ -125,6 +125,7 @@
            :response-cache-control
            :response-character-encoding
            :response-class
+           :response-compute-content-type
            :response-content-disposition
            :response-content-encoding
            :response-content-stream

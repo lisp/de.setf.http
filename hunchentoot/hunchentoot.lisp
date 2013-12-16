@@ -279,7 +279,7 @@
                       (catch 'request-processed
                         (http:respond-to-request acceptor *request* *reply*)))
                     (finish-output (http:response-content-stream *reply*))
-                    (reset-connection-stream *acceptor* (http:response-content-stream *reply*))
+                    ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                     ;; access log message
                     (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
                   ;;(finish-output *hunchentoot-stream*)
@@ -383,7 +383,10 @@ Returns the stream that is connected to the client."
         (loop for (nil . cookie) in (cookies-out response)
               do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
         (format header-stream "~C~C" #\Return #\Linefeed)
-      
+        ;; reconfigure the content stream for chunking
+        (when chunked-p
+          (setf (chunga:chunked-stream-output-chunking-p header-stream) t))
+                               
        #| ;; depending on whether content length was set and/or the content-type
         ;; adjust and cache the entity body stream
         (when external-format

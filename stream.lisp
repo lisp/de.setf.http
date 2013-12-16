@@ -262,7 +262,10 @@ if necessary."
 ;;; default suffices ?
 
 
-;;; stream-finish-output : inherited
+(defmethod stream-finish-output ((stream http:output-stream))
+  (call-next-method stream)
+  ;; ensure that the last block is flushed
+  (setf (chunga:chunked-stream-output-chunking-p stream) nil))
 
 
 ;;; stream-force-output : inherited
