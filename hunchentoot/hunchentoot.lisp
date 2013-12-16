@@ -128,6 +128,8 @@
     (when date
       (http:parse-rfc1123 date))))
 
+(defmethod (setf http:response-allow-header) ((allow string) (response tbnl-response))
+  (setf (header-out :allow response) allow))
 
 (defmethod (setf http:response-content-disposition) ((disposition-type string) (response tbnl-response))
   (setf (header-out :content-disposition response) disposition-type))
@@ -407,6 +409,6 @@ Returns the stream that is connected to the client."
 
 (defmethod http:send-entity-body ((response tbnl-response) (content sequence))
   (unless (http:response-headers-sent-p response)
-    (setf (content-type*) (maybe-add-charset-to-content-type-header (content-type*) (reply-external-format*)))
+    ;; record the actual length, which disables chunking
     (setf (content-length*) (length content)))
   (write-sequence content (http:response-content-stream response)))

@@ -15,3 +15,9 @@
 (defparameter http:*log-level* :debug ;; :warn
   "The current log level. Used by the log-* operators to filter log entries.")
 
+(defparameter http:+method-keys+ '(:get :put :head :patch :post :delete :options :trace :connect)
+  "The names for known http operations. These limit the resource function methods
+ which will be combined in an effective response method. see add-method(http:resource-function)
+ and the http method combination.")
+
+

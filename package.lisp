@@ -20,6 +20,7 @@
            :*response*
            :*session*
            :+http-ok+
+           :+method-keys+
            :acceptor
            :acceptor-dispatch-function
            :acceptor-request-class
@@ -118,18 +119,20 @@
            :resource-function-p
            :resource-path
            :resource-pattern
+           :respond-to-option-request
            :respond-to-request
            :response
            :response-acceptor
            :response-accept-ranges
+           :response-allow
+           :response-allow-headers
            :response-cache-control
            :response-character-encoding
            :response-class
-           :response-compute-content-type
+           :response-compute-media-type
            :response-content-disposition
            :response-content-encoding
            :response-content-stream
-           :response-content-type
            :response-content-type-header
            :response-close-stream-p
            :response-etag
@@ -137,6 +140,7 @@
            :response-keep-alive-p
            :response-last-modified
            :response-location-header
+           :response-media-type
            :response-protocol
            :response-retry-after-header
            :response-request
