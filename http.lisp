@@ -833,11 +833,11 @@
 (defgeneric http:response-cache-control (value response)
   )
 
-(defgeneric http:response-content-length (value response)
+(defgeneric (setf http:response-content-length) (value response)
   (:method ((value t) (response http:response)) 
     (setf (http:response-content-length-header response) (when value (prin1-to-string value)))))
 
-(defgeneric http:response-content-length-header (value response)
+(defgeneric (setf http:response-content-length-header) (value response)
   )
 
 (defgeneric http:response-compute-media-type (response class &key charset)
