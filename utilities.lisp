@@ -132,17 +132,27 @@
 ;;; codecs
 
 (defgeneric http:encode-response (content response content-type)
+  (:documentation "Implements the default behavior for resource function
+    encoding methods when they are declared without a body. the default
+    methods delegate to send-entity-body.")
+
   (:method ((content null) (response t) (content-type t)))
+
   (:method ((content string) (response t) (content-type t))
-    ;; this should send out the entity body unchunked
-    (setf (http:response-content-length response) (length content))
-    (write-string content (http:response-content-stream response)))
+    (http:send-entity-body response content))
+
+  (:method ((content vector) (response t) (content-type t))
+    (http:send-entity-body response content))
+
   (:method ((content t) (response t) (content-type mime:text/plain))
     ;; this should send out the entity body chunked
     (format (http:response-content-stream response) "~a" content)))
 
+
 (defgeneric http:decode-request (request content-type)
-  )
+  (:documentation "Implements the default behavior for resource function
+    encoding methods when they are declared without a body. the default
+    methods delegate to send-entity-body."))
 
 
 ;;; times

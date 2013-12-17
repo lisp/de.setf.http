@@ -322,7 +322,7 @@ directly write to the stream in this case.
 
 Returns the stream that is connected to the client."
   
-  (unless (http:response-headers-sent-p response)
+  (when (http:response-headers-unsent-p response)
     (let* ((header-stream (http:response-content-stream response))
            (headers-out (headers-out response))
            (content-length (rest (assoc :content-length headers-out)))
@@ -412,11 +412,3 @@ Returns the stream that is connected to the client."
         ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
         (raw-post-data :force-binary t)
         (http:response-content-stream response)))))
-
-
-
-(defmethod http:send-entity-body ((response tbnl-response) (content sequence))
-  (unless (http:response-headers-sent-p response)
-    ;; record the actual length, which disables chunking
-    (setf (content-length*) (length content)))
-  (write-sequence content (http:response-content-stream response)))

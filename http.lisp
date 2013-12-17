@@ -980,9 +980,16 @@
   (:documentation
     "Send a monolithic response body.")
 
-  (:method :before ((response http:response) (body t))
-    (when (http:response-headers-unsent-p response)
-      (http:send-headers response)))
+  (:method ((response http:response) (body vector))
+    ;; try to disable chunking; for binary sequences length is the byte count
+    (setf (http:response-content-length response) (length content))
+    (write-sequence content (http:response-content-stream response)))
+
+  (:method ((response http:response) (body string))
+    ;; try to disable chunking; for strings, the encoded length is the byte count
+    (setf (http:response-content-length response)
+          (mime:size-string content (mime:mime-type-charset (http:stream-media-type (http:response-stream response)))))
+    (write-sequence content (http:response-content-stream response)))
 
   (:method (response (content null))))
 
