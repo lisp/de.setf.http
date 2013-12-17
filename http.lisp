@@ -698,11 +698,13 @@
   2. execute authentication methods (unordered) as an (or ...) and require a true result.
      if not, signal not-authorized
   3. compute the response media type from the most specific encoding method specializer
-     and the requested character encoding
-  4. if a content encoding is required, interpose a zip stage (nyi)
-  5. execute the combined content and decoding methods
-  6. configure the response stream
-  7. ensure that the headers are emitted
+     and the requested character encoding and cache it in the response stream
+  ;; 4--7 cannot happen here as, eg when the encoding method is to emit a string, it should set
+  ;; the content length header, which must be emitted and would suppress chunking
+  ;; 4. if a content encoding is required, interpose a zip stage (nyi)
+  ;; 5. execute the combined content and decoding methods
+  ;; 6. configure the response stream
+  ;; 7. ensure that the headers are emitted
   5. apply the encoding auxiliary to the result content methods"
 
   (let* ((authentication-clause (if (or identification permission)
@@ -731,8 +733,7 @@
                                                                           :charset (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8))))))
          ;; build a case statement with one entry for each http operation for which
          ;; known a method is present
-         (content-clause `(multiple-value-prog1
-                            (case (http:request-method http:*request*)
+         (content-clause `(case (http:request-method http:*request*)
                               ;; add a clause for each verb asspciated with an applicable method
                               ,@(loop for (key . methods) in primary-by-method
                                       collect `(,key ,(if methods
@@ -743,8 +744,7 @@
                                   `((:options (respond-with-options ,function (http:request) (http:resource) (http:response-media-type (http:resource))
                                                                     ',(mapcar #'first primary-by-method)))))
                               ;; otherwise, it is not implemented
-                              (t (http:not-implemented)))
-                            (http:send-headers (http:resource)))
+                              (t (http:not-implemented))))
          (main-clause `(call-method ,encode-method
                                     ,(if mime-type-clause
                                        `((make-method (progn ,mime-type-clause ,content-clause)))
