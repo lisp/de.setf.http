@@ -266,7 +266,8 @@ if necessary."
 (defmethod stream-finish-output ((stream http:output-stream))
   (call-next-method stream)
   ;; ensure that the last block is flushed
-  (setf (chunga:chunked-stream-output-chunking-p stream) nil))
+  (setf (chunga:chunked-stream-output-chunking-p stream) nil)
+  (print :finished))
 
 
 ;;; stream-force-output : inherited

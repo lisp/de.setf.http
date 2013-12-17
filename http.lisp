@@ -201,7 +201,7 @@
     settings taken from the respective headers at the time it is first used.")
    (media-type
     :initarg :media-type :initform nil
-    :accessor http:response-media-type
+    :reader http:response-media-type :writer setf-response-media-type
     :documentation "Caches the intended media type (incl character encoding) to
      be used to configure the response content stream.")
    (protocol
@@ -632,6 +632,7 @@
       (setf (http:function-method-keys function)
             (union (http:function-method-keys function) http-qualifiers)))))
 
+#+(or)
 (define-method-combination http:http (&key )
                            ((identification (:auth :identification))
                             (permission (:auth :permission))
@@ -677,11 +678,62 @@
         (pprint form)
         form))))
 
-(defgeneric http:respond-to-option-request (function request response media-type verbs)
+(define-method-combination http:http (&key )
+                           ((identification (:auth :identification))
+                            (permission (:auth :permission))
+                            (around (:around) )
+                            (decode (:decode . *))
+                            (encode (:encode . *))
+                            (get (:get))
+                            (put (:put))
+                            (head (:head))
+                            (patch (:patch))
+                            (post (:post))
+                            (delete (:delete))
+                            (options (:options))
+                            (trace (:trace))
+                            (connect (:connect))
+                            (multiple http-verb-list-p))
+  (:generic-function function)
+  (flet ((qualify-methods ()
+           (let ((categorized (append (when get `(:get ,(reverse get)))
+                                      (when put `(:put ,(reverse put)))
+                                      (when head `(:head ,(reverse head)))
+                                      (when patch `(:patch ,(reverse patch)))
+                                      (when post `(:post ,(reverse post)))
+                                      (when delete `(:delete ,(reverse delete)))
+                                      (when options `(:options ,(reverse options)))
+                                      (when trace `(:trace ,(reverse trace)))
+                                      (when connect `(:connect ,(reverse connect))))))
+             (loop for method in multiple
+                   do (loop for method-key in (method-qualifiers method)
+                            do (push method (getf categorized method-key))))
+             (loop for (key methods) on categorized by #'cddr
+                   collect key collect (reverse methods)))))
+    (if (and encode (eq (second (method-qualifiers (first encode))) :as))
+      `(call-method ,(first encode) ())
+      (let* ((form
+              `(handler-case
+                 ,(compute-effective-resource-function-method function
+                                                              identification permission
+                                                              around 
+                                                              decode
+                                                              (qualify-methods)
+                                                              encode)
+                 (http:redirect (redirection)
+                                ;; if the redirection is internal invoke it, otherwise resignal it
+                                (let ((location (http:condition-location redirection)))
+                                  (if (functionp location)
+                                    (funcall location)
+                                    (error redirection)))))))
+        (pprint form)
+        form))))
+
+(defgeneric http:respond-to-option-request (function request response verbs)
   (:documentation "The base method implements the default heade response.
    It collected the verbs from the applicable methods into the 'Allow' header and emits
    the headers.")
-  (:method ((function t) (request t) (response http:response) (media-type t) verbs)
+  (:method ((function t) (request t) (response http:response) verbs)
     ;; the default method 
     (setf (http:response-content-length response) 0)
     (setf (http:response-allow response) verbs)))
@@ -728,27 +780,26 @@
          (mime-type-clause (when encode-methods
                              (let* ((method (first encode-methods))
                                     (specializer (fifth (c2mop:method-specializers method))))
-                               `(setf (http:response-media-type (http:resource))
-                                      (http:response-compute-media-type (http:resource) ,(class-name specializer)
-                                                                          :charset (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8))))))
+                               `(setf (http:response-media-type (http:response))
+                                      (http:response-compute-media-type (http:request) (http:response) ,(class-name specializer)
+                                                                        :charset (or (mime:mime-type-charset (http:request-accept-type (http:request))) :utf-8))))))
          ;; build a case statement with one entry for each http operation for which
          ;; known a method is present
          (content-clause `(case (http:request-method http:*request*)
                               ;; add a clause for each verb asspciated with an applicable method
-                              ,@(loop for (key . methods) in primary-by-method
+                              ,@(loop for (key methods) on primary-by-method by #'cddr
                                       collect `(,key ,(if methods
                                                         `(call-method ,(first methods) ,(append (rest methods) (list decode-method)))
                                                         '(http:not-implemented))))
                               ;; add an options clause if none is present
-                              ,@(unless (assoc :options primary-by-method)
-                                  `((:options (respond-with-options ,function (http:request) (http:resource) (http:response-media-type (http:resource))
-                                                                    ',(mapcar #'first primary-by-method)))))
+                              ,@(unless (getf primary-by-method :options)
+                                  `((:options (http:respond-to-option-request ,function (http:request) (http:response)
+                                                                              ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
                               ;; otherwise, it is not implemented
                               (t (http:not-implemented))))
-         (main-clause `(call-method ,encode-method
-                                    ,(if mime-type-clause
-                                       `((make-method (progn ,mime-type-clause ,content-clause)))
-                                       `((make-method ,content-clause))))))
+         (main-clause `(call-method ,encode-method ((make-method ,content-clause)))))
+    (when mime-type-clause
+      (setf main-clause `(progn ,mime-type-clause ,main-clause)))
     (when authentication-clause
       (setf main-clause `(progn ,authentication-clause ,main-clause)))
     (let* ((form (if around
@@ -794,9 +845,11 @@
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
                                                         ;; encode as per the derived response content type, which will be an instance of the
                                                         ;; specializer class, but include the character set encoding
-                                                        (let ((effective-content-type (http:response-media-type response)))
+                                                        (let ((content (call-next-method))
+                                                              ;; this reference must happen
+                                                              (effective-content-type (http:response-media-type response)))
                                                           (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
-                                                          (http:encode-response (call-next-method) response effective-content-type))))))))
+                                                          (http:encode-response  response effective-content-type))))))))
                                              (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
                                                      (qualifiers (ldiff clause after-qualifiers)))
@@ -841,14 +894,15 @@
   )
 
 (defgeneric (setf http:response-content-length) (value response)
-  (:method ((value t) (response http:response)) 
-    (setf (http:response-content-length-header response) (when value (prin1-to-string value)))))
+  ;; hunchentoot requires an integer argument
+  (:method ((value integer) (response http:response)) 
+    (setf (http:response-content-length-header response) value)))
 
 (defgeneric (setf http:response-content-length-header) (value response)
   )
 
-(defgeneric http:response-compute-media-type (response class &key charset)
-  (:method ((response http:response) (type mime:mime-type) &rest args)
+(defgeneric http:response-compute-media-type (request response class &key charset)
+  (:method ((request t) (response http:response) (type mime:mime-type) &rest args)
     (declare (dynamic-extent args))
     (apply #'mime:mime-type type args)))
 
@@ -874,6 +928,7 @@
   (:method ((media-type mime:mime-type) (response http:response))
     (setf (http:response-content-type-header response)
           (format nil "~a~@[; charset=~a~]" (type-of media-type) (mime:mime-type-charset media-type)))
+    (setf-response-media-type media-type response)
     media-type))
 
 
@@ -960,23 +1015,24 @@
     in its initial :iso-86001 configuration. Once the response head has been
     written, reconfigure the stream to reflect the media type character encoding
     and possible content encoding.")
-  (:method :before ((response http:response))
+  (:method :around ((response http:response))
     ;; advance the state - this permits send-headers itself to use the content stream
     ;; without infinite recursion
-    (setf (response-state response) :headers))
-  (:method :after ((response http:response))
-    (setf (response-state response) :body)
-    ;; configure the response stream. this must be delayed to this point, rather
-    ;; than performed as a side-effect of setting the response content type, as
-    ;; that would change the encoding for the headers
-    (let ((stream (get-response-content-stream response)))
-      (setf (http:stream-media-type stream) (http:response-media-type response))
-      (when (http:response-transfer-encoding-header response)
-        (setf (chunga:chunked-stream-output-chunking-p stream) t))
-      ;; TODO : iff content encoding is specified, wrap the response stream with
-      ;; one which pipes through a zip process. need to take a possible ssl 
-      ;; wrapper into account.
-      )))
+    (unless (response-state response)
+      (setf (response-state response) :headers)
+      (multiple-value-prog1 (call-next-method)
+        (setf (response-state response) :body)
+        ;; configure the response stream. this must be delayed to this point, rather
+        ;; than performed as a side-effect of setting the response content type, as
+        ;; that would change the encoding for the headers
+        (let ((stream (get-response-content-stream response)))
+          (setf (http:stream-media-type stream) (http:response-media-type response))
+          (when (http:response-transfer-encoding-header response)
+            (setf (chunga:chunked-stream-output-chunking-p stream) t))
+          ;; TODO : iff content encoding is specified, wrap the response stream with
+          ;; one which pipes through a zip process. need to take a possible ssl 
+          ;; wrapper into account.
+          )))))
       
 
 (defgeneric http:send-entity-body (response body)

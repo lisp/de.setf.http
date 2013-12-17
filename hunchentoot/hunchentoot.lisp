@@ -325,77 +325,76 @@ directly write to the stream in this case.
 
 Returns the stream that is connected to the client."
   
-  (when (http:response-headers-unsent-p response)
-    (let* ((header-stream (http:response-content-stream response))
-           (headers-out (headers-out response))
-           (content-length (rest (assoc :content-length headers-out)))
-           (head-request-p (eq :head (request-method (http:response-request response))))
-           (server nil)
-           (date nil)
-           (status-code (http:response-status-code response))
-           (chunked-p (and (acceptor-output-chunking-p (http:response-acceptor response))
-                           (eq (http:response-protocol response) :http/1.1)
-                           ;; only turn chunking on if the content
-                           ;; length is unknown at this point...
-                           (null content-length))))
+  (let* ((header-stream (http:response-content-stream response))
+         (headers-out (headers-out response))
+         (content-length (rest (assoc :content-length headers-out)))
+         (head-request-p (eq :head (request-method (http:response-request response))))
+         (server nil)
+         (date nil)
+         (status-code (http:response-status-code response))
+         (chunked-p (and (acceptor-output-chunking-p (http:response-acceptor response))
+                         (eq (http:response-protocol response) :http/1.1)
+                         ;; only turn chunking on if the content
+                         ;; length is unknown at this point...
+                         (null content-length))))
+    
+    ;; emit the response and entity headers
+    ;; start with status line
+    (format header-stream "HTTP/1.1 ~D ~A~C~C" status-code (reason-phrase status-code) #\Return #\Linefeed)
+    ;; write all headers from the REPLY object
+    (when chunked-p
+      (setf headers-out (acons :transfer-encoding "chunked" headers-out)))
+    (loop for (key . value) in headers-out
+          when value
+          do (case key
+               (:date (setf date t))
+               (:server (setf server t)))
+          and do (write-header-line (as-capitalized-string key) value header-stream))
+    (unless date
+      (setf date (rfc-1123-date))
+      (write-header-line (as-capitalized-string :date) date header-stream)
+      (setf headers-out (acons :date date headers-out)))
+    (unless server
+      (setf server (acceptor-server-name (http:response-acceptor response)))
+      (write-header-line (as-capitalized-string :server) server header-stream)
+      (setf headers-out (acons :server server headers-out)))
+    ;; the slot definition includes a reader only
+    (setf (slot-value response 'headers-out) headers-out)
+    
+    (multiple-value-bind (keep-alive-p keep-alive-requested-p)
+                         (http:response-keep-alive-p response)
+      (when keep-alive-p
+        (setq keep-alive-p
+              ;; use keep-alive if there's a way for the client to
+              ;; determine when all content is sent (or if there
+              ;; is no content)
+              (or chunked-p
+                  head-request-p
+                  (eql (return-code*) +http-not-modified+)
+                  content-length)))
       
-      ;; emit the response and entity headers
-      ;; start with status line
-      (format header-stream "HTTP/1.1 ~D ~A~C~C" status-code (reason-phrase status-code) #\Return #\Linefeed)
-      ;; write all headers from the REPLY object
-      (when chunked-p
-        (setf headers-out (acons :transfer-encoding "chunked" headers-out)))
-      (loop for (key . value) in headers-out
-            when value
-            do (case key
-                 (:date (setf date t))
-                 (:server (setf server t)))
-            and do (write-header-line (as-capitalized-string key) value header-stream))
-      (unless date
-        (setf date (rfc-1123-date))
-        (write-header-line (as-capitalized-string :date) date header-stream)
-        (setf headers-out (acons :date date headers-out)))
-      (unless server
-        (setf server (acceptor-server-name (http:response-acceptor response)))
-        (write-header-line (as-capitalized-string :server) server header-stream)
-        (setf headers-out (acons :server server headers-out)))
-      ;; the slot definition includes a reader only
-      (setf (slot-value response 'headers-out) headers-out)
-      
-      (multiple-value-bind (keep-alive-p keep-alive-requested-p)
-                           (http:response-keep-alive-p response)
-        (when keep-alive-p
-          (setq keep-alive-p
-                ;; use keep-alive if there's a way for the client to
-                ;; determine when all content is sent (or if there
-                ;; is no content)
-                (or chunked-p
-                    head-request-p
-                    (eql (return-code*) +http-not-modified+)
-                    content-length)))
-        
-        ;; now emit keep-alive headers
-        (cond (keep-alive-p
-               (setf *close-hunchentoot-stream* nil)
-               (when (and (acceptor-read-timeout (http:response-acceptor response))
-                          (or (not (eq (http:response-protocol response) :http/1.1))
-                              keep-alive-requested-p))
-                 ;; persistent connections are implicitly assumed for
-                 ;; HTTP/1.1, but we return a 'Keep-Alive' header if the
-                 ;; client has explicitly asked for one
-                 (write-header-line (as-capitalized-string :connection) "Keep-Alive" header-stream)
-                 (write-header-line (as-capitalized-string :keep-alive)
-                                    (format nil "timeout=~D" (acceptor-read-timeout (http:response-acceptor response)))
-                                    header-stream)))
-              (t
-               (write-header-line (as-capitalized-string :connection) "Close" header-stream)))
-        (setf (http:response-close-stream-p response) keep-alive-p))
-      
-      ;; now the cookies
-      (loop for (nil . cookie) in (cookies-out response)
-            do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
-      (format header-stream "~C~C" #\Return #\Linefeed)
-      
-      ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
-      (raw-post-data :force-binary t)
-      (http:response-content-stream response))))
+      ;; now emit keep-alive headers
+      (cond (keep-alive-p
+             (setf *close-hunchentoot-stream* nil)
+             (when (and (acceptor-read-timeout (http:response-acceptor response))
+                        (or (not (eq (http:response-protocol response) :http/1.1))
+                            keep-alive-requested-p))
+               ;; persistent connections are implicitly assumed for
+               ;; HTTP/1.1, but we return a 'Keep-Alive' header if the
+               ;; client has explicitly asked for one
+               (write-header-line (as-capitalized-string :connection) "Keep-Alive" header-stream)
+               (write-header-line (as-capitalized-string :keep-alive)
+                                  (format nil "timeout=~D" (acceptor-read-timeout (http:response-acceptor response)))
+                                  header-stream)))
+            (t
+             (write-header-line (as-capitalized-string :connection) "Close" header-stream)))
+      (setf (http:response-close-stream-p response) keep-alive-p))
+    
+    ;; now the cookies
+    (loop for (nil . cookie) in (cookies-out response)
+          do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
+    (format header-stream "~C~C" #\Return #\Linefeed)
+    
+    ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
+    (raw-post-data :force-binary t)
+    (http:response-content-stream response)))
