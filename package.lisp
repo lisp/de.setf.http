@@ -125,7 +125,7 @@
            :response-acceptor
            :response-accept-ranges
            :response-allow
-           :response-allow-headers
+           :response-allow-header
            :response-cache-control
            :response-character-encoding
            :response-class
