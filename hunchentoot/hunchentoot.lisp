@@ -345,8 +345,6 @@ Returns the stream that is connected to the client."
       (loop for (key . value) in headers-out
             when value
             do (case key
-                 (:content-type (when (mime:binary-mime-type-p value)
-                                  (setf external-format nil)))
                  (:date (setf date t))
                  (:server (setf server t)))
             and do (write-header-line (as-capitalized-string key) value header-stream))
@@ -358,7 +356,8 @@ Returns the stream that is connected to the client."
         (setf server (acceptor-server-name (http:response-acceptor response)))
         (write-header-line (as-capitalized-string :server) server header-stream)
         (setf headers-out (acons :server server headers-out)))
-      (setf (headers-out response) headers-out)
+      ;; the slot definition includes a reader only
+      (setf (slot-value reply 'headers-out) headers-out)
       
       (multiple-value-bind (keep-alive-p keep-alive-requested-p)
                            (http:response-keep-alive-p response)
