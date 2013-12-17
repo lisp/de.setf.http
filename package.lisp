@@ -149,6 +149,7 @@
            :response-request
            :response-socket-stream
            :response-status-code
+           :response-transfer-encoding-header
            :response-vary
            :response-www-authenticate-header
            :send-entity-body

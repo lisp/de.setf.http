@@ -907,6 +907,9 @@
 (defgeneric (setf http:response-retry-after-header) (time response)
   )
 
+(defgeneric (setf http:response-transfer-encoding-header) (time response)
+  )
+
 (defgeneric http:response-vary (value response)
   )
 
@@ -968,8 +971,8 @@
     ;; that would change the encoding for the headers
     (let ((stream (get-response-content-stream response)))
       (setf (http:stream-media-type stream) (http:response-media-type response))
-      (when (rest (assoc :transfer-encoding (headers-out response)))
-        (setf (chunga:chunked-stream-output-chunking-p header-stream) t))
+      (when (http:response-transfer-encoding-header response)
+        (setf (chunga:chunked-stream-output-chunking-p stream) t))
       ;; TODO : iff content encoding is specified, wrap the response stream with
       ;; one which pipes through a zip process. need to take a possible ssl 
       ;; wrapper into account.
@@ -982,14 +985,14 @@
 
   (:method ((response http:response) (body vector))
     ;; try to disable chunking; for binary sequences length is the byte count
-    (setf (http:response-content-length response) (length content))
-    (write-sequence content (http:response-content-stream response)))
+    (setf (http:response-content-length response) (length body))
+    (write-sequence body (http:response-content-stream response)))
 
   (:method ((response http:response) (body string))
     ;; try to disable chunking; for strings, the encoded length is the byte count
     (setf (http:response-content-length response)
-          (mime:size-string content (mime:mime-type-charset (http:response-media-type response))))
-    (write-sequence content (http:response-content-stream response)))
+          (mime:size-string body (mime:mime-type-charset (http:response-media-type response))))
+    (write-string body (http:response-content-stream response)))
 
   (:method (response (content null))))
 

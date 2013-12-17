@@ -162,6 +162,9 @@
 (defmethod (setf http:response-status-code) (code (response tbnl-response))
   (setf (return-code response) code))
 
+(defmethod http:response-transfer-encoding-header ((response tbnl-response))
+  (rest (assoc :transfer-encoding (headers-out response))))
+
 
 ;;;
 ;;; the native hunchentoot control structure is/was
@@ -357,7 +360,7 @@ Returns the stream that is connected to the client."
         (write-header-line (as-capitalized-string :server) server header-stream)
         (setf headers-out (acons :server server headers-out)))
       ;; the slot definition includes a reader only
-      (setf (slot-value reply 'headers-out) headers-out)
+      (setf (slot-value response 'headers-out) headers-out)
       
       (multiple-value-bind (keep-alive-p keep-alive-requested-p)
                            (http:response-keep-alive-p response)
