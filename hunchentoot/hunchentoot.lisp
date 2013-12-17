@@ -331,10 +331,10 @@ Returns the stream that is connected to the client."
            (date nil)
            (status-code (http:response-status-code response))
            (chunked-p (and (acceptor-output-chunking-p (http:response-acceptor response))
-                            (eq (http:response-protocol response) :http/1.1)
-                            ;; only turn chunking on if the content
-                            ;; length is unknown at this point...
-                            (null content-length))))
+                           (eq (http:response-protocol response) :http/1.1)
+                           ;; only turn chunking on if the content
+                           ;; length is unknown at this point...
+                           (null content-length))))
       
       ;; emit the response and entity headers
       ;; start with status line
@@ -372,43 +372,28 @@ Returns the stream that is connected to the client."
                     (eql (return-code*) +http-not-modified+)
                     content-length)))
         
-          ;; now emit keep-alive headers
-          (cond (keep-alive-p
-                 (setf *close-hunchentoot-stream* nil)
-                 (when (and (acceptor-read-timeout (http:response-acceptor response))
-                            (or (not (eq (http:response-protocol response) :http/1.1))
-                                keep-alive-requested-p))
-                   ;; persistent connections are implicitly assumed for
-                   ;; HTTP/1.1, but we return a 'Keep-Alive' header if the
-                   ;; client has explicitly asked for one
-                   (write-header-line (as-capitalized-string :connection) "Keep-Alive" header-stream)
-                   (write-header-line (as-capitalized-string :keep-alive)
-                                      (format nil "timeout=~D" (acceptor-read-timeout (http:response-acceptor response)))
-                                      header-stream)))
-                (t
-                 (write-header-line (as-capitalized-string :connection) "Close" header-stream)))
-          (setf (http:response-close-stream-p response) keep-alive-p))
+        ;; now emit keep-alive headers
+        (cond (keep-alive-p
+               (setf *close-hunchentoot-stream* nil)
+               (when (and (acceptor-read-timeout (http:response-acceptor response))
+                          (or (not (eq (http:response-protocol response) :http/1.1))
+                              keep-alive-requested-p))
+                 ;; persistent connections are implicitly assumed for
+                 ;; HTTP/1.1, but we return a 'Keep-Alive' header if the
+                 ;; client has explicitly asked for one
+                 (write-header-line (as-capitalized-string :connection) "Keep-Alive" header-stream)
+                 (write-header-line (as-capitalized-string :keep-alive)
+                                    (format nil "timeout=~D" (acceptor-read-timeout (http:response-acceptor response)))
+                                    header-stream)))
+              (t
+               (write-header-line (as-capitalized-string :connection) "Close" header-stream)))
+        (setf (http:response-close-stream-p response) keep-alive-p))
       
-        ;; now the cookies
-        (loop for (nil . cookie) in (cookies-out response)
-              do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
-        (format header-stream "~C~C" #\Return #\Linefeed)
-                               
-       #| ;; depending on whether content length was set and/or the content-type
-        ;; reconfigure the content stream for chunking
-        (when chunked-p
-          (setf (chunga:chunked-stream-output-chunking-p header-stream) t))
-        ;; adjust and cache the entity body stream
-        (when external-format
-          (setf (flex:flexi-stream-external-format header-stream) external-format))
-        ;; wrap the initial stream for chunking
-        (when (and chunked-p (not (typep header-stream 'chunked-stream)))
-          (let ((body-stream (make-chunked-stream header-stream)))
-            (setf (chunked-stream-output-chunking-p body-stream) t)
-            #+(or)(when external-format
-              (setf (flex:flexi-stream-external-format body-stream) external-format))
-            (setf (http:response-content-stream response) body-stream))) |#
-        
-        ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
-        (raw-post-data :force-binary t)
-        (http:response-content-stream response)))))
+      ;; now the cookies
+      (loop for (nil . cookie) in (cookies-out response)
+            do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
+      (format header-stream "~C~C" #\Return #\Linefeed)
+      
+      ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
+      (raw-post-data :force-binary t)
+      (http:response-content-stream response))))
