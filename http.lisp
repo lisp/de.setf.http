@@ -834,7 +834,8 @@
   )
 
 (defgeneric http:response-content-length (value response)
-  (setf (http:response-content-length-header response) (when value (prin1-to-string value))))
+  (:method ((value t) (response http:response)) 
+    (setf (http:response-content-length-header response) (when value (prin1-to-string value)))))
 
 (defgeneric http:response-content-length-header (value response)
   )
