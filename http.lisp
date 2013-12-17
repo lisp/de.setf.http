@@ -787,7 +787,7 @@
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
                                                         ;; encode as per the derived response content type, which will be an instance of the
                                                         ;; specializer class, but include the character set encoding
-                                                        (let ((effective-content-type (http:response-content-type response)))
+                                                        (let ((effective-content-type (http:response-media-type response)))
                                                           (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
                                                           (http:encode-response (call-next-method) response effective-content-type))))))))
                                              (:decode
