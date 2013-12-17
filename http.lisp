@@ -827,7 +827,7 @@
   (:method ((allow-verbs list) (response http:response))
     (setf (http:response-allow-header response) (format nil "~{~a~^,~}" allow-verbs))))
 
-(defgeneric (setf http:response-allow-headers) (allow-verbs response)
+(defgeneric (setf http:response-allow-header) (allow-verbs response)
   )
 
 (defgeneric http:response-cache-control (value response)
