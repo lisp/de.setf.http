@@ -3,6 +3,16 @@
 
 (in-package :de.setf.http.implementation)
 
+;;; read-only state
+
+(declaim (ftype (function () http:acceptor) http:acceptor))
+(defun http:request () http:*request*)
+(define-compiler-macro http:request () 'http:*request*)
+(defun http:resource () http:*resource*)
+(define-compiler-macro http:resource () 'http:*resource*)
+(defun http:response () http:*response*)
+(define-compiler-macro http:response () 'http:*response*)
+
 (defun http-verb-p (object)
   (and (keywordp object)
        (eq (find-symbol (symbol-name object) *http-method-package*) object)))

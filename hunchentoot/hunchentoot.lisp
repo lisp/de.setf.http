@@ -231,7 +231,7 @@
             ((http:condition (lambda (c)
                                ;; when the headers are still pending, emit an error report as the
                                ;; response. otherwise, just terminate the processing
-                               (unless (http:response-headers-sent-p *reply*)
+                               (when (http:response-headers-unsent-p *reply*)
                                  (http:report-condition-headers c *reply*)
                                  (http:send-headers *reply*))
                                (return-from process-connection
@@ -323,50 +323,55 @@ directly write to the stream in this case.
 Returns the stream that is connected to the client."
   
   (unless (http:response-headers-sent-p response)
-    (let ((header-stream (http:response-content-stream response))
-          (content-length nil)
-          (external-format +utf-8+)
-          (head-request-p (eq :head (request-method (http:response-request response))))
-          (server nil)
-          (date nil)
-          (status-code (http:response-status-code response)))
+    (let* ((header-stream (http:response-content-stream response))
+           (headers-out (headers-out response))
+           (content-length (rest (assoc :content-length headers-out)))
+           (head-request-p (eq :head (request-method (http:response-request response))))
+           (server nil)
+           (date nil)
+           (status-code (http:response-status-code response))
+           (chunked-p (and (acceptor-output-chunking-p (http:response-acceptor response))
+                            (eq (http:response-protocol response) :http/1.1)
+                            ;; only turn chunking on if the content
+                            ;; length is unknown at this point...
+                            (null content-length))))
       
       ;; emit the response and entity headers
       ;; start with status line
       (format header-stream "HTTP/1.1 ~D ~A~C~C" status-code (reason-phrase status-code) #\Return #\Linefeed)
       ;; write all headers from the REPLY object
-      
-      (loop for (key . value) in (headers-out response)
+      (when chunked-p
+        (setf headers-out (acons :transfer-encoding "chunked" headers-out)))
+      (loop for (key . value) in headers-out
             when value
             do (case key
                  (:content-type (when (mime:binary-mime-type-p value)
                                   (setf external-format nil)))
-                 (:content-length (setf content-length value))
                  (:date (setf date t))
                  (:server (setf server t)))
             and do (write-header-line (as-capitalized-string key) value header-stream))
       (unless date
-        (write-header-line (as-capitalized-string :date) (rfc-1123-date) header-stream))
+        (setf date (rfc-1123-date))
+        (write-header-line (as-capitalized-string :date) date header-stream)
+        (setf headers-out (acons :date date headers-out)))
       (unless server
-        (write-header-line (as-capitalized-string :server) (acceptor-server-name (http:response-acceptor response)) header-stream))
-      (let ((chunked-p (and (acceptor-output-chunking-p (http:response-acceptor response))
-                            (eq (http:response-protocol response) :http/1.1)
-                            ;; only turn chunking on if the content
-                            ;; length is unknown at this point...
-                            (null content-length))))
-        (multiple-value-bind (keep-alive-p keep-alive-requested-p)
-                             (http:response-keep-alive-p response)
-          (when keep-alive-p
-            (setq keep-alive-p
-                  ;; use keep-alive if there's a way for the client to
-                  ;; determine when all content is sent (or if there
-                  ;; is no content)
-                  (or chunked-p
-                      head-request-p
-                      (eql (return-code*) +http-not-modified+)
-                      content-length)))
-          (when chunked-p
-            (write-header-line (as-capitalized-string :transfer-encoding) "chunked" header-stream))
+        (setf server (acceptor-server-name (http:response-acceptor response)))
+        (write-header-line (as-capitalized-string :server) server header-stream)
+        (setf headers-out (acons :server server headers-out)))
+      (setf (headers-out response) headers-out)
+      
+      (multiple-value-bind (keep-alive-p keep-alive-requested-p)
+                           (http:response-keep-alive-p response)
+        (when keep-alive-p
+          (setq keep-alive-p
+                ;; use keep-alive if there's a way for the client to
+                ;; determine when all content is sent (or if there
+                ;; is no content)
+                (or chunked-p
+                    head-request-p
+                    (eql (return-code*) +http-not-modified+)
+                    content-length)))
+        
           ;; now emit keep-alive headers
           (cond (keep-alive-p
                  (setf *close-hunchentoot-stream* nil)
@@ -388,11 +393,11 @@ Returns the stream that is connected to the client."
         (loop for (nil . cookie) in (cookies-out response)
               do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
         (format header-stream "~C~C" #\Return #\Linefeed)
+                               
+       #| ;; depending on whether content length was set and/or the content-type
         ;; reconfigure the content stream for chunking
         (when chunked-p
           (setf (chunga:chunked-stream-output-chunking-p header-stream) t))
-                               
-       #| ;; depending on whether content length was set and/or the content-type
         ;; adjust and cache the entity body stream
         (when external-format
           (setf (flex:flexi-stream-external-format header-stream) external-format))

@@ -6,7 +6,14 @@
 
 (declaim (special http:*request* http::*reply*))
 
-(defparameter http:*response* nil)
+(defparameter http:*request* nil
+  "Bound to the request instance for the dynamic extent of the respond-to-request call.")
+
+(defparameter http:*resource* nil
+  "Bound to the request's resource instance for the dynamic extent of the resource function call.")
+
+(defparameter http:*response* nil
+  "Bound to the response instance for the dynamic extent of the respond-to-request call.")
 
 (defparameter *http-method-package* (find-package :http-method-package))
 

@@ -17,6 +17,7 @@
   (:nicknames :http)
   (:export :*log-level*
            :*request*
+           :*resource*
            :*response*
            :*session*
            :+http-ok+
@@ -138,7 +139,7 @@
            :response-content-type-header
            :response-close-stream-p
            :response-etag
-           :response-headers-sent-p
+           :response-headers-unsent-p
            :response-keep-alive-p
            :response-last-modified
            :response-location-header
