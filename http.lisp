@@ -515,14 +515,12 @@
 (defgeneric http:request-accept-type (request)
   (:method ((request http:request))
     (or (get-request-accept-type request)
-        (setf-request-accept-type (let ((accept (http:request-accept-header request))
-                                        (charset (or (http:request-accept-charset request) :utf-8)))
-                                    (when accept
-                                      (setf accept (remove #\space accept))
-                                      (or (gethash (cons accept charset) (acceptor-header-instances (http:acceptor)))
-                                          (setf (gethash (cons accept charset) (acceptor-header-instances (http:acceptor)))
-                                                (intern-media-type accept charset)))))
-                                  request))))
+        (let ((accept (remove #\space (http:request-accept-header request))))
+          (when accept
+            (or (gethash accept (acceptor-header-instances (http:acceptor)))
+                (setf (gethash accept (acceptor-header-instances (http:acceptor)))
+                      (intern-media-type accept))))))))
+
 
 (defgeneric http:request-accept-header (request)
   )
@@ -768,12 +766,7 @@
          ;; the most-specific only
          (decode-method (or (first decode-methods) '(make-method (http::unsupported-media-type))))
          ;; the most-specific only
-         (encode-method (if encode-methods
-                          (first encode-methods)
-                          `(make-method (if (or (eq :get (http:request-method http:*request*))
-                                                  (http:request-accept-header http:*request*))
-                                          (http::not-acceptable)
-                                          (call-next-method)))))
+         (encode-method (first encode-methods))
          ;; add a clause to cache the concrete media type according to the most
          ;; specific class specializer applicable to the request's accept type
          ;; carrying over the character encoding from the request
@@ -797,7 +790,23 @@
                                                                               ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
                               ;; otherwise, it is not implemented
                               (t (http:not-implemented))))
-         (main-clause `(call-method ,encode-method ((make-method ,content-clause)))))
+         (main-clause (if encode-method
+                        `(call-method ,encode-method ((make-method ,content-clause)))
+                        `(progn
+                           (when (or (eq :get (http:request-method http:*request*))
+                                     (http:request-accept-header http:*request*))
+                             (let ((acceptable-media-type (compute-acceptable-media-type ,function
+                                                                                         (http:resource) (http:request) (http:response)
+                                                                                         (http:request-media-type (http:request))
+                                                                                         (http:request-accept-type (http:request)))))
+                               (cond (acceptable-media-type
+                                      (funcall ,function (http:resource) (http:request) (http:response)
+                                               (http:request-media-type (http:request))
+                                               acceptable-media-type))
+                                     (t
+                                      (setf (http:response-media-type (http:response)) mime:text/plain)
+                                      (http::not-acceptable)))))
+                           ,content-clause))))
     (when mime-type-clause
       (setf main-clause `(progn ,mime-type-clause ,main-clause)))
     (when authentication-clause
@@ -846,10 +855,9 @@
                                                         ;; encode as per the derived response content type, which will be an instance of the
                                                         ;; specializer class, but include the character set encoding
                                                         (let ((content (call-next-method))
-                                                              ;; this reference must happen
                                                               (effective-content-type (http:response-media-type response)))
                                                           (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
-                                                          (http:encode-response  response effective-content-type))))))))
+                                                          (http:encode-response content response effective-content-type))))))))
                                              (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
                                                      (qualifiers (ldiff clause after-qualifiers)))
@@ -987,6 +995,9 @@
 (defgeneric http:report-condition-headers (condition response)
   (:documentation "Given a condition, assert its side-effects on the request
     state, to be communicated to the client as part of the response.")
+
+  (:method :before ((condition t) response)
+    (setf (http:response-content-length response) 0))
 
   (:method ((condition http:redirect) response)
     (setf (http:response-location-header response) (http:condition-location condition))

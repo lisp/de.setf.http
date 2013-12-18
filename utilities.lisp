@@ -93,7 +93,7 @@
          (types (loop for range in accept-ranges
                         for (major minor q) = (or (parse-media-range range)
                                                   (http:bad-request :message (format nil "Invalid accept range: ~s." range)))
-                        for type = (dsu:intern-mime-type-key (format nil "~a/~a" major minor))
+                        for type = (dsu:intern-mime-type-key (format nil "~a/~a" major minor) :if-does-not-exist nil)
                         for quality = (cond (q
                                              (unless (every #'digit-char-p q)
                                                (http:bad-request :message "Invalid accept field: '~a'" header))
@@ -109,25 +109,51 @@
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
 
 ;;; (compute-accept-ordered-types "text/html")
+;;; (compute-accept-ordered-types "*/*")
 
 
 
 
-(defgeneric intern-media-type (accept-header accept-charset)
-  (:method (header (accept-charset-header null))
-    (intern-media-type header :utf-8))
-
-  (:method ((header string) (accept-charset t))
+(defgeneric intern-media-type (accept-header)
+  (:method ((header string))
     (let* ((ordered-types (compute-accept-ordered-types header))
            (class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
            (class (or (find-class class-name)
                       (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
-      (make-instance class :charset accept-charset))))
+      (make-instance class))))
 
 
 (defun concrete-media-type (mime-type)
   "return an instance of the initial class in the union precedence list"
   (symbol-value (class-name (first (c2mop:class-direct-superclasses (class-of mime-type))))))
+
+(defgeneric compute-acceptable-methods (function resource request response request-type response-type)
+  (:documentation "compute applicable methods, but 
+     - select from encoding method only
+     - constrain the function to be a resource function
+     - invert the type relation for the response type")
+
+  (:method ((function http:resource-function) resource request response request-type (response-type mime:mime-type))
+    (compute-acceptable-methods function resource request response request-type (class-of response-type)))
+
+  (:method ((function http:resource-function) resource request response request-type (response-type-class class))
+    (loop for method in (c2mop:generic-function-methods function)
+          when (and (eq :encode (first (method-qualifiers method)))
+                    (destructuring-bind (resource-q request-q response-q request-type-q response-type-q)
+                                        (method-specializers method)
+                      (and (typep resource resource-q)
+                           (typep request request-q)
+                           (typep response response-q)
+                           (typep request-type request-type-q)
+                           (subtypep (class-name response-type-q) response-type-class))))
+          collect method)))
+              
+    
+(defgeneric compute-acceptable-media-type (function resource request response request-type response-type)
+  (:method ((function http:resource-function) resource request response request-type (response-type mime:mime-type))
+    (let ((methods (compute-acceptable-methods function resource request response request-type response-type)))
+      (when methods
+        (make-instance (fifth (c2mop:method-specializers (first methods))))))))
 
 ;;; codecs
 
