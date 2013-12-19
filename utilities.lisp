@@ -140,7 +140,7 @@
     (loop for method in (c2mop:generic-function-methods function)
           when (and (eq :encode (first (method-qualifiers method)))
                     (destructuring-bind (resource-q request-q response-q request-type-q response-type-q)
-                                        (method-specializers method)
+                                        (c2mop:method-specializers method)
                       (and (typep resource resource-q)
                            (typep request request-q)
                            (typep response response-q)
