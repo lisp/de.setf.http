@@ -885,6 +885,35 @@
          ,@definition-clauses))))
 
 
+(defgeneric compute-acceptable-methods (function resource request response request-type response-type)
+  (:documentation "compute applicable methods, but 
+     - select from encoding method only
+     - constrain the function to be a resource function
+     - invert the type relation for the response type")
+
+  (:method ((function http:resource-function) resource request response request-type (response-type mime:mime-type))
+    (compute-acceptable-methods function resource request response request-type (class-of response-type)))
+
+  (:method ((function http:resource-function) resource request response request-type (response-type-class class))
+    (loop for method in (c2mop:generic-function-methods function)
+          when (and (eq :encode (first (method-qualifiers method)))
+                    (destructuring-bind (resource-q request-q response-q request-type-q response-type-q)
+                                        (c2mop:method-specializers method)
+                      (and (typep resource resource-q)
+                           (typep request request-q)
+                           (typep response response-q)
+                           (typep request-type request-type-q)
+                           (subtypep (class-name response-type-q) response-type-class))))
+          collect method)))
+              
+    
+(defgeneric compute-acceptable-media-type (function resource request response request-type response-type)
+  (:method ((function http:resource-function) resource request response request-type (response-type mime:mime-type))
+    (let ((methods (compute-acceptable-methods function resource request response request-type response-type)))
+      (when methods
+        (make-instance (fifth (c2mop:method-specializers (first methods))))))))
+
+
 ;;;
 ;;; response
 
