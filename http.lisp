@@ -764,7 +764,7 @@
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
          ;; the most-specific only
-         (decode-method (or (first decode-methods) '(make-method (http::unsupported-media-type))))
+         (decode-methods (or decode-methods '((make-method (http::unsupported-media-type)))))
          ;; the most-specific only
          (encode-method (first encode-methods))
          ;; add a clause to cache the concrete media type according to the most
@@ -782,7 +782,13 @@
                               ;; add a clause for each verb asspciated with an applicable method
                               ,@(loop for (key methods) on primary-by-method by #'cddr
                                       collect `(,key ,(if methods
-                                                        `(call-method ,(first methods) ,(append (rest methods) (list decode-method)))
+                                                        `(call-method ,(first methods)
+                                                                      ,(append (rest methods)
+                                                                               (when (member key '(:patch :post :put))
+                                                                                 ;; include decode methods iff the verb supports content
+                                                                                 ;; otherwise arrange to return nil
+                                                                                 decode-methods
+                                                                                 '(make-method nil))))
                                                         '(http:not-implemented))))
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
