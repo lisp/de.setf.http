@@ -137,6 +137,9 @@
 (eval-when (#+lispworks :compile-toplevel :load-toplevel :execute)
   (defmethod c2mop:validate-superclass ((subclass http:resource-class)
 					(superclass standard-class))
+    t)
+  (defmethod c2mop:validate-superclass ((superclass standard-class)
+					(subclass http:resource-class))
     t))
 
 (defmethod shared-initialize ((instance http:resource-class) (slots t) &rest initargs
