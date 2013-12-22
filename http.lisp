@@ -680,7 +680,7 @@
                            ((identification (:auth :identification))
                             (permission (:auth :permission))
                             (around (:around) )
-                            (decode (:decode . *))
+                            (decode (:decode . *)) ;; should be singleton
                             (encode (:encode . *))
                             (get (:get))
                             (put (:put))
@@ -796,6 +796,10 @@
                                                                               ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
                               ;; otherwise, it is not implemented
                               (t (http:not-implemented))))
+         ;; wrap the decoding an content generation steps with a mechanism to encode the result.
+         ;; if the content is null, no output should be generated
+         ;; if no method was applicable, generate logic to either derive an alternative concrete media type
+         ;; signal a nont-applicable error if that fails.
          (main-clause (if encode-method
                         `(call-method ,encode-method ((make-method ,content-clause)))
                         `(progn
