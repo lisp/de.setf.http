@@ -153,9 +153,15 @@
 
 
 (defclass http:resource ()
-  ((path
+  ((identifier
+    :initarg :identifier
+    :reader http:resource-identifier
+    :documentation "the absolute iri which designates the resource")
+   (path
     :initarg :path
-    :reader http:resource-path)
+    :reader http:resource-path
+    :documentation "the path components of the resource identifer which
+     contribute to its classification.")
    (authorization-list
     :initarg :authorization-list
     :accessor resource-authorization-list))

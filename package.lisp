@@ -118,6 +118,7 @@
            :resource-class
            :resource-function
            :resource-function-p
+           :resource-identifier
            :resource-path
            :resource-pattern
            :respond-to-option-request
