@@ -118,7 +118,7 @@
   (:method ((header string))
     (let* ((ordered-types (compute-accept-ordered-types header))
            (class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
-           (class (or (find-class class-name)
+           (class (or (find-class class-name nil)
                       (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
       (make-instance class))))
 

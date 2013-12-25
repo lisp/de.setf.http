@@ -88,6 +88,7 @@
            :request-accept-header
            :request-accept-type
            :request-acceptor
+           :request-agent
            :request-auth-token
            :request-authentication
            :request-cache-matched-p
