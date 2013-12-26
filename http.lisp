@@ -494,11 +494,6 @@
     if present.")
   )
 
-(defgeneric http:request-session-id (request)
-  (:documentation
-    "Given a request, return a session id, if present.")
-  )
-
 (defgeneric http:authenticate-request-password (resource request)
   (:documentation
     "Attempt to establish the request agent identity based on the request's
@@ -606,6 +601,15 @@
 
 (defgeneric http:request-query-arguments (request key)
   )
+
+(defgeneric http:request-remote-ip-address (request)
+  (:documentation
+    "Given a request, return the remote ip address"))
+
+(defgeneric http:request-session-id (request)
+  (:documentation
+    "Given a request, return a session id, if present."))
+
 
 #+(or)                                  ; artifactual
 (defmethod intern-media-type (acceptor (request http:request))

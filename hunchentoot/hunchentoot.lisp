@@ -119,6 +119,9 @@
   (loop for (name . value) in (get-parameters* request)
         when (equal name key) collect value))
 
+(defmethod http:request-remote-ip-address ((request request))
+  (remote-addr request))
+
 (defmethod http:request-session-id ((request request))
   (cookie-in (session-cookie-name (request-acceptor request))
              request))

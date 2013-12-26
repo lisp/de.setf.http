@@ -110,6 +110,7 @@
            :request-post-arguments
            :request-query-argument
            :request-query-arguments
+           :request-remote-ip-address
            :request-session-id
            :request-too-large
            :request-session-cookie-name
