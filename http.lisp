@@ -955,7 +955,7 @@
 (defgeneric (setf http:response-allow-header) (allow-verbs response)
   )
 
-(defgeneric http:response-cache-control (value response)
+(defgeneric (setf http:response-cache-control) (value response)
   )
 
 (defgeneric (setf http:response-content-length) (value response)

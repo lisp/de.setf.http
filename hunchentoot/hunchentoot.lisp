@@ -134,6 +134,9 @@
 (defmethod (setf http:response-allow-header) ((allow string) (response tbnl-response))
   (setf (header-out :allow response) allow))
 
+(defmethod (setf http:response-cache-control) ((control string) (response tbnl-response))
+  (setf (header-out :cache-control response) control))
+
 (defmethod (setf http:response-content-disposition) ((disposition-type string) (response tbnl-response))
   (setf (header-out :content-disposition response) disposition-type))
 
