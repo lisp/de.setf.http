@@ -93,7 +93,7 @@
 (defclass http:request ()
   ((agent
     :initform nil :initarg :agent
-    :accessor jttp:request-agent
+    :accessor http:request-agent
     :documentation "Provides for an agent instance to be determined by any
      authorization methods. If no methods are defined, this remains null.")
    (session-cookie-name
