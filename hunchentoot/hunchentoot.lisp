@@ -168,6 +168,9 @@
 (defmethod http:response-transfer-encoding-header ((response tbnl-response))
   (rest (assoc :transfer-encoding (headers-out response))))
 
+(defmethod (setf http:response-vary) (string (response tbnl-response))
+  (setf (header-out :vary response) string))
+
 
 ;;;
 ;;; the native hunchentoot control structure is/was

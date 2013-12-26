@@ -1030,7 +1030,7 @@
 (defgeneric (setf http:response-transfer-encoding-header) (time response)
   )
 
-(defgeneric http:response-vary (value response)
+(defgeneric (setf http:response-vary) (value response)
   )
 
 
