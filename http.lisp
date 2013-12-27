@@ -494,32 +494,6 @@
     if present.")
   )
 
-(defgeneric http:authenticate-request-password (resource request)
-  (:documentation
-    "Attempt to establish the request agent identity based on the request's
-    authentication headers, that is based on the user name and password.
-    If that succeeds, bind the respective agent instance to the request."))
-
-
-(defgeneric http:authenticate-request-token (resource request)
-  (:documentation
-    "Attempt to establish the request agent identity
-    based on an authentication token. If that succeeds, bind the respective
-    agent instance to the request."))
-
-
-(defgeneric http:authenticate-request-session (resource request)
-  (:documentation
-    "Attempt to establish a requet agent identity
-    based on a session identifier. If that succeeds, bind the respective
-    agent instance to the request."))
-
-
-(defgeneric http:authorize-request (resource request)
-  (:documentation
-    "Given a resource and a request with an agent bound, determine whether the
-    agent is authorized to perform the request's method on the given resource."))
-
 
 (defgeneric http:request-accept-type (request)
   (:method ((request http:request))
@@ -776,7 +750,11 @@
   5. apply the encoding auxiliary to the result content methods"
 
   (let* ((authentication-clause (if (or identification permission)
-                                  `(unless (and (or ,@(loop for method in identification
+                                  ;; require that either the agent is already authenticated - eg from redirection
+                                  ;; or that one of the identification methods succeed, and that all of the
+                                  ;; permission methods succeed
+                                  `(unless (and (or (request-agent (http:request))
+                                                    ,@(loop for method in identification
                                                             collect `(call-method ,method ())))
                                                 ,@(loop for method in permission
                                                         collect `(call-method ,method ())))
@@ -1127,6 +1105,43 @@
 
 (defgeneric (setf http:response-status-code) (code response)
   )
+
+
+;;;
+;;; example authentication/authorization functions
+;;;
+;;; they serve as protoypes to document the signature and could be specialized,
+;;; but are not required - any function is permitted, so long as it accepts these
+;;; arguments and perform the respective task
+
+(defgeneric http:authenticate-request-password (resource request)
+  (:documentation
+    "Attempt to establish the request agent identity based on the request's
+    authentication headers, that is based on the user name and password.
+    If that succeeds, bind the respective agent instance to the request and
+    return true."))
+
+
+(defgeneric http:authenticate-request-token (resource request)
+  (:documentation
+    "Attempt to establish the request agent identity
+    based on an authentication token. If that succeeds, bind the respective
+    agent instance to the request and return true."))
+
+
+(defgeneric http:authenticate-request-session (resource request)
+  (:documentation
+    "Attempt to establish a requet agent identity
+    based on a session identifier. If that succeeds, bind the respective
+    agent instance to the request and return true."))
+
+
+(defgeneric http:authorize-request (resource request)
+  (:documentation
+    "Given a resource and a request with an agent bound, determine whether the
+    agent is authorized to perform the request's method on the given resource."))
+
+
 
 
 ;;; hunchentoot integration
