@@ -720,8 +720,11 @@
         form))))
 
 (define-method-combination http:http (&key )
-                           ((identification (:auth :identification))
-                            (permission (:auth :permission))
+                           ((authenticate-password (:auth http:authenticate-request-password))
+                            (authenticate-token (:auth http:authenticate-request-token))
+                            (authenticate-session (:auth http:authenticate-request-session))
+                            (authorize-request (:auth http:authorize-request))
+                            (auth-around (:auth :around))
                             (around (:around) )
                             (decode (:decode . *)) ;; should be singleton
                             (encode (:encode . *))
@@ -756,7 +759,9 @@
       (let* ((form
               `(handler-case
                  ,(compute-effective-resource-function-method function
-                                                              identification permission
+                                                              (append authenticate-password authenticate-token authenticate-session)
+                                                              authorize-request
+                                                              auth-around
                                                               around 
                                                               decode
                                                               (qualify-methods)
@@ -780,8 +785,9 @@
     (setf (http:response-allow response) verbs)))
 
 
-(defun compute-effective-resource-function-method (function identification permission around
-                                                           decode-methods primary-by-method encode-methods)
+(defun compute-effective-resource-function-method (function authentication authorization authentication-around
+                                                            around
+                                                            decode-methods primary-by-method encode-methods)
   "arrange the response methods to effect authentication, generate content, and encode it.
   in addition interpose operations to
   - configure the output stream based on the requested media type
@@ -800,14 +806,14 @@
   ;; 7. ensure that the headers are emitted
   5. apply the encoding auxiliary to the result content methods"
 
-  (let* ((authentication-clause (if (or identification permission)
+  (let* ((authentication-clause (if (or authentication authorization)
                                   ;; require that either the agent is already authenticated - eg from redirection
                                   ;; or that one of the identification methods succeed, and that all of the
                                   ;; permission methods succeed
                                   `(unless (and (or (http:request-agent (http:request))
-                                                    ,@(loop for method in identification
+                                                    ,@(loop for method in authentication
                                                             collect `(call-method ,method ())))
-                                                ,@(loop for method in permission
+                                                ,@(loop for method in authorization
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
          ;; the most-specific only
@@ -866,8 +872,16 @@
                            ,content-clause))))
     (when mime-type-clause
       (setf main-clause `(progn ,mime-type-clause ,main-clause)))
-    (when authentication-clause
-      (setf main-clause `(progn ,authentication-clause ,main-clause)))
+    ;; arrange the authentication clause to combine the implicit methods and any explicit around method with
+    ;; the main clause
+    (if authentication-clause
+      (if authentication-around
+        (setf main-clause `(progn (call-method ,authentication-around ((make-method ,authentication-clause)))
+                                  ,main-clause))
+        (setf main-clause `(progn ,authentication-clause ,main-clause)))
+      (when authentication-around
+        (setf main-clause `(progn (call-method ,authentication-around ())
+                                  ,main-clause))))
     (let* ((form (if around
                    `(call-method ,(first around) (,@(rest around) (make-method ,main-clause)))
                    main-clause)))
@@ -923,10 +937,10 @@
                                                   `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first after-qualifiers)) (accept-type t))
                                                      (http:decode-request resource request content-type)))))
                                              (:auth
-                                              (if (consp (third clause))
+                                              (if (third clause)
                                                 `(:method ,@clause)
                                                 `(:method ,@(subseq clause 0 2) ((resource t) (request t) (response t) (content-type t) (accept-type t))
-                                                          (,(third clause) resource request))))))))
+                                                          (,(second clause) resource request))))))))
     (unless method-combination
       (push '(:method-combination http:http) definition-clauses))
     (if generic-function-class
@@ -1161,9 +1175,8 @@
 ;;;
 ;;; example authentication/authorization functions
 ;;;
-;;; they serve as protoypes to document the signature and could be specialized,
-;;; but are not required - any function is permitted, so long as it accepts these
-;;; arguments and perform the respective task
+;;; they define the interface signature and must be specialized is used in a
+;;; resource function definition
 
 (defgeneric http:authenticate-request-password (resource request)
   (:documentation
