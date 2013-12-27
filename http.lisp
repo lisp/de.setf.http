@@ -653,7 +653,7 @@
   (unless (assoc :metaclass options)
     (push '(:metaclass http:resource-class) options))
   (unless (assoc :direct-superpatterns options)
-    (push `(:direct-superpatterns ,@parent-classes)))
+    (push `(:direct-superpatterns ,@parent-classes) options))
   `(defclass ,name ,(or parent-classes '(http:resource))
      ,slots
      (:pattern . ,pattern)
