@@ -753,7 +753,7 @@
                                   ;; require that either the agent is already authenticated - eg from redirection
                                   ;; or that one of the identification methods succeed, and that all of the
                                   ;; permission methods succeed
-                                  `(unless (and (or (request-agent (http:request))
+                                  `(unless (and (or (http:request-agent (http:request))
                                                     ,@(loop for method in identification
                                                             collect `(call-method ,method ())))
                                                 ,@(loop for method in permission
