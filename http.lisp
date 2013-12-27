@@ -132,7 +132,21 @@
     :reader class-pattern)
    (keywords
     :initform (error "keywords is required") :initarg :keywords
-    :reader class-keywords))
+    :reader class-keywords)
+   (direct-superpatterns
+    :initform nil :initarg :direct-superpatterns
+    :reader class-direct-superpatterns
+    :documentation "A list of the resource classes for which this one is to be
+     tested against the request resource path for a more specific match. Likely
+     just a single element, but multiple is possible.
+     The value is specified as an additional class initarg in the definition
+     form.")
+   (direct-subpatterns
+    :initform nil
+    :accessor class-direct-subpatterns
+    :documentation "Collects the inverse relation to the declared
+     class-direct-superpatterns. Used to contruct the matching graph for
+     resource paths."))
   (:documentation
     "The class resource-class is the metaclass for the resource specializations,
     each of which represents an individual http path pattern. It add slots to
@@ -156,6 +170,27 @@
   (apply #'call-next-method instance slots
          initargs))
 
+(defmethod c2mop:finalize-inheritance :after ((class http:resource-class))
+  (loop for class-name in (class-direct-superpatterns class)
+        for superpattern-class = (find-class class-name nil)
+        do (if superpattern-class
+             (when (typep superpattern-class 'http:resource-class)
+               (pushnew class (class-direct-subpatterns superpattern-class)))
+             (warn "superpattern class not found: ~s: ~s" (class-name class) class-name))))
+
+(defgeneric subpattern-p (class1 class2)
+  (:method ((class1 http:resource-class) (class2 http:resource-class))
+    (or (find class1 (class-direct-superpatterns class2))
+        (loop for class in (class-direct-superpatterns class2)
+              when (subpattern-p class1 class)
+              return t)))
+  (:method ((class1 symbol) (class2 t))
+    (and class1 (subpattern-p (find-class class1) class2)))
+  (:method ((class1 t) (class2 symbol))
+    (and class2 (subpattern-p class1 (find-class class2))))
+  (:method ((class1 t) (class2 t))
+    nil))
+  
 
 (defclass http:resource ()
   ((identifier
@@ -354,6 +389,7 @@
     (when (typep class 'http:resource-class)
       (add-resource-class function class))))
 
+#+(or) ;; type based
 (defgeneric add-resource-class (function specializer)
   (:method ((function http:dispatch-function) (specializer http:resource-class))
     (flet ((old-is-subtype (old)
@@ -364,6 +400,18 @@
       (unless (some #'new-is-subtype (http:function-resource-classes function))
         (setf (http:function-resource-classes function)
               (cons specializer (remove-if #'old-is-subtype (http:function-resource-classes function))))))))
+
+(defgeneric add-resource-class (function specializer)
+  (:method ((function http:dispatch-function) (specializer http:resource-class))
+    (flet ((old-is-subpattern (old)
+             (subpattern-p old specializer))
+           (new-is-subpattern (old)
+             (subpattern-p specializer old)))
+      (declare (dynamic-extent #'old-is-subpattern #'new-is-subpattern))
+      (unless (some #'new-is-subpattern (http:function-resource-classes function))
+        (setf (http:function-resource-classes function)
+              (cons specializer (remove-if #'old-is-subpattern (http:function-resource-classes function))))))))
+
 
 (defgeneric update-resource-classes (function)
   (:method ((function http:dispatch-function))
@@ -465,9 +513,10 @@
     (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern specializer) path)
       (declare (ignore end))
       (when start
-        (flet ((search-sub-classes (sub-class) (http:bind-resource sub-class path)))
-          (declare (dynamic-extent #'search-sub-classes))
-          (or (some #'search-sub-classes (c2mop:class-direct-subclasses specializer))
+        (flet ((search-subpatterns (sub-class) (http:bind-resource sub-class path)))
+          (declare (dynamic-extent #'search-subpatterns))
+          (or ;; (some #'search-sub-classes (c2mop:class-direct-subclasses specializer))
+           (some #'search-subpatterns (class-direct-subpatterns specializer))
               (apply #'make-instance specializer
                      :path path
                      (loop for initarg in (class-keywords specializer)
@@ -603,6 +652,8 @@
 (defmacro http:def-resource ((name pattern &rest keywords) parent-classes slots &rest options)
   (unless (assoc :metaclass options)
     (push '(:metaclass http:resource-class) options))
+  (unless (assoc :direct-superpatterns options)
+    (push `(:direct-superpatterns ,@parent-classes)))
   `(defclass ,name ,(or parent-classes '(http:resource))
      ,slots
      (:pattern . ,pattern)
