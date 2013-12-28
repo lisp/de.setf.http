@@ -193,7 +193,11 @@
   
 
 (defclass http:resource ()
-  ((identifier
+  ((request
+    :initarg :request
+    :accessor resource-request
+    :documentation "caches the respective request for access to request parameters")
+   (identifier
     :initarg :identifier
     :reader http:resource-identifier
     :documentation "the absolute iri which designates the resource")
@@ -404,9 +408,11 @@
 (defgeneric add-resource-class (function specializer)
   (:method ((function http:dispatch-function) (specializer http:resource-class))
     (flet ((old-is-subpattern (old)
-             (subpattern-p old specializer))
+             (or (eq old specializer)
+                 (subpattern-p old specializer)))
            (new-is-subpattern (old)
-             (subpattern-p specializer old)))
+             (or (eq specializer old)
+                 (subpattern-p specializer old))))
       (declare (dynamic-extent #'old-is-subpattern #'new-is-subpattern))
       (unless (some #'new-is-subpattern (http:function-resource-classes function))
         (setf (http:function-resource-classes function)
@@ -444,10 +450,11 @@
     ;; a not-found condition
     (c2mop:ensure-method function
                          `(lambda (resource-path request response)
-                            (let ((http:*resource* (http:bind-resource (function ,name) resource-path)))
-                              (if http:*resource*
-                                (,name http:*resource* request response)
-                                (http:not-found))))
+                            (let ((http:*resource* (http:bind-resource (function ,name) resource-path request)))
+                              (cond (http:*resource*
+                                     (,name http:*resource* request response))
+                                    (t
+                                     (http:not-found)))))
                          :qualifiers '()
                          :lambda-list '(resource request response)
                          :specializers (list (find-class 'string) t-class t-class))
@@ -495,7 +502,7 @@
       dispatch-function)))
 
 
-(defgeneric http:bind-resource (specializer path)
+(defgeneric http:bind-resource (specializer path request)
   (:documentation
    "Given specializer - a resource-class, and path - an url path string,
    perform a depth-first search through the respective class hierarchy to discover the
@@ -503,13 +510,13 @@
    GIven a match, return a new resource instance which binds the register values from the
    regular expression match.")
 
-  (:method ((function http:dispatch-function) (path string))
+  (:method ((function http:dispatch-function) (path string) request)
     (loop for class in (http:function-resource-classes function)
-          for resource = (http:bind-resource class path)
+          for resource = (http:bind-resource class path request)
           when resource
           return resource))
 
-  (:method ((specializer http:resource-class) (path string))
+  (:method ((specializer http:resource-class) (path string) request)
     (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern specializer) path)
       (declare (ignore end))
       (when start
@@ -519,6 +526,7 @@
            (some #'search-subpatterns (class-direct-subpatterns specializer))
               (apply #'make-instance specializer
                      :path path
+                     :request reauest
                      (loop for initarg in (class-keywords specializer)
                            for start across starts
                            for end across ends
@@ -528,6 +536,10 @@
 
 ;;;
 ;;;  request
+
+(defmethod print-object ((object http:request) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "~a ~a" (http:request-method object)  (http:request-path object))))
 
 (defgeneric http:request-acceptor (request)
   )
@@ -645,6 +657,15 @@
 
 (defgeneric http:request-unmodified-since (request)
   )
+
+;;; resource
+
+(defgeneric http:resource-request-argument (resource name)
+  (:method ((resource http:resource) name)
+    (let ((request (resource-request resource)))
+      (when request
+        (or (http:request-query-argument request name)
+            (http:request-post-argument request name))))))
 
 ;;;
 ;;; def-resource

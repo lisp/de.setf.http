@@ -123,6 +123,7 @@
            :resource-identifier
            :resource-path
            :resource-pattern
+           :resource-request-argument
            :respond-to-option-request
            :respond-to-request
            :response
