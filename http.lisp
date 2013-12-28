@@ -526,7 +526,7 @@
            (some #'search-subpatterns (class-direct-subpatterns specializer))
               (apply #'make-instance specializer
                      :path path
-                     :request reauest
+                     :request request
                      (loop for initarg in (class-keywords specializer)
                            for start across starts
                            for end across ends
