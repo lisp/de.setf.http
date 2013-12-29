@@ -118,7 +118,7 @@
      This is supplied to the resource function, to be used to discriminate
      response generation methods and to derive the response content type
      from the applicable methods.")
-   (negotiated-conent-encoding
+   (negotiated-content-encoding
     ;; no initform
     :reader get-request-negotiated-content-encoding :writer setf-request-negotiated-content-encoding
     :documentation "Caches the content encoding negotiated from the combination

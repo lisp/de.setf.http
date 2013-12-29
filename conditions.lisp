@@ -13,7 +13,8 @@
    (message
     :initarg :message :initform nil
     :reader http:condition-message))
-  (:report report-condition))
+  (:report report-condition)
+  (:default-initargs :format-control "" :format-arguments ()))
 
 (define-condition http:error (http:condition simple-error)
   ())
@@ -130,8 +131,8 @@
 ;;;
 
 (defmethod report-condition ((condition http:condition) stream)
-    (format stream "~s ~a~@[ (~a)~]~%"
-            (http:condition-code condition)
-            (http:condition-text condition)
-            (http:condition-message condition)))
+  (format stream "~s ~a~@[ (~a)~]~%"
+          (http:condition-code condition)
+          (http:condition-text condition)
+          (http:condition-message condition)))
 
