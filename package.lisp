@@ -46,6 +46,7 @@
            :condition-mtime
            :condition-retry-after
            :condition-text
+           :copy-stream
            :decode-request
            :def-resource-function
            :def-resource
@@ -100,6 +101,7 @@
            :request-effective-method
            :request-etags
            :request-header
+           :request-host
            :request-if-modified-since
            :request-media-type
            :request-method

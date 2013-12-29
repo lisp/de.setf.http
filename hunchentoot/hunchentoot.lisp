@@ -82,8 +82,6 @@
       ;; otherwise there can be no known encoder
       (find-symbol (string-upcase header) :keyword) (http::not-acceptable))))
 
-
-
 (defmethod http:request-content-type-header ((request tbnl-request))
   (header-in :content-type request))
 
@@ -99,6 +97,9 @@
 
 (defmethod http:request-content-stream ((request tbnl-request))
   (content-stream request))
+
+(defmethod http:request-host ((request tbnl-request))
+  (request-address request))
 
 (defmethod http:request-if-modified-since ((request request))
   (let ((date (header-in :if-modified-since request)))

@@ -157,7 +157,7 @@
 
 ;;; codecs
 
-(defgeneric copy-stream (input-stream output-stream)
+(defgeneric http:copy-stream (input-stream output-stream)
   (:method ((input-stream stream) (output-stream stream))
     (let ((buffer (make-array 4096 :element-type (stream-element-type input-stream))))
       (loop for length = (read-sequence buffer input-stream)
@@ -167,7 +167,7 @@
   (:method ((input-stream stream) (output pathname))
     (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
                                    :element-type 'unsigned-byte)
-      (copy-stream input-stream output-stream))))
+      (http:copy-stream input-stream output-stream))))
 
 (defgeneric http:encode-response (content response content-type)
   (:documentation "Implements the default behavior for resource function
@@ -190,7 +190,7 @@
     "the default method given a stream result is to just copy the stream. that is,
      given any standard media type, presume the result generator handles the
      respective serialization entirely and the stream content is correct as-is."
-    (unwind-protect (copy-stream content-stream (http:response-content-stream response))
+    (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
       (close content-stream))))
 
 

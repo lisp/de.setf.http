@@ -591,10 +591,13 @@
 (defgeneric http:request-content-type-header (request)
   )
 
-(defgeneric http:request-if-modified-since (request)
+(defgeneric http:request-header (request key)
   )
 
-(defgeneric http:request-original-method (request)
+(defgeneric http:request-host (request)
+  )
+
+(defgeneric http:request-if-modified-since (request)
   )
 
 (defgeneric http:request-media-type (request)
@@ -646,10 +649,10 @@
                                                                             supported-encodings)
                                                 request))))
 
-(defgeneric http:request-path (request)
+(defgeneric http:request-original-method (request)
   )
 
-(defgeneric http:request-header (request key)
+(defgeneric http:request-path (request)
   )
 
 (defgeneric http:request-post-argument (request key)
