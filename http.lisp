@@ -520,7 +520,7 @@
     (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern specializer) path)
       (declare (ignore end))
       (when start
-        (flet ((search-subpatterns (sub-class) (http:bind-resource sub-class path)))
+        (flet ((search-subpatterns (sub-class) (http:bind-resource sub-class path request)))
           (declare (dynamic-extent #'search-subpatterns))
           (or ;; (some #'search-sub-classes (c2mop:class-direct-subclasses specializer))
            (some #'search-subpatterns (class-direct-subpatterns specializer))
@@ -948,7 +948,8 @@
                                                         ;; specializer class, but include the character set encoding
                                                         (let ((content (call-next-method))
                                                               (effective-content-type (http:response-media-type response)))
-                                                          (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
+                                                          ;; (format *trace-output* "~%;;; effective-content: ~s" content)
+                                                          ;; (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
                                                           (http:encode-response content response effective-content-type))))))))
                                              (:decode
                                               (let* ((after-qualifiers (member-if (complement #'keywordp) clause))

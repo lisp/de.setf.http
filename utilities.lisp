@@ -129,6 +129,18 @@
 
 ;;; codecs
 
+(defgeneric copy-stream (input-stream output-stream)
+  (:method ((input-stream stream) (output-stream stream))
+    (let ((buffer (make-array 4096 :element-type (stream-element-type input-stream))))
+      (loop for length = (read-sequence buffer input-stream)
+            while (plusp length)
+            do (write-sequence buffer output-stream :end length))))
+  
+  (:method ((input-stream stream) (output pathname))
+    (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
+                                   :element-type 'unsigned-byte)
+      (copy-stream input-stream output-stream))))
+
 (defgeneric http:encode-response (content response content-type)
   (:documentation "Implements the default behavior for resource function
     encoding methods when they are declared without a body. the default
@@ -144,10 +156,18 @@
 
   (:method ((content t) (response t) (content-type mime:text/plain))
     ;; this should send out the entity body chunked
-    (format (http:response-content-stream response) "~a" content)))
+    (format (http:response-content-stream response) "~a" content))
+
+  (:method ((content stream) (response t) (content-type t))
+    "the default method given a stream result is to just copy the stream. that is,
+     given any standard media type, presume the result generator handles the
+     respective serialization entirely and the stream content is correct as-is."
+    (let ((content-stream (call-next-method)))
+      (unwind-protect (copy-stream content-stream (http:response-content-stream response))
+        (close content-stream)))))
 
 
-(defgeneric http:decode-request (request content-type)
+(defgeneric http:decode-request (resource request content-type)
   (:documentation "Implements the default behavior for resource function
     encoding methods when they are declared without a body. the default
     methods delegate to send-entity-body."))
