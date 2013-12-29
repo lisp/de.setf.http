@@ -637,17 +637,19 @@
                  ((or (string-equal encoding :identity) (string-equal encoding "*"))
                   ;; either case, no encoding to do
                   (return nil))
-                 ((find encoding supported-encodings :test #'string-equal)))))
-;;; (negotiate-content-encoding '((1 . :gzip) (0 . *)) '(:bzip2))
-;;; (negotiate-content-encoding '((1 . :gzip)) '(:bzip2))
+                 ((setf encoding (find encoding supported-encodings :test #'string-equal))
+                  (return encoding)))))
+;;; (negotiate-content-encoding '((:gzip . 1) (* . 0)) '(:bzip2))
+;;; (negotiate-content-encoding '((:gzip . 1)) '(:bzip2))
+;;; (negotiate-content-encoding '(("gzip" . 1)) '(:gzip))
 
 (defgeneric http:request-negotiated-content-encoding (request supported-encodings)
   (:method ((request http:request) (supported-encodings list))
     (if (slot-boundp request 'negotiated-content-encoding)
       (get-request-negotiated-content-encoding request)
-      (setf-request-negotiated-content-encoding (negotiate-content-encoding (http:request-accept-content-encoding request)
-                                                                            supported-encodings)
-                                                request))))
+      (let ((coding (negotiate-content-encoding (http:request-accept-content-encoding request)
+                                                supported-encodings)))
+        (setf-request-negotiated-content-encoding coding request)))))
 
 (defgeneric http:request-original-method (request)
   )
@@ -767,7 +769,6 @@
                                   (if (functionp location)
                                     (funcall location)
                                     (error redirection)))))))
-        (pprint form)
         form))))
 
 (define-method-combination http:http (&key )
@@ -1036,6 +1037,19 @@
       (when methods
         (make-instance (fifth (c2mop:method-specializers (first methods))))))))
 
+(defgeneric http:request-etags (request)
+  )
+
+(defgeneric http:request-cache-matched-p (request etag time)
+  (:method ((request http:request) etag time)
+    (and (find etag (http:request-etags request) :test #'equalp)
+         (loop for request-time in (http:request-if-modified-since request)
+               unless (<= time request-time)
+               return nil)
+         (loop for request-time in (http:request-unmodified-since request)
+               when (<= time request-time)
+               return nil)
+         t)))
 
 ;;;
 ;;; response
@@ -1058,12 +1072,7 @@
 (defgeneric (setf http:response-cache-control) (value response)
   )
 
-(defgeneric (setf http:response-content-length) (value response)
-  ;; hunchentoot requires an integer argument
-  (:method ((value integer) (response http:response)) 
-    (setf (http:response-content-length-header response) value)))
-
-(defgeneric (setf http:response-content-length-header) (value response)
+(defgeneric (setf http:response-character-encoding) (character-encoding response)
   )
 
 (defgeneric http:response-compute-media-type (request response class &key charset)
@@ -1071,9 +1080,20 @@
     (declare (dynamic-extent args))
     (apply #'mime:mime-type type args)))
 
+(defgeneric (setf http:response-content-disposition) (disposition response)
+  )
+
 (defgeneric (setf http:response-content-encoding) (content-coding response)
   (:method ((coding symbol) (response http:response))
     (setf (http:response-content-encoding response) (string-downcase coding))))
+
+(defgeneric (setf http:response-content-length) (value response)
+  ;; hunchentoot requires an integer argument
+  (:method ((value integer) (response http:response)) 
+    (setf (http:response-content-length-header response) value)))
+
+(defgeneric (setf http:response-content-length-header) (value response)
+  )
 
 (defgeneric http:response-content-stream (response)
   (:documentation "Return the response content stream while ensuring that
@@ -1085,28 +1105,6 @@
     (get-response-content-stream response)))
 
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
-  )
-
-(defgeneric (setf http:response-media-type) (media-type response)
-  (:method ((media-type cons) (response http:response))
-    (setf (http:response-media-type response)
-          (or (mime:mime-type media-type)
-              (error "invalid media type: ~s" media-type))))
-
-  (:method ((media-type mime:mime-type) (response http:response))
-    (setf (http:response-content-type-header response)
-          (format nil "~a~@[; charset=~a~]" (type-of media-type) (mime:mime-type-charset media-type)))
-    (setf-response-media-type media-type response)
-    media-type))
-
-
-(defgeneric (setf http:response-content-disposition) (disposition response)
-  )
-
-(defgeneric (setf http:response-content-encoding) (content-encoding response)
-  )
-
-(defgeneric (setf http:response-character-encoding) (character-encoding response)
   )
 
 (defgeneric (setf http:response-etag) (tag response)
@@ -1125,8 +1123,17 @@
 (defgeneric (setf http:response-location-header) (location response)
   )
 
-(defgeneric (setf http:response-www-authenticate-header) (authentication-method response)
-  )
+(defgeneric (setf http:response-media-type) (media-type response)
+  (:method ((media-type cons) (response http:response))
+    (setf (http:response-media-type response)
+          (or (mime:mime-type media-type)
+              (error "invalid media type: ~s" media-type))))
+
+  (:method ((media-type mime:mime-type) (response http:response))
+    (setf (http:response-content-type-header response)
+          (format nil "~a~@[; charset=~a~]" (type-of media-type) (mime:mime-type-charset media-type)))
+    (setf-response-media-type media-type response)
+    media-type))
 
 (defgeneric (setf http:response-retry-after-header) (time response)
   )
@@ -1137,21 +1144,11 @@
 (defgeneric (setf http:response-vary) (value response)
   )
 
-
-
-(defgeneric http:request-etags (request)
+(defgeneric (setf http:response-www-authenticate-header) (authentication-method response)
   )
 
-(defgeneric http:request-cache-matched-p (request etag time)
-  (:method ((request http:request) etag time)
-    (and (find etag (http:request-etags request) :test #'equalp)
-         (loop for request-time in (http:request-if-modified-since request)
-               unless (<= time request-time)
-               return nil)
-         (loop for request-time in (http:request-unmodified-since request)
-               when (<= time request-time)
-               return nil)
-         t)))
+
+
 
 (defgeneric http:report-condition-headers (condition response)
   (:documentation "Given a condition, assert its side-effects on the request
