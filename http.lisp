@@ -120,10 +120,10 @@
      from the applicable methods.")
    (negotiated-accept-encoding
     ;; no initform
-    :reader get-request-negotiated-accept-encoding :writer setf-request-negotiated-accept-encoding
+    :reader get-request-negotiated-content-encoding :writer setf-request-negotiated-content-encoding
     :documentation "Caches the content encoding negotiated from the combination
      of the request accept-encoding header and the available encoding list provided
-     to request-negotiated-accept-encoding."))
+     to negotiated-content-encoding."))
   (:documentation
     "Each request is represented with an instance of this class. It serves as
      a protocol class and to extend the respective class from any concrete
