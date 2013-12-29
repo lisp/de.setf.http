@@ -824,7 +824,6 @@
                                   (if (functionp location)
                                     (funcall location)
                                     (error redirection)))))))
-        (pprint form)
         form))))
 
 (defgeneric http:respond-to-option-request (function request response verbs)
