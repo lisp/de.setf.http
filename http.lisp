@@ -1010,8 +1010,13 @@
 ;;;
 ;;; response
 
-(defgeneric http:response-accept-ranges (ranges response)
-  )
+(defgeneric (setf http:response-accept-encoding) (accept-codings response)
+  (:method ((values list) (response http:response))
+    (setf (http:response-accept-encoding response) (format nil "~(~{~a~^,~}~)" values))))
+
+(defgeneric (setf http:response-accept-ranges) (ranges response)
+  (:method ((value null) (response http:response))
+    (setf (http:response-accept-ranges response) "none")))
 
 (defgeneric (setf http:response-allow) (allow-verbs response)
   (:method ((allow-verbs list) (response http:response))
@@ -1081,7 +1086,8 @@
       (t nil))))
 
 (defgeneric (setf http:response-last-modified) (timestamp response)
-  )
+  (:method ((timestamp integer) (response http:response))
+    (setf (http:response-last-modified response) (http:encode-rfc1123 timestamp))))
 
 (defgeneric (setf http:response-location-header) (location response)
   )

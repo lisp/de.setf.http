@@ -158,13 +158,12 @@
     ;; this should send out the entity body chunked
     (format (http:response-content-stream response) "~a" content))
 
-  (:method ((content stream) (response t) (content-type t))
+  (:method ((content-stream stream) (response t) (content-type t))
     "the default method given a stream result is to just copy the stream. that is,
      given any standard media type, presume the result generator handles the
      respective serialization entirely and the stream content is correct as-is."
-    (let ((content-stream (call-next-method)))
-      (unwind-protect (copy-stream content-stream (http:response-content-stream response))
-        (close content-stream)))))
+    (unwind-protect (copy-stream content-stream (http:response-content-stream response))
+      (close content-stream))))
 
 
 (defgeneric http:decode-request (resource request content-type)

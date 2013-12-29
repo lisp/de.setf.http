@@ -128,6 +128,7 @@
            :respond-to-request
            :response
            :response-acceptor
+           :response-accept-encoding
            :response-accept-ranges
            :response-allow
            :response-allow-header

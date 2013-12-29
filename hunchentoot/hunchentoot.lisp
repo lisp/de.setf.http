@@ -61,6 +61,8 @@
   (acceptor-request-class acceptor))
 
 
+;;;
+;;; request
 
 (defmethod http:request-acceptor ((request tbnl-request))
   (request-acceptor request))
@@ -131,11 +133,23 @@
     (when date
       (http:parse-rfc1123 date))))
 
+;;;
+;;; response
+
+(defmethod (setf http:response-accept-ranges) ((value string) (response tbnl-response))
+  (setf (header-out :accept-ranges response) value))
+
+(defmethod (setf http:response-accept-encoding) ((value string) (response tbnl-response))
+  (setf (header-out :accept-encoding response) value))
+
 (defmethod (setf http:response-allow-header) ((allow string) (response tbnl-response))
   (setf (header-out :allow response) allow))
 
 (defmethod (setf http:response-cache-control) ((control string) (response tbnl-response))
   (setf (header-out :cache-control response) control))
+
+(defmethod (setf http:response-character-encoding) (character-encoding (response tbnl-response))
+  (setf (header-out :character-encoding response) character-encoding))
 
 (defmethod (setf http:response-content-disposition) ((disposition-type string) (response tbnl-response))
   (setf (header-out :content-disposition response) disposition-type))
@@ -147,11 +161,14 @@
 (defmethod (setf http:response-content-length-header) ((value t) (response tbnl-response))
   (setf (header-out :content-length response) value))
 
-(defmethod (setf http:response-character-encoding) (character-encoding (response tbnl-response))
-  (setf (header-out :character-encoding response) character-encoding))
-
 (defmethod (setf http:response-content-type-header) ((content-type string) (response tbnl-response))
   (setf (header-out :content-type response) content-type))
+
+(defmethod (setf http:response-etag) ((allow string) (response tbnl-response))
+  (setf (header-out :etag response) allow))
+
+(defmethod (setf http:response-last-modified) ((http-date string) (response tbnl-response))
+  (setf (header-out :last-modified response) http-date))
 
 (defmethod (setf http:response-location-header) (location (response tbnl-response))
   (setf (header-out :location response) location))
