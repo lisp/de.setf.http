@@ -201,7 +201,7 @@
 (defclass http:resource ()
   ((request
     :initarg :request
-    :accessor resource-request
+    :accessor http:resource-request
     :documentation "caches the respective request for access to request parameters")
    (identifier
     :initarg :identifier
@@ -692,7 +692,7 @@
 
 (defgeneric http:resource-request-argument (resource name)
   (:method ((resource http:resource) name)
-    (let ((request (resource-request resource)))
+    (let ((request (http:resource-request resource)))
       (when request
         (or (http:request-query-argument request name)
             (http:request-post-argument request name))))))
