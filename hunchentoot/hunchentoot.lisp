@@ -71,6 +71,10 @@
   ;; return the string or nil
   (header-in :accept request))
 
+(defmethod http:request-accept-content-encoding ((request tbnl-request))
+  ;; return the string or nil
+  (header-in :accept-encoding request))
+
 (defmethod http:request-accept-charset ((request tbnl-request))
   (let ((header (header-in :accept-charset request)))
     (when header
@@ -157,6 +161,12 @@
 (defmethod (setf http:response-content-disposition) ((disposition cons) (response tbnl-response))
   (destructuring-bind (disposition-type . arguments) disposition
     (setf (header-out :content-disposition response) (format nil "~a~{;~a=\"~a\"~}" disposition-type arguments))))
+
+(defmethod (setf http:response-content-encoding) ((coding string) (response tbnl-response))
+  (setf (header-out :content-encoding response) coding))
+
+(defmethod (setf http:response-content-encoding) ((coding null) (response tbnl-response))
+  (setf (header-out :content-encoding response) coding))
 
 (defmethod (setf http:response-content-length-header) ((value t) (response tbnl-response))
   (setf (header-out :content-length response) value))

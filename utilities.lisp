@@ -78,15 +78,29 @@
   (setf (cl-ppcre:parse-tree-synonym 'mime-range-and-parameters) mime-range-and-parameters))
 
 
+(defparameter *content-coding-pattern* (cl-ppcre:create-scanner "([^,;=]+)(?:;q=([^,]*))?"))
 (defparameter *accept-range-pattern* (cl-ppcre:create-scanner 'mime-range-and-parameters))
 
 ;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html")
 ;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html;q=1;a=b")
 ;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html,application/json,application/rdf+xml")
-;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html;q=2,application/json,application/rdf+xml")
+;;; (cl-ppcre:scan-to-strings *accept-range-pattern* "text/html;q=0.2,application/json,application/rdf+xml")
+;;; (cl-ppcre:scan-to-strings *content-coding-pattern* "gzip;q=0.2,identity")
 
 (defun parse-media-range (range)
   (coerce (nth-value 1 (cl-ppcre:scan-to-strings *accept-range-pattern* range)) 'list))
+
+(defun parse-content-coding (coding)
+  (coerce (nth-value 1 (cl-ppcre:scan-to-strings *content-coding-pattern* coding)) 'list))
+
+(defun qvalue-char-p (c)
+  (or (digit-char-p c) (eql c #\.)))
+
+(defun parse-qvalue (qvalue)
+  (if (every #'qvalue-char-p qvalue)
+    (read-from-string qvalue)
+    (http:bad-request :message (format nil "Invalid qvalue: '~a'" qvalue))))
+
 
 (defun compute-accept-ordered-types (header)
   (let* ((accept-ranges (split-string header #\,))
@@ -94,12 +108,8 @@
                         for (major minor q) = (or (parse-media-range range)
                                                   (http:bad-request :message (format nil "Invalid accept range: ~s." range)))
                         for type = (dsu:intern-mime-type-key (format nil "~a/~a" major minor) :if-does-not-exist nil)
-                        for quality = (cond (q
-                                             (unless (every #'digit-char-p q)
-                                               (http:bad-request :message "Invalid accept field: '~a'" header))
-                                             (parse-integer q))
-                                            (t
-                                             1))
+                        for quality = (cond (q (parse-qvalue q))
+                                            (t 1))
                         if type
                         collect (cons type quality)
                         else
@@ -108,8 +118,26 @@
       (mapcar #'first (sort types #'> :key #'rest))
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
 
+(defun compute-accept-encoding-ordered-codings (header)
+  ;; translate the string into a sorted, qualified a-list
+  (stable-sort (loop for element in (split-string (remove #\space header) ",")
+                     for (content-coding qvalue) = (parse-content-coding element)
+                     if content-coding
+                     collect (cons content-coding (if qvalue (parse-qvalue qvalue) 1))
+                     else do (http:bad-request :message (format nil "Invalid content coding: ~s." element)))
+               #'> :key #'rest))
+  
+
+
 ;;; (compute-accept-ordered-types "text/html")
 ;;; (compute-accept-ordered-types "*/*")
+;;; (parse-content-coding "compress")
+;;; (compute-accept-encoding-ordered-codings "compress, gzip")
+;;; (compute-accept-encoding-ordered-codings nil)
+;;; (compute-accept-encoding-ordered-codings "")
+;;; (compute-accept-encoding-ordered-codings "*")
+;;; (compute-accept-encoding-ordered-codings "compress;q=0.5, gzip;q=1.0")
+;;; (compute-accept-encoding-ordered-codings "gzip;q=1.0, identity; q=0.5, *;q=0")
 
 
 

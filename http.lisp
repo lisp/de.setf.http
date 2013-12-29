@@ -99,17 +99,17 @@
    (session-cookie-name
     :initform nil :initarg :session-cookie-name
     :accessor http:request-session-cookie-name)
-   (media-type
-    :accessor request-media-type
-    :documentation
-    "Binds the reified request content type or NIL if none was specified.
-    (See http:request-media-type - note the package)")
    (method
      :initform nil
      :reader get-request-method :writer setf-request-method
      :documentation
      "Binds the effective request method resective over-riding headers.
      (See http:request-method)")
+   (media-type
+    :accessor request-media-type
+    :documentation
+    "Binds the reified concrete request content type or NIL if none was specified.
+    (See http:request-media-type - note the package)")
    (accept-type
     :initform nil
     :reader get-request-accept-type :writer setf-request-accept-type
@@ -117,7 +117,13 @@
      request accept header and accept-charset header upon first reference.
      This is supplied to the resource function, to be used to discriminate
      response generation methods and to derive the response content type
-     from the applicable methods."))
+     from the applicable methods.")
+   (negotiated-accept-encoding
+    ;; no initform
+    :reader get-request-negotiated-accept-encoding :writer setf-request-negotiated-accept-encoding
+    :documentation "Caches the content encoding negotiated from the combination
+     of the request accept-encoding header and the available encoding list provided
+     to request-negotiated-accept-encoding."))
   (:documentation
     "Each request is represented with an instance of this class. It serves as
      a protocol class and to extend the respective class from any concrete
@@ -566,6 +572,10 @@
                       (intern-media-type accept))))))))
 
 
+(defgeneric http:request-accept-content-encoding (request)
+  (:method :around ((request http:request))
+    (compute-accept-encoding-ordered-codings (call-next-method))))
+
 (defgeneric http:request-accept-header (request)
   )
 
@@ -616,8 +626,25 @@
 (defgeneric http:request-negotiated-character-encoding (request)
   )
 
-(defgeneric http:request-negotiated-content-encoding (request)
-  )
+(defun negotiate-content-encoding (acceptable-encodings supported-encodings)
+  (loop for (encoding . qvalue) in acceptable-encodings
+        do (cond ((= qvalue 0)
+                  ;; if nothing else matched, cannot satisfy the request
+                  (http:not-acceptable))
+                 ((or (string-equal encoding :identity) (string-equal encoding "*"))
+                  ;; either case, no encoding to do
+                  (return nil))
+                 ((find encoding supported-encodings :test #'string-equal)))))
+;;; (negotiate-content-encoding '((1 . :gzip) (0 . *)) '(:bzip2))
+;;; (negotiate-content-encoding '((1 . :gzip)) '(:bzip2))
+
+(defgeneric http:request-negotiated-content-encoding (request supported-encodings)
+  (:method ((request http:request) (accepted-encodings list))
+    (if (slot-boundp request 'negotiated-content-encoding)
+      (get-request-negotiated-content-encoding request)
+      (setf-request-negotiated-content-encoding (negotiate-content-encoding (http:request-accept-content-encoding request)
+                                                                            supported-encodings)
+                                                request))))
 
 (defgeneric http:request-path (request)
   )
@@ -1041,6 +1068,9 @@
     (declare (dynamic-extent args))
     (apply #'mime:mime-type type args)))
 
+(defgeneric (setf http:response-content-encoding) (content-coding response)
+  (:method ((coding symbol) (response http:response))
+    (setf (http:response-content-encoding response) (string-downcase coding))))
 
 (defgeneric http:response-content-stream (response)
   (:documentation "Return the response content stream while ensuring that

@@ -85,6 +85,7 @@
            :report-condition-headers
            :request
            :request-accept-charset
+           :request-accept-content-encoding
            :request-accept-header
            :request-accept-type
            :request-acceptor
