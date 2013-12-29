@@ -639,7 +639,7 @@
 ;;; (negotiate-content-encoding '((1 . :gzip)) '(:bzip2))
 
 (defgeneric http:request-negotiated-content-encoding (request supported-encodings)
-  (:method ((request http:request) (accepted-encodings list))
+  (:method ((request http:request) (supported-encodings list))
     (if (slot-boundp request 'negotiated-content-encoding)
       (get-request-negotiated-content-encoding request)
       (setf-request-negotiated-content-encoding (negotiate-content-encoding (http:request-accept-content-encoding request)
