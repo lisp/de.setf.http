@@ -162,7 +162,8 @@
     (let ((buffer (make-array 4096 :element-type (stream-element-type input-stream))))
       (loop for length = (read-sequence buffer input-stream)
             while (plusp length)
-            do (write-sequence buffer output-stream :end length))))
+            do (write-sequence buffer output-stream :end length)
+            (write-sequence buffer *trace-output* :end length))))
   
   (:method ((input-stream stream) (output pathname))
     (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create

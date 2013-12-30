@@ -30,6 +30,7 @@
            :agent-authentication-form
            :agent-id
            :agent-is-admin
+           :anonymous-resource-p
            :authenticate-request-password
            :authenticate-request-token
            :authenticate-request-session

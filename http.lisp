@@ -699,6 +699,14 @@
         (or (http:request-query-argument request name)
             (http:request-post-argument request name))))))
 
+(defgeneric http:anonymous-resource-p (resource)
+  (:documentation "Return true iff the resource permits some form of access without authentication.
+   The applies to cases where the implementation does not establish an agent or the agent itself
+   associates no identity.
+   The default method returns false.")
+  (:method ((resource http:resource))
+    nil))
+
 ;;;
 ;;; def-resource
 
@@ -863,7 +871,8 @@
                                   ;; permission methods succeed
                                   `(unless (and (or (http:request-agent (http:request))
                                                     ,@(loop for method in authentication
-                                                            collect `(call-method ,method ())))
+                                                            collect `(call-method ,method ()))
+                                                    (http:anonymous-resource-p (http:resource)))
                                                 ,@(loop for method in authorization
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
