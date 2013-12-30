@@ -1154,7 +1154,9 @@
     state, to be communicated to the client as part of the response.")
 
   (:method :before ((condition t) response)
-    (setf (http:response-content-length response) 0))
+    (setf (http:response-content-length response) 0)
+    ;; ensure text plain for error response
+    (setf (http:response-media-type response) mime:text/plain))
 
   (:method ((condition http:redirect) response)
     (setf (http:response-location-header response) (http:condition-location condition))
@@ -1194,7 +1196,10 @@
         ;; than performed as a side-effect of setting the response content type, as
         ;; that would change the encoding for the headers
         (let ((stream (get-response-content-stream response)))
-          (setf (http:stream-media-type stream) (http:response-media-type response))
+          (setf (http:stream-media-type stream)
+                ;; adopt whatever was negotiated - or fall-back if that has not yet happened
+                ;; because, eg authentication failed prior to content negotiation
+                (or (http:response-media-type response) mime:text/plain))
           (when (http:response-transfer-encoding-header response)
             (setf (chunga:chunked-stream-output-chunking-p stream) t))
           ;; TODO : iff content encoding is specified, wrap the response stream with

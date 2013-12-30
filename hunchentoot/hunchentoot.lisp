@@ -86,7 +86,8 @@
   (header-in :content-type request))
 
 (defmethod http:request-auth-token ((request request))
-  (header-in :auth_token request))
+  (or (header-in :authorization request)
+      (get-parameter "auth_token" request)))
 
 (defmethod http:request-authentication ((request request))
   (authorization request))
@@ -274,11 +275,14 @@
                                (when (http:response-headers-unsent-p *reply*)
                                  (http:report-condition-headers c *reply*)
                                  (http:send-headers *reply*))
+                               ;; log the condition as request completion
+                               (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                                (return-from process-connection
                                  (values nil c nil))))
              (error (lambda (c)
                       (http:log *lisp-errors-log-level* acceptor "unhandled error in http response: ~a" c)
                       (format *error-output* "~%~a" (get-backtrace))
+                      ;; re-signal to the acceptor's general handler
                       (http:internal-error :message (format nil "unhandled error in http response: ~a" c)))))
             
             (loop
