@@ -96,7 +96,7 @@
   ((code :initform 413 :allocation :class)
    (text :initform "Request Entity Too Large" :allocation :class)))
 
-(def-condition http::unsupported-media-type (http:error)
+(def-condition http:unsupported-media-type (http:error)
   ((code :initform 415 :allocation :class)
    (text :initform "Unsupported Media Type" :allocation :class)))
 

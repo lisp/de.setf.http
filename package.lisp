@@ -167,7 +167,7 @@
            :stream
            :stream-media-type
            :unauthorized
-           :unsupported-content-type
+           :unsupported-media-type
            :internal-error
            :not-implemented
            ))
