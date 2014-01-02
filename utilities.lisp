@@ -166,7 +166,9 @@
            (buffer (make-array buffer-length :element-type (stream-element-type input-stream)))
            (total-count 0))
       (loop for end = (if length (min buffer-length (- length total-count)) buffer-length)
-            for count = (read-sequence buffer input-stream :partial-fill t :end end)
+            for count = (read-sequence buffer input-stream
+                                       ;; :partial-fill t
+                                       :end end)
             while (plusp count)
             do (progn (write-sequence buffer output-stream :end count)
                       (incf total-count count)))
