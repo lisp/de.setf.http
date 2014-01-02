@@ -13,8 +13,8 @@
    http:resource
    http:agent
  three operators
-   http:encode-content
-   http:decode-content
+   http:encode-response
+   http:decode-request
  a condition complement corresponding to HTTP response status codes, and the
  method-combination:
    http:http
@@ -692,6 +692,10 @@
 
 ;;; resource
 
+(defmethod print-object ((object http:resource) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "~a" (http:resource-path object))))
+
 (defgeneric http:resource-request-argument (resource name)
   (:method ((resource http:resource) name)
     (let ((request (http:resource-request resource)))
@@ -877,8 +881,6 @@
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
          ;; the most-specific only
-         (decode-methods (or decode-methods '((make-method (http::unsupported-media-type)))))
-         ;; the most-specific only
          (encode-method (first encode-methods))
          ;; add a clause to cache the concrete media type according to the most
          ;; specific class specializer applicable to the request's accept type
@@ -898,7 +900,7 @@
                                                 ,(if methods
                                                    `(call-method ,(first methods)
                                                                  ,(append (rest methods)
-                                                                          (when (member key '(:patch :post :put))
+                                                                          (if (member key '(:patch :post :put))
                                                                             ;; include decode methods iff the verb supports content
                                                                             ;; otherwise arrange to return nil
                                                                             (or decode-methods
@@ -917,21 +919,7 @@
          ;; signal a nont-applicable error if that fails.
          (main-clause (if encode-method
                         `(call-method ,encode-method ((make-method ,content-clause)))
-                        `(progn
-                           (when (or (eq :get (http:request-method http:*request*))
-                                     (http:request-accept-header http:*request*))
-                             (let ((acceptable-media-type (compute-acceptable-media-type ,function
-                                                                                         (http:resource) (http:request) (http:response)
-                                                                                         (http:request-media-type (http:request))
-                                                                                         (http:request-accept-type (http:request)))))
-                               (cond (acceptable-media-type
-                                      (funcall ,function (http:resource) (http:request) (http:response)
-                                               (http:request-media-type (http:request))
-                                               acceptable-media-type))
-                                     (t
-                                      (setf (http:response-media-type (http:response)) mime:text/plain)
-                                      (http::not-acceptable)))))
-                           ,content-clause))))
+                        content-clause)))
     (when mime-type-clause
       (setf main-clause `(progn ,mime-type-clause ,main-clause)))
     ;; arrange the authentication clause to combine the implicit methods and any explicit around method with
@@ -947,7 +935,28 @@
     (let* ((form (if around
                    `(call-method ,(first around) (,@(rest around) (make-method ,main-clause)))
                    main-clause)))
-      form)))
+      ;; ensure the headers are sent
+      (setf form `(progn ,form (http:send-headers (http:response))))
+      ;; if there was an encode clause, use the comuted form.
+      ;; otherwise, if a response is required, if there was an acceptable concrete content type,
+      ;; delegate to its implementation and, if not, signal not-acceptable.
+      ;; if no response is required, then the form w/o encoding suffices.
+      (if encode-method
+        form
+        `(if (or (eq :get (http:request-method http:*request*))
+                 (http:request-accept-header http:*request*))
+           (let ((acceptable-media-type (compute-acceptable-media-type ,function
+                                                                       (http:resource) (http:request) (http:response)
+                                                                       (http:request-media-type (http:request))
+                                                                       (http:request-accept-type (http:request)))))
+             (cond (acceptable-media-type
+                    (funcall ,function (http:resource) (http:request) (http:response)
+                             (http:request-media-type (http:request))
+                             acceptable-media-type))
+                   (t
+                    (setf (http:response-media-type (http:response)) mime:text/plain)
+                    (http::not-acceptable))))
+           ,form)))))
 
 
 

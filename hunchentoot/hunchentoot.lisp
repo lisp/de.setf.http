@@ -82,9 +82,6 @@
       ;; otherwise there can be no known encoder
       (find-symbol (string-upcase header) :keyword) (http::not-acceptable))))
 
-(defmethod http:request-content-type-header ((request tbnl-request))
-  (header-in :content-type request))
-
 (defmethod http:request-auth-token ((request request))
   (or (header-in :authorization request)
       (get-parameter "auth_token" request)))
@@ -93,11 +90,17 @@
   (authorization request))
 
 (defmethod http:request-content-length ((request tbnl-request))
-  (let ((header (content-length request)))
-    (when (plusp (length header)) (parse-integer header))))
+  (let ((header (header-in :content-length request)))
+    (when (plusp (length header))
+      (if (every #'digit-char-p header)
+        (parse-integer header)
+        (http:bad-request)))))
 
 (defmethod http:request-content-stream ((request tbnl-request))
   (content-stream request))
+
+(defmethod http:request-content-type-header ((request tbnl-request))
+  (header-in :content-type request))
 
 (defmethod http:request-host ((request tbnl-request))
   (acceptor-address (request-acceptor request)))
@@ -377,7 +380,8 @@ Returns the stream that is connected to the client."
                          (eq (http:response-protocol response) :http/1.1)
                          ;; only turn chunking on if the content
                          ;; length is unknown at this point...
-                         (null content-length))))
+                         (null content-length)
+                         (not (eql status-code 204)))))
     
     ;; emit the response and entity headers
     ;; start with status line
@@ -437,5 +441,7 @@ Returns the stream that is connected to the client."
     (format header-stream "~C~C" #\Return #\Linefeed)
     
     ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
-    (raw-post-data :force-binary t)
+    ;; this is transacibed from the original hunchentoot implementation, but seems bogus
+    ;; one could check for eof, but that would preclude pipelined interaction
+    ;; (raw-post-data :force-binary t)
     (http:response-content-stream response)))

@@ -157,18 +157,26 @@
 
 ;;; codecs
 
-(defgeneric http:copy-stream (input-stream output-stream)
-  (:method ((input-stream stream) (output-stream stream))
-    (let ((buffer (make-array 4096 :element-type (stream-element-type input-stream))))
-      (loop for length = (read-sequence buffer input-stream)
-            while (plusp length)
-            do (write-sequence buffer output-stream :end length)
-            (write-sequence buffer *trace-output* :end length))))
+#+sbcl
+(defmethod stream-listen ((stream SB-SYS:FD-STREAM)) (not (sb-impl::sysread-may-block-p stream)))
+
+(defgeneric http:copy-stream (input-stream output-stream &key length)
+  (:method ((input-stream stream) (output-stream stream) &key length)
+    (let* ((buffer-length 4096)
+           (buffer (make-array buffer-length :element-type (stream-element-type input-stream)))
+           (total-count 0))
+      (loop for end = (if length (min buffer-length (- length total-count)) buffer-length)
+            for count = (read-sequence buffer input-stream :partial-fill t :end end)
+            while (plusp count)
+            do (progn (write-sequence buffer output-stream :end count)
+                      (incf total-count count)))
+      (values total-count (not (stream-listen input-stream)))))
   
-  (:method ((input-stream stream) (output pathname))
+  (:method ((input-stream stream) (output pathname) &rest args)
+    (declare (dynamic-extent args))
     (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
                                    :element-type 'unsigned-byte)
-      (http:copy-stream input-stream output-stream))))
+      (apply #'http:copy-stream input-stream output-stream args))))
 
 (defgeneric http:encode-response (content response content-type)
   (:documentation "Implements the default behavior for resource function
