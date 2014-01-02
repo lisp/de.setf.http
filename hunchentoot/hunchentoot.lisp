@@ -185,7 +185,7 @@
 (defmethod (setf http:response-last-modified) ((http-date string) (response tbnl-response))
   (setf (header-out :last-modified response) http-date))
 
-(defmethod (setf http:response-location-header) (location (response tbnl-response))
+(defmethod (setf http:response-location) (location (response tbnl-response))
   (setf (header-out :location response) location))
 
 (defmethod (setf http:response-www-authenticate-header) (authentication-method (response tbnl-response))

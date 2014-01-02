@@ -152,7 +152,7 @@
            :response-headers-unsent-p
            :response-keep-alive-p
            :response-last-modified
-           :response-location-header
+           :response-location
            :response-media-type
            :response-protocol
            :response-retry-after-header

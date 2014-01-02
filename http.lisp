@@ -1139,7 +1139,7 @@
   (:method ((timestamp integer) (response http:response))
     (setf (http:response-last-modified response) (http:encode-rfc1123 timestamp))))
 
-(defgeneric (setf http:response-location-header) (location response)
+(defgeneric (setf http:response-location) (location response)
   )
 
 (defgeneric (setf http:response-media-type) (media-type response)
@@ -1179,7 +1179,7 @@
     (setf (http:response-media-type response) mime:text/plain))
 
   (:method ((condition http:redirect) response)
-    (setf (http:response-location-header response) (http:condition-location condition))
+    (setf (http:response-location response) (http:condition-location condition))
     (call-next-method))
 
   (:method ((condition http:not-modified) response)
