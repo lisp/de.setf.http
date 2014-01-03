@@ -15,13 +15,14 @@
 
 (defpackage :de.setf.http
   (:nicknames :http)
+  (:use )
   (:export :*log-level*
            :*request*
            :*resource*
            :*response*
            :*session*
-           :+http-ok+
            :+method-keys+
+           :accepted
            :acceptor
            :acceptor-dispatch-function
            :acceptor-request-class
@@ -39,15 +40,19 @@
            :bind-resource
            :class-resource-keywords
            :class-resource-pattern
+           :conflict
            :condition
            :condition-code
            :condition-etag
            :condition-location
+           :condition-location-choices
            :condition-message
            :condition-mtime
            :condition-retry-after
            :condition-text
+           :continue
            :copy-stream
+           :created
            :decode-request
            :def-resource-function
            :def-resource
@@ -56,11 +61,15 @@
            :encode-response
            :encode-rfc1123
            :error
+           :expectation-failed
+           :forbidden
+           :found
            :function-method-keys
            :function-package
            :function-resource-classes
            :function-resource-class
            :function-resource-function-class
+           :gone
            :http
            :input-stream
            :length-required
@@ -73,17 +82,24 @@
            :log-error
            :log-critical
            :log-fatal
+           :method-not-allowed
+           :moved-permanently
            :no-content
            :not-modified
            :not-found
            :not-acceptable
-           :not-allowed
            :make-request
            :make-response
+           :moved-permanently
+           :multiple-choices
            :ok
            :output-stream
            :parse-rfc1123
-           :redirect
+           :partial-content
+           :payment-required
+           :precondition-failed
+           :proxy-authentication-required
+           :report-condition-body
            :report-condition-headers
            :request
            :request-accept-charset
@@ -101,6 +117,7 @@
            :request-content-stream
            :request-content-type-header
            :request-effective-method
+           :request-entity-too-large
            :request-etags
            :request-header
            :request-host
@@ -117,9 +134,12 @@
            :request-query-arguments
            :request-remote-ip-address
            :request-session-id
-           :request-too-large
            :request-session-cookie-name
+           :request-timeout
            :request-unmodified-since
+           :request-uri-too-long
+           :requested-range-not-satisfiable
+           :reset-content
            :resource
            :resource-authorization-list
            :resource-class
@@ -149,6 +169,7 @@
            :response-content-stream
            :response-content-type-header
            :response-close-stream-p
+           :response-date
            :response-etag
            :response-headers-unsent-p
            :response-keep-alive-p
@@ -163,12 +184,16 @@
            :response-transfer-encoding-header
            :response-vary
            :response-www-authenticate-header
+           :see-other
            :send-entity-body
            :send-headers
            :stream
            :stream-media-type
+           :switching-protocols
+           :temporary-redirect
            :unauthorized
            :unsupported-media-type
+           :use-proxy
            :internal-error
            :not-implemented
            ))

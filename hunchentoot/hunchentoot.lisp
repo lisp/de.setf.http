@@ -182,6 +182,9 @@
 (defmethod (setf http:response-content-type-header) ((content-type string) (response tbnl-response))
   (setf (header-out :content-type response) content-type))
 
+(defmethod (setf http:response-date) ((http-date string) (response tbnl-response))
+  (setf (header-out :date response) http-date))
+
 (defmethod (setf http:response-etag) ((tag string) (response tbnl-response))
   (setf (header-out :etag response) tag))
 
@@ -284,6 +287,8 @@
                                (when (http:response-headers-unsent-p *reply*)
                                  (http:report-condition-headers c *reply*)
                                  (http:send-headers *reply*))
+                               ;; emit any body
+                               (http:report-condition-body c *reply*)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                                (return-from process-connection
@@ -444,10 +449,11 @@ Returns the stream that is connected to the client."
     ;; now the cookies
     (loop for (nil . cookie) in (cookies-out response)
           do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
+    ;; now the terminating EOL
     (format header-stream "~C~C" #\Return #\Linefeed)
     
     ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
-    ;; this is transacibed from the original hunchentoot implementation, but seems bogus
+    ;; this is transcribed from the original hunchentoot implementation, but seems bogus
     ;; one could check for eof, but that would preclude pipelined interaction
     ;; (raw-post-data :force-binary t)
     (http:response-content-stream response)))

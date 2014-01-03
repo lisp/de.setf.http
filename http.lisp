@@ -779,12 +779,12 @@
                                                               decode
                                                               (qualify-methods primary)
                                                               encode)
-                 (http:redirect (redirection)
-                                ;; if the redirection is internal invoke it, otherwise resignal it
-                                (let ((location (http:condition-location redirection)))
-                                  (if (functionp location)
-                                    (funcall location)
-                                    (error redirection)))))))
+                 (http:moved-permanently (redirection)
+                                         ;; if the redirection is internal invoke it, otherwise resignal it
+                                         (let ((location (http:condition-location redirection)))
+                                           (if (functionp location)
+                                             (funcall location)
+                                             (error redirection)))))))
         form))))
 
 (define-method-combination http:http (&key )
@@ -1134,6 +1134,10 @@
 (defgeneric (setf http:response-etag) (tag response)
   )
 
+(defgeneric (setf http:response-date) (timestamp response)
+  (:method ((timestamp integer) (response http:response))
+    (setf (http:response-date response) (http:encode-rfc1123 timestamp))))
+
 (defgeneric http:response-headers-unsent-p (response)
   (:method ((response http:response))
     (case (response-state response)
@@ -1200,6 +1204,12 @@
         (setf (http:response-retry-after-header response) time)))
     (call-next-method)))
 
+
+(defgeneric http:report-condition-body (condition response)
+  (:documentation "Given a condition, write it to the response
+    content stream. This is intended to be invoked in the error handler
+    for request processing once the headers have been sent to report
+    error detainls as the response body."))
 
 
 (defgeneric http:send-headers (response)
