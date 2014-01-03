@@ -98,19 +98,27 @@
   ((location
     :initarg :location :initform (error "location is required.")
     :reader http:condition-location))
-  (:default-initargs :format-control "The resource has moved to ~a."))
+  (:report (lambda (condition stream)
+            (format stream "HTTP Status: ~s (~a): The resource has moved to ~a."
+                    (http:condition-code condition)
+                    (http:condition-text condition)
+                    (http:condition-location condition)))))
 
 (defmethod http:report-condition-headers ((condition redirection-condition) (response t))
   (setf (http:response-location response) (http:condition-location condition)))
-(defmethod simple-condition-format-arguments ((condition redirection-condition))
-  (list (http:condition-location condition)))
 
 (def-condition http:multiple-choices (redirection-condition)
   ((code :initform 300 :allocation :class)
    (text :initform "Multiple Choices" :allocation :class)
    (location-choices
     :initarg :location-choices :initform (error "location-choices is required.")
-    :reader http:condition-location-choices)))
+    :reader http:condition-location-choices))
+  (:report (lambda (condition stream)
+            (format stream "HTTP Status: ~s (~a): The resource has moved to ~a. Alternatives are ~a."
+                    (http:condition-code condition)
+                    (http:condition-text condition)
+                    (http:condition-location condition)
+                    (http:condition-location-choices condition)))))
 
 (defmethod simple-condition-format-arguments ((condition http:multiple-choices))
   (list (http:condition-location condition)
