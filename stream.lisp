@@ -281,6 +281,7 @@ if necessary."
 
 (defmethod stream-write-char ((stream http:output-stream) character)
   (with-slots (encoder) stream
+    ;(print (cons 'stream-write-char character))
     (funcall encoder character #'chunked-stream-write-byte stream)
     character))
 
@@ -288,6 +289,7 @@ if necessary."
 (defmethod stream-write-string ((stream http:output-stream) string #-mcl &optional start end)
   "Write a string to chunked stream according to its current encoding."
   (with-slots (encoder) stream
+    ;(print (cons 'stream-write-string string))
     (unless start (setf start 0))
     (unless end (setf end (length string)))
     (do ((i start (1+ i)))

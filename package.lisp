@@ -92,6 +92,7 @@
            :request-accept-type
            :request-acceptor
            :request-agent
+           :request-argument-list
            :request-auth-token
            :request-authentication
            :request-cache-matched-p

@@ -82,6 +82,9 @@
       ;; otherwise there can be no known encoder
       (find-symbol (string-upcase header) :keyword) (http::not-acceptable))))
 
+(defmethod http:request-argument-list ((request tbnl-request))
+  (append (get-parameters request) (post-parameters request)))
+
 (defmethod http:request-auth-token ((request request))
   (or (header-in :authorization request)
       (get-parameter "auth_token" request)))
@@ -179,8 +182,11 @@
 (defmethod (setf http:response-content-type-header) ((content-type string) (response tbnl-response))
   (setf (header-out :content-type response) content-type))
 
-(defmethod (setf http:response-etag) ((allow string) (response tbnl-response))
-  (setf (header-out :etag response) allow))
+(defmethod (setf http:response-etag) ((tag string) (response tbnl-response))
+  (setf (header-out :etag response) tag))
+
+(defmethod (setf http:response-etag) ((tag null) (response tbnl-response))
+  (setf (header-out :etag response) tag))
 
 (defmethod (setf http:response-last-modified) ((http-date string) (response tbnl-response))
   (setf (header-out :last-modified response) http-date))

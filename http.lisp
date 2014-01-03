@@ -669,6 +669,10 @@
 (defgeneric http:request-query-arguments (request key)
   )
 
+(defgeneric http:request-argument-list (request)
+  (:documentation "Return the consolidated query and post arguments, in that order, as
+    an a-list of string pairs, of the form (name . value)"))
+
 (defgeneric http:request-remote-ip-address (request)
   (:documentation
     "Given a request, return the remote ip address"))
@@ -845,7 +849,8 @@
   (:method ((function t) (request t) (response http:response) verbs)
     ;; the default method 
     (setf (http:response-content-length response) 0)
-    (setf (http:response-allow response) verbs)))
+    (setf (http:response-allow response) verbs)
+    nil))
 
 
 (defun compute-effective-resource-function-method (function authentication authorization authentication-around
@@ -910,7 +915,7 @@
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
-                                                                              ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
+                                                                              '(:options ,@(loop for (key nil) on primary-by-method by #'cddr collect key))))))
                               ;; otherwise, it is not implemented
                               (t (http:not-implemented))))
          ;; wrap the decoding an content generation steps with a mechanism to encode the result.
