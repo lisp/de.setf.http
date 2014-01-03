@@ -779,7 +779,7 @@
                                                               decode
                                                               (qualify-methods primary)
                                                               encode)
-                 (http:moved-permanently (redirection)
+                 (redirection-condition (redirection)
                                          ;; if the redirection is internal invoke it, otherwise resignal it
                                          (let ((location (http:condition-location redirection)))
                                            (if (functionp location)
@@ -834,7 +834,7 @@
                                                               decode
                                                               (qualify-methods)
                                                               encode)
-                 (http:redirect (redirection)
+                 (redirection-condition (redirection)
                                 ;; if the redirection is internal invoke it, otherwise resignal it
                                 (let ((location (http:condition-location redirection)))
                                   (if (functionp location)
@@ -1187,7 +1187,7 @@
     ;; ensure text plain for error response
     (setf (http:response-media-type response) mime:text/plain))
 
-  (:method ((condition http:redirect) response)
+  (:method ((condition redirection-condition) response)
     (setf (http:response-location response) (http:condition-location condition))
     (call-next-method))
 
