@@ -120,9 +120,6 @@
                     (http:condition-location condition)
                     (http:condition-location-choices condition)))))
 
-(defmethod simple-condition-format-arguments ((condition http:multiple-choices))
-  (list (http:condition-location condition)
-        (http:condition-location-choices condition)))
 
 (def-condition http:moved-permanently (redirection-condition)
   ((code :initform 301 :initarg :code)
