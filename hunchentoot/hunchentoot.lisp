@@ -320,27 +320,33 @@
                                (setf *hunchentoot-stream* (make-chunked-stream *hunchentoot-stream*)
                                      (chunked-stream-input-chunking-p *hunchentoot-stream*) t))
                               (t (hunchentoot-error "Client tried to use chunked encoding, but acceptor is configured to not use it."))))))
-                  (let* ((*request* (http:make-request acceptor
+                  (let* ((*reply* (http:make-response acceptor
+                                                      :keep-alive-p (keep-alive-p *request*)
+                                                      :server-protocol protocol
+                                                      ;; create the output stream which supports character output for the headers
+                                                      ;; with the initial character encoding set to ascii
+                                                      :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
+                         (*request* (http:make-request acceptor
                                                        :socket socket
                                                        :headers-in headers-in
                                                        :content-stream *hunchentoot-stream*
                                                        :method method
                                                        :uri url-string
                                                        :server-protocol protocol))
-                         (*reply* (http:make-response acceptor
-                                                      :request *request*
-                                                      :keep-alive-p (keep-alive-p *request*)
-                                                      :server-protocol protocol
-                                                      ;; create the output stream which supports character output for the headers
-                                                      ;; with the initial character encoding set to ascii
-                                                      :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
                          (http:*request* *request*)
                          (http:*response* *reply*)
                          (*tmp-files* nil)
                          (*session* nil))
-                    (with-acceptor-request-count-incremented (acceptor)
-                      (catch 'request-processed
-                        (http:respond-to-request acceptor *request* *reply*)))
+                    ;; instantiation must follow this order as any errors are recorded as side-effects on the response
+                    ;; return code, which must be checked...
+                    (setf (http:response-request *reply*) *request*)
+                    (if (eql +http-ok+ (return-code *reply*))
+                      ;; if initialization succeeded, process
+                      (with-acceptor-request-count-incremented (acceptor)
+                        (catch 'request-processed
+                          (http:respond-to-request acceptor *request* *reply*)))
+                      ;; otherwise, eport the error
+                      (http:error :code (return-code *reply*)))
                     (finish-output (http:response-content-stream *reply*))
                     ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                     ;; access log message

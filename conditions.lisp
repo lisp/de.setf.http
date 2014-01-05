@@ -46,6 +46,14 @@
 (define-condition http:error (http:condition simple-error)
   ())
 
+(defun http:error (&key code)
+  (error (make-condition (or (condition-code-class code) 'http:internal-error)
+                         :code code)))
+
+(defparameter *condition-code-classes* (make-hash-table :test #'eql))
+(defun condition-code-class (code) (gethash code *condition-code-classes*))
+(defun (setf condition-code-class) (class code) (setf (gethash code *condition-code-classes*) class))
+
 ;;; some conditions prescribe specific parameters. these are created like
 ;;;  (http:not-modified :etag "tag" :mtime (g-u-t))
 ;;; and specialize the reporting argument construction or the entire
@@ -65,7 +73,8 @@
                                       :format-arguments args)))
                 (null (error ',name))))
             ,@(when code
-                `((defconstant ,name ,code)))
+                `((defconstant ,name ,code)
+                  (setf (condition-code-class ,code) ',name)))
             (define-condition ,name ,classes ,slots ,@options))))
 
 (defmethod http:report-condition-headers ((condition http:condition) (response t))

@@ -106,7 +106,7 @@
      "Binds the effective request method resective over-riding headers.
      (See http:request-method)")
    (media-type
-    :accessor request-media-type
+    :accessor request-media-type :initarg :media-type
     :documentation
     "Binds the reified concrete request content type or NIL if none was specified.
     (See http:request-media-type - note the package)")
@@ -545,7 +545,9 @@
 
 (defmethod print-object ((object http:request) stream)
   (print-unreadable-object (object stream :type t :identity t)
-    (format stream "~a ~a" (http:request-method object)  (http:request-path object))))
+    (format stream "~a ~a"
+            (_slot-value object 'method)
+            (ignore-errors (http:request-path object)))))
 
 (defgeneric http:request-acceptor (request)
   )
