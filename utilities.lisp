@@ -155,19 +155,6 @@
   "return an instance of the initial class in the union precedence list"
   (symbol-value (class-name (first (c2mop:class-direct-superclasses (class-of mime-type))))))
 
-(defgeneric http:request-body (request)
-  (:documentation "Return the request body as a single sequence.
-    If content-length was supplied, that determines the sequence length.
-    If none was provided, the stream must have chunked content-encoding and is
-    read to completion.
-    In both cases, if the configured request limit is exceeded, a request-entity-too-large
-    error is signaled.")
-  (:method ((request http:request))
-    (let* ((length (or (http:request-content-length request) http:*content-initial-length*))
-           (stream (http:request-content-stream request))
-           (content (make-array length :element-type (stream-element-type stream) :adjustable t)))
-      (http:copy-stream stream content :length (or (http:request-content-length request) http:*content-length-limit*)))))
-
 ;;; codecs
 
 #+(or)
