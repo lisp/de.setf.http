@@ -5,13 +5,14 @@
 
 
 (define-condition http:condition (simple-condition)
-  ((code
+  #+sbcl ()                             ; is broken
+  #-sbcl((code
     :initform -1
     :reader http:condition-code)
    (text
     :initform "" :initarg :text
     :reader http:condition-text))
-  (:report report-condition)
+  (:report http:report-condition)
   (:default-initargs :format-control nil :format-arguments ())
   (:documentation "The abstract http condition class specializes simple-condition
     and adds slots for the status code and the status text. It expects
@@ -25,13 +26,22 @@
     In addition, the condition name is bound as a constant to the respective
     status code value."))
 
+#+sbcl
+(progn
+  (defmethod http:condition-code ((condition http:condition))
+    (slot-value condition 'code))
+  (defmethod http:condition-text ((condition http:condition))
+    (slot-value condition 'text))
+  )
 
-(defmethod report-condition ((condition http:condition) stream)
-  (format stream "HTTP Status: ~s (~a)~@[: ~?~]"
-          (http:condition-code condition)
-          (http:condition-text condition)
-          (simple-condition-format-control condition)
-          (simple-condition-format-arguments condition)))
+
+(defgeneric http:report-condition (condition stream)
+  (:method ((condition http:condition) stream)
+    (format stream "HTTP Status: ~s (~a)~@[: ~?~]~%~%"
+            (http:condition-code condition)
+            (http:condition-text condition)
+            (simple-condition-format-control condition)
+            (simple-condition-format-arguments condition))))
 
 (define-condition http:error (http:condition simple-error)
   ())
@@ -48,10 +58,9 @@
 (defmacro def-condition (name classes slots &rest options)
   (let ((code (getf (rest (assoc 'code slots)) :initform)))
     `(progn (defun ,name (&optional format-control &rest args)
-              (declare (dynamic-extent args))
               (etypecase format-control
                 (keyword (apply #'error format-control args))
-                (string (error (apply #'make-condition ',name
+                (string (error (make-condition ',name
                                       :format-control format-control
                                       :format-arguments args)))
                 (null (error ',name))))
@@ -162,23 +171,23 @@
   ((code :initform 307 :allocation :class)
    (text :initform "Temporary Redirect" :allocation :class)))
 
-(def-condition http:bad-request (http:condition)
+(def-condition http:bad-request (http:error)
   ((code :initform 400 :allocation :class)
    (text :initform "Bad Request" :allocation :class)))
 
-(def-condition http:unauthorized (http:condition)
+(def-condition http:unauthorized (http:error)
   ((code :initform 401 :allocation :class)
    (text :initform "Unauthorized" :allocation :class)))
 
-(def-condition http:payment-required (http:condition)
+(def-condition http:payment-required (http:error)
   ((code :initform 402 :allocation :class)
    (text :initform "Payment Required" :allocation :class)))
 
-(def-condition http:forbidden (http:condition)
+(def-condition http:forbidden (http:error)
   ((code :initform 403 :allocation :class)
    (text :initform "Forbidden" :allocation :class)))
 
-(def-condition http:not-found (http:condition)
+(def-condition http:not-found (http:error)
   ((code :initform 404 :allocation :class)
    (text :initform "Not Found" :allocation :class)))
 
