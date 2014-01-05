@@ -16,7 +16,9 @@
 (defpackage :de.setf.http
   (:nicknames :http)
   (:use )
-  (:export :*log-level*
+  (:export :*content-initial-length*
+           :*content-length-limit*
+           :*log-level*
            :*request*
            :*resource*
            :*response*
@@ -99,6 +101,7 @@
            :payment-required
            :precondition-failed
            :proxy-authentication-required
+           :report-condition
            :report-condition-body
            :report-condition-headers
            :request
@@ -111,6 +114,7 @@
            :request-argument-list
            :request-auth-token
            :request-authentication
+           :request-body
            :request-cache-matched-p
            :request-class
            :request-content-length

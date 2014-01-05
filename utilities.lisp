@@ -155,9 +155,22 @@
   "return an instance of the initial class in the union precedence list"
   (symbol-value (class-name (first (c2mop:class-direct-superclasses (class-of mime-type))))))
 
+(defgeneric http:request-body (request)
+  (:documentation "Return the request body as a single sequence.
+    If content-length was supplied, that determines the sequence length.
+    If none was provided, the stream must have chunked content-encoding and is
+    read to completion.
+    In both cases, if the configured request limit is exceeded, a request-entity-too-large
+    error is signaled.")
+  (:method ((request http:request))
+    (let* ((length (or (http:request-content-length request) http:*content-initial-length*))
+           (stream (http:request-content-stream request))
+           (content (make-array length :element-type (stream-element-type stream) :adjustable t)))
+      (http:copy-stream stream content :length (or (http:request-content-length request) http:*content-length-limit*)))))
+
 ;;; codecs
 
-#+sbcl
+#+(or)
 (defmethod stream-listen ((stream SB-SYS:FD-STREAM)) (not (sb-impl::sysread-may-block-p stream)))
 
 (defgeneric http:copy-stream (input-stream output-stream &key length)
@@ -165,20 +178,82 @@
     (let* ((buffer-length 4096)
            (buffer (make-array buffer-length :element-type (stream-element-type input-stream)))
            (total-count 0))
-      (loop for end = (if length (min buffer-length (- length total-count)) buffer-length)
+      (loop with remaining-length = length
+            while (or (null remaining-length) (plusp remaining-length))
+            for end = (if remaining-length (min buffer-length remaining-length) buffer-length)
             for count = (read-sequence buffer input-stream
                                        ;; :partial-fill t
                                        :end end)
             while (plusp count)
             do (progn (write-sequence buffer output-stream :end count)
-                      (incf total-count count)))
-      (values total-count (not (stream-listen input-stream)))))
+                      (incf total-count count)
+                      (when remaining-length
+                        (unless (plusp (decf remaining-length count))
+                          (when (listen input-stream)
+                            (http:request-entity-too-large "Limit of ~d ~:[characters~;bytes~] exceeded."
+                                                           length
+                                                           (eq (stream-element-type input-stream) 'character)))))))
+      total-count))
   
   (:method ((input-stream stream) (output pathname) &rest args)
     (declare (dynamic-extent args))
     (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
                                    :element-type 'unsigned-byte)
-      (apply #'http:copy-stream input-stream output-stream args))))
+      (apply #'http:copy-stream input-stream output-stream args)))
+
+  (:method ((input-stream stream) (content vector) &key length)
+    (assert (equalp (array-element-type content) (stream-element-type input-stream)) ()
+            "Destination sequence type does not agree with the source stream element type: ~s: ~s."
+            (array-element-type content) (stream-element-type input-stream))
+    ;; if the stream is chunking, chunk in place within the limit.
+    ;; if it is not, read exactly that number of
+    (cond ((chunga:chunked-stream-input-chunking-p input-stream)
+           ;; read chunked up to the limit, allowing that the chunking buffers intermediate, which
+           ;; since this must allow for utf/character decoding, is not to be avoided. alternative to
+           ;; get-post-data, however, do not interpose yet another copy
+           (assert (adjustable-array-p content) ()
+                   "Destinaton sequence must be adjustable for chunked content: ~a."
+                   (type-of content))
+           (loop for start = 0 then end
+                 ;; determine the next chunk size; when none further, return the accumulation
+                 for chunk-size = (cond ((stream-listen input-stream)
+                                         (chunga::chunked-stream-input-limit input-stream))
+                                        (t
+                                         (adjust-array content '(0))
+                                         (return 0)))
+                 then (cond ((stream-listen input-stream)
+                             (chunga::chunked-stream-input-limit input-stream))
+                            (t
+                             (return end)))
+                 ;; and, from that, the required additional space
+                 for end = (+ start chunk-size) then (+ end chunk-size)
+                 ;; when there remains to be read, apply the length constraint
+                 do (progn (when (and length (> end length))
+                             (http:request-entity-too-large "Limit of ~d ~:[characters~;bytes~] exceeded."
+                                                            length
+                                                            (eq (stream-element-type input-stream) 'character)))
+                           ;; ensure space for additional content
+                           (unless (>= (length content) end)
+                             (adjust-array content (list end)))
+                           ;; read the content in to the empty sub-sequence
+                           (unless (= end (setf end (stream-read-sequence input-stream content start end)))
+                             ;; in preparation to return, in the event, that, either utf8 decoding yielded
+                             ;; fewer characters than octets, or the original sequence length exceeded the
+                             ;; actual content length
+                             (adjust-array content end)))))
+          (t
+           ;; read an unchunked stream of the given length, or to the length of the sequence
+           (when (and length (not (= length (length content))))
+             (assert (adjustable-array-p content) ()
+                     "Destinaton sequence length does not agree with length constraint: ~d: ~a."
+                     length (type-of content))
+             (adjust-array content (list length)))
+           (let ((end (read-sequence content input-stream :start 0 :end (length content))))
+             (unless (= end (length content))
+               ;; premature eof
+               (adjust-array content (list  end)))
+             end)))))
+
 
 (defgeneric http:encode-response (content response content-type)
   (:documentation "Implements the default behavior for resource function
@@ -239,3 +314,43 @@
                          (decode-universal-time value 0)
       (format stream "~a, ~d ~:(~a~) ~4,'0d ~2,'0d:~2,'0d:~2,'0d GMT"
               (date:day-in-week-name weekday 3) day (date:month-name month 3) year hour minute second))))
+
+
+#|
+(let ((stream (make-string-input-stream (coerce (loop for i from 0 below 26 collect (code-char (+ (char-code #\a) i))) 'string)))
+      (content (make-array 26 :element-type 'character :adjustable t :initial-element #\.)))
+  (list (http:copy-stream stream content) content))
+
+(let ((stream (make-string-input-stream (coerce (loop for i from 0 below 26 collect (code-char (+ (char-code #\a) i))) 'string)))
+      (content (make-array 26 :element-type 'character :adjustable t  :initial-element #\.)))
+  (list (http:copy-stream stream content :length 10) content))
+
+(let ((stream (make-string-input-stream (coerce (loop for i from 0 below 10 collect (code-char (+ (char-code #\a) i))) 'string)))
+      (content (make-array 26 :element-type 'character :adjustable t  :initial-element #\.)))
+  (list (http:copy-stream stream content :length 26) content))
+
+(let* ((input (flexi-streams:make-in-memory-input-stream (map 'vector #'char-code
+                                                              (concatenate 'list
+                                                                           '(#\4 #\return #\newline) "Wiki" '(#\return #\newline)
+                                                                           '(#\5 #\return #\newline) "pedia" '(#\return #\newline)
+                                                                           '(#\e #\return #\newline) " in" '(#\return #\newline #\return #\newline) "chunks." '(#\return #\newline)
+                                                                           '(#\0 #\return #\newline) '(#\return #\newline)))))
+       (stream (chunga:make-chunked-stream input))
+       (content (make-array 26 :element-type '(unsigned-byte 8) :adjustable t  :initial-element (char-code #\.))))
+  (setf (chunga:chunked-stream-input-chunking-p stream) t)
+  (list (http:copy-stream stream content :length 26) (map 'string #'code-char content)))
+
+(let* ((input (flexi-streams:make-in-memory-input-stream (map 'vector #'char-code
+                                                              (concatenate 'list
+                                                                           '(#\4 #\return #\newline) "Wiki" '(#\return #\newline)
+                                                                           '(#\5 #\return #\newline) "pedia" '(#\return #\newline)
+                                                                           '(#\e #\return #\newline) " in" '(#\return #\newline #\return #\newline) "chunks." '(#\return #\newline)
+                                                                           '(#\0 #\return #\newline) '(#\return #\newline)))))
+       (stream (chunga:make-chunked-stream input))
+       (content (make-array 10 :element-type '(unsigned-byte 8) :adjustable t  :initial-element (char-code #\.))))
+  (setf (chunga:chunked-stream-input-chunking-p stream) t)
+  (list (http:copy-stream stream content :length 26) (map 'string #'code-char content)))
+
+
+
+|#

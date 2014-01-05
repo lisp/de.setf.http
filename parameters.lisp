@@ -6,6 +6,14 @@
 
 (declaim (special http:*request* http::*reply*))
 
+(defparameter http:*content-initial-length* 1024
+  "The initial byte count of a request entity body content for request which specify no content length.
+ (default 1024)")
+
+(defparameter http:*content-length-limit* nil
+  "When non-nulll, constrains the byte count of a request entity body content. If nil, no constaint applies.
+ (default nil)")
+
 (defparameter http:*request* nil
   "Bound to the request instance for the dynamic extent of the respond-to-request call.")
 

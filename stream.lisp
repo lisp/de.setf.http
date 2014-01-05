@@ -50,10 +50,7 @@
     :accessor stream-unread-characters)
    (line-buffer
     :initform (make-array 32 :element-type 'character :fill-pointer 0 :adjustable t)
-    :reader stream-line-buffer)
-   (eof-marker
-    :initform :eof :initarg :eof-marker
-    :accessor stream-eof-marker)))
+    :reader stream-line-buffer)))
 
 (defclass http:output-stream (http:stream chunga:chunked-output-stream)
   ())
@@ -137,15 +134,14 @@
   "Reads one byte from STREAM.  Checks the chunk buffer first, if
 input chunking is enabled.  Re-fills buffer is necessary."
   (cond ((chunked-stream-input-chunking-p stream)
-         (if (or (chunga::chunked-input-available-p stream)
-                 (chunga::fill-buffer stream))
+         (when (or (chunga::chunked-input-available-p stream)
+                   (chunga::fill-buffer stream))
            (with-slots (chunga::input-buffer chunga::input-index) stream
              (prog1 (aref chunga::input-buffer chunga::input-index)
-               (incf chunga::input-index)))
-           (stream-eof-marker stream)))
+               (incf chunga::input-index)))))
         ((read-byte (chunked-stream-stream stream) nil nil))
         (t
-         (stream-eof-marker stream))))
+         nil)))
 
 
 
@@ -156,43 +152,41 @@ input chunking is enabled.  Re-fills buffer is necessary."
              (stream-unread-char stream char)
              char)
             (t
-             (stream-eof-marker stream))))))
+             nil)))))
 
 
 ;;; stream-read-byte : inherited
 
 (defmethod stream-read-char ((stream http:input-stream))
   "Read a character from an open stream according to its current encoding.
-  At EOF return the stream-eof-marker."
+  At EOF return nil."
   (with-slots (decoder) stream
-    (or (funcall decoder #'chunked-stream-read-byte stream) (stream-eof-marker stream))))
+    (funcall decoder #'chunked-stream-read-byte stream)))
 
 
 (defmethod stream-read-char-no-hang ((stream http:input-stream))
   "If input is already available from an open stream read the next character according
- to its current encoding. If none is available, return NIL. At EOF return the stream-eof-marker."
+ to its current encoding. If none is available, return NIL. At EOF return nil."
   (with-slots (body-position body-length) stream
-    (if (stream-listen stream)
-      (stream-read-char stream)
-      (stream-eof-marker stream))))
+    (when (stream-listen stream)
+      (stream-read-char stream))))
 
 
 (defmethod stream-read-line ((stream http:input-stream))
    "Read a line of characters from an open stream according to its current
  encoding. Return those up to the next stream-eol-marker as a new string.
- Iff the line is terminated by EOF, return a second value, the
- stream-eof-marker."
+ Iff the line is terminated by EOF, return a second value, t."
   (with-slots (decoder) stream
-    (let ((eol-char (stream-eol-marker stream))
+    (let ((eol-marker (stream-eol-marker stream))
           (line (stream-line-buffer stream)))
       (setf (fill-pointer line) 0)
       (loop for char = (funcall decoder #'chunked-stream-read-byte stream)
-            do (cond ((eql char eol-char)
+            do (cond ((eql char eol-marker)
                       (return (copy-seq line)))
                      (char
                       (vector-push-extend char line))
                      (t
-                      (return (values (copy-seq line) (stream-eof-marker stream)))))))))
+                      (return (values (copy-seq line) t))))))))
 
 
 (defmethod stream-read-sequence
@@ -212,6 +206,23 @@ input chunking is enabled.  Re-fills buffer is necessary."
               (setf (char sequence i) char)
               (return i)))))
       end)))
+
+(defmethod stream-read-sequence
+          ((stream http:input-stream) (sequence vector) start end &key)
+  "Read a character sequence from an open stream, construct characters, and
+  return the the next position. Iff the first byte read shows eof, return nil."
+  (unless start (setf start 0))
+  (setf end (or end (length sequence)))
+  (if (> end start)
+    (let ((byte (chunked-stream-read-byte stream)))
+        (when byte
+          (setf (aref sequence start) byte)
+          (do ((i (1+ start) (1+ i)))
+              ((>= i end) end)
+            (if (setf byte (chunked-stream-read-byte stream))
+              (setf (aref sequence i) byte)
+              (return i)))))
+      end))
 
 
 (defmethod stream-tyi ((stream http:input-stream))
