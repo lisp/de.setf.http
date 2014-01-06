@@ -99,7 +99,6 @@
           (setf-stream-encoder encoder stream)))
       media-type)))
 
-
 ;;;
 ;;; general manipulation
 
@@ -132,7 +131,7 @@
 (defun chunked-stream-read-byte (stream)
   ;; transliterated from stream-read-byte (chunked-input-stream)
   "Reads one byte from STREAM.  Checks the chunk buffer first, if
-input chunking is enabled.  Re-fills buffer is necessary."
+   input chunking is enabled.  Re-fills buffer is necessary."
   (cond ((chunked-stream-input-chunking-p stream)
          (when (or (chunga::chunked-input-available-p stream)
                    (chunga::fill-buffer stream))
@@ -143,6 +142,45 @@ input chunking is enabled.  Re-fills buffer is necessary."
         (t
          nil)))
 
+(defun always-chunked-stream-read-byte (stream)
+  "Reads one byte from STREAM. Always checks the chunk buffer first.
+   Re-fills buffer is necessary."
+  (when (or (chunga::chunked-input-available-p stream)
+            (chunga::fill-buffer stream))
+    (with-slots (chunga::input-buffer chunga::input-index) stream
+      (prog1 (aref chunga::input-buffer chunga::input-index)
+        (incf chunga::input-index)))))
+
+(defmethod stream-binary-reader ((stream chunga:chunked-input-stream))
+  (if (chunked-stream-input-chunking-p stream)
+    ;; read bytes chunked
+    (values #'always-chunked-stream-read-byte stream)
+    ;; read bytes direct from the wrapped stream
+    (stream-binary-reader (chunked-stream-stream stream))))
+
+(defmethod stream-binary-reader ((stream stream))
+  (values (if (find-method #'stream-read-byte () (list (class-of stream)) nil)
+              #'stream-read-byte
+              #'read-byte)
+            stream))
+
+
+(defmethod stream-reader ((stream http:input-stream))
+  ;; allow for combintation encoder/not chunking/not
+  (if (slot-boundp stream 'decoder)
+    ;; decoded input
+    (with-slots (decoder) stream
+      (flet ((chunked-stream-character-reader (stream)
+               ;; chunked encoded output
+               (funcall decoder #'always-chunked-stream-read-byte stream))
+             (unchunked-stream-character-reader (stream)
+               ;; no chunking decode direct from the wrapped stream
+               (funcall decoder #'stream-read-byte stream)))
+        (if (chunked-stream-output-chunking-p stream)
+          (values #'chunked-stream-character-reader stream)
+          (values #'unchunked-stream-character-reader (chunked-stream-stream stream)))))
+    ;; binary input
+    (stream-binary-reader stream)))
 
 
 (defmethod stream-peek-char ((stream http:input-stream))
@@ -258,8 +296,9 @@ input chunking is enabled.  Re-fills buffer is necessary."
 (defun chunked-stream-write-byte (stream byte)
   ;; transliterated from stream-write-byte (chunked-stream)
   "Writes one byte by simply adding it to the end of the output
-buffer iff output chunking is enabled.  The buffer is flushed
-if necessary."
+   buffer iff output chunking is enabled. Otherwise write through to
+   the wrapped stream.
+   The buffer is flushed if necessary."
   (if (chunked-stream-output-chunking-p stream)
     (with-slots (chunga::output-index chunga::output-buffer) stream
       (when (>= chunga::output-index chunga::+output-buffer-size+)
@@ -268,6 +307,47 @@ if necessary."
       (incf chunga::output-index)
       byte)
     (write-byte byte (chunked-stream-stream stream))))
+
+(defun always-chunked-stream-write-byte (stream byte)
+  "Write the byte presuming the sream is chunked.
+   The buffer is flushed if necessary." 
+  (with-slots (chunga::output-index chunga::output-buffer) stream
+    (when (>= chunga::output-index chunga::+output-buffer-size+)
+      (chunga::flush-buffer stream))
+    (setf (aref chunga::output-buffer chunga::output-index) byte)
+    (incf chunga::output-index)
+    byte))
+
+
+(defmethod stream-binary-writer ((stream chunga:chunked-output-stream))
+  (if (chunked-stream-output-chunking-p stream)
+    ;; write bytes chunked
+    (values #'always-chunked-stream-write-byte stream)
+    ;; write bytes direct to the wrapped stream
+    (stream-binary-writer (chunked-stream-stream stream))))
+
+(defmethod stream-binary-writer ((stream stream))
+  (values (if (find-method #'stream-write-byte () (list (class-of stream) (find-class t)) nil)
+            #'stream-write-byte
+            #'(lambda (stream byte) (write-byte byte stream)))
+          stream))
+
+(defmethod stream-writer ((stream http:output-stream))
+  ;; allow for combintation encoder/not chunking/not
+  (if (slot-boundp stream 'encoder)
+    ;; encoded output
+    (with-slots (encoder) stream
+      (flet ((chunked-stream-character-writer (stream character)
+               ;; chunked encoded output
+               (funcall encoder character #'always-chunked-stream-write-byte stream))
+             (unchunked-stream-character-writer (stream character)
+               ;; no chunking encode direct to the wrapped stream
+               (funcall encoder character #'stream-write-byte stream)))
+        (if (chunked-stream-output-chunking-p stream)
+          (values #'chunked-stream-character-writer stream)
+          (values #'unchunked-stream-character-writer (chunked-stream-stream stream)))))
+    ;; binary output
+    (stream-binary-writer stream)))
 
 
 ;;; stream-fresh-line : NYI . would have to track the last character
