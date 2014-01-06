@@ -80,6 +80,9 @@
 (defmethod http:report-condition-headers ((condition http:condition) (response t))
   (setf (http:response-status-code response) (http:condition-code condition)))
 
+(defmethod http:report-condition-body ((condition http:condition) (response t))
+  (format "~%~a~%" contition (http:response-content-stream response)))
+
 (def-condition http:continue (http:condition)
   ((code :initform 100 :allocation :class)
    (text :initform "Continue" :allocation :class)))

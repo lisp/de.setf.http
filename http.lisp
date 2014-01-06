@@ -91,10 +91,7 @@
 
 
 (defclass http:request ()
-  ((acceptor
-    :initarg :acceptor
-    :reader http:request-acceptor)
-   (response
+  ((response
     :initform nil :initarg :response
     :accessor http:request-response     ; allow setting due to instantiation order
     :documentation "the response respective this active request.")
