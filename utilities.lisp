@@ -55,7 +55,6 @@
     (format destination "~&;;; [~a] ~?" level format-control arguments))
   )
 
-
 ;;;
 ;;; media type support
 ;;; implement media type unions and resolution
@@ -184,9 +183,13 @@
   
   (:method ((input-stream stream) (output pathname) &rest args)
     (declare (dynamic-extent args))
-    (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
-                                   :element-type 'unsigned-byte)
-      (apply #'http:copy-stream input-stream output-stream args)))
+    (handler-case (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
+                                                 :element-type 'unsigned-byte)
+                    (apply #'http:copy-stream input-stream output-stream args))
+      (error (c)
+        ;; if the copy fails, ensure that the file is removed
+        (when (probe-file output) (delete-file output))
+        (error c))))
 
   (:method ((input-stream stream) (content vector) &key length)
     (assert (equalp (array-element-type content) (stream-element-type input-stream)) ()
