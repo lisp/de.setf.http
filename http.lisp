@@ -247,7 +247,7 @@
     :reader http:response-acceptor)
    (request
     :initarg :request
-    :reader http:response-request
+    :accessor http:response-request     ; allow setting due to instantiation order
     :documentation "the request respective this active response.")
    (state
     :initform nil

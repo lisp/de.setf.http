@@ -270,8 +270,7 @@ if necessary."
     (write-byte byte (chunked-stream-stream stream))))
 
 
-;;; stream-fresh-line : inherited
-;;; default suffices ?
+;;; stream-fresh-line : NYI . would have to track the last character
 
 
 (defmethod stream-finish-output ((stream http:output-stream))
