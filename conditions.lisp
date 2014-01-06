@@ -81,7 +81,7 @@
   (setf (http:response-status-code response) (http:condition-code condition)))
 
 (defmethod http:report-condition-body ((condition http:condition) (response t))
-  (format "~%~a~%" condition (http:response-content-stream response)))
+  (format (http:response-content-stream response) "~%~a~%" condition))
 
 (def-condition http:continue (http:condition)
   ((code :initform 100 :allocation :class)
