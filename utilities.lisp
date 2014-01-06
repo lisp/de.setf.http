@@ -98,14 +98,14 @@
 (defun parse-qvalue (qvalue)
   (if (every #'qvalue-char-p qvalue)
     (read-from-string qvalue)
-    (http:bad-request :message (format nil "Invalid qvalue: '~a'" qvalue))))
+    (http:bad-request "Invalid qvalue: '~a'" qvalue)))
 
 
 (defun compute-accept-ordered-types (header)
   (let* ((accept-ranges (split-string header #\,))
          (types (loop for range in accept-ranges
                         for (major minor q) = (or (parse-media-range range)
-                                                  (http:bad-request :message (format nil "Invalid accept range: ~s." range)))
+                                                  (http:bad-request "Invalid accept range: ~s." range))
                         for type = (dsu:intern-mime-type-key (format nil "~a/~a" major minor) :if-does-not-exist nil)
                         for quality = (cond (q (parse-qvalue q))
                                             (t 1))
@@ -123,7 +123,7 @@
                      for (content-coding qvalue) = (parse-content-coding element)
                      if content-coding
                      collect (cons content-coding (if qvalue (parse-qvalue qvalue) 1))
-                     else do (http:bad-request :message (format nil "Invalid content coding: ~s." element)))
+                     else do (http:bad-request "Invalid content coding: ~s." element))
                #'> :key #'rest))
   
 

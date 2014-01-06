@@ -305,7 +305,7 @@
                       (http:log *lisp-errors-log-level* acceptor "unhandled error in http response: ~a" c)
                       (format *error-output* "~%~a" (get-backtrace))
                       ;; re-signal to the acceptor's general handler
-                      (http:internal-error :message (format nil "unhandled error in http response: ~a" c)))))
+                      (http:internal-error "unhandled error in http response: ~a" c))))
             
             (loop
               (let ((*close-hunchentoot-stream* t))
