@@ -105,13 +105,19 @@
 (defmethod http:request-content-type-header ((request tbnl-request))
   (header-in :content-type request))
 
+(defmethod http:request-header ((request tbnl-request) key)
+  (header-in key request))
+
 (defmethod http:request-host ((request tbnl-request))
   (acceptor-address (request-acceptor request)))
 
-(defmethod http:request-if-modified-since ((request request))
+(defmethod http:request-if-modified-since ((request tbnl-request))
   (let ((date (header-in :if-modified-since request)))
     (when date
       (http:parse-rfc1123 date))))
+
+(defmethod http:request-keep-alive-p ((request tbnl-request))
+  (keep-alive-p request))
 
 (defmethod http:request-original-method ((request tbnl-request))
   (request-method request))
@@ -275,10 +281,12 @@
 
   (let ((socket-stream (make-socket-stream socket acceptor)))
     (unwind-protect
-        ;; process requests until either the acceptor is shut down,
-        ;; *CLOSE-HUNCHENTOOT-STREAM* has been set to T by the
-        ;; handler, or the peer fails to send a request
-        (let ((*hunchentoot-stream* (initialize-connection-stream acceptor socket-stream)))
+      ;; process requests until either the acceptor is shut down,
+      ;; *CLOSE-HUNCHENTOOT-STREAM* has been set to T by the
+      ;; handler, or the peer fails to send a request
+      ;; use as the base stream either the original socket stream or, if the connector
+      ;; supports ssl, a wrapped stream for ssl support
+      (let ((*hunchentoot-stream* (initialize-connection-stream acceptor socket-stream)))
           ;; establish http condition handlers and an error handler which mapps to internal-error
           (handler-bind
             ((http:condition (lambda (c)
@@ -310,50 +318,47 @@
                     (return))
                   ;; bind per-request special variables, then process the
                   ;; request - note that *ACCEPTOR* was bound by an aound method
-                  (let ((transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
-                    (when transfer-encodings
-                      (setq transfer-encodings
-                            (split "\\s*,\\s*" transfer-encodings))
-                      (when (member "chunked" transfer-encodings :test #'equalp)
-                        (cond ((acceptor-input-chunking-p acceptor)
-                               ;; turn chunking on before we read the request body
-                               (setf *hunchentoot-stream* (make-chunked-stream *hunchentoot-stream*)
-                                     (chunked-stream-input-chunking-p *hunchentoot-stream*) t))
-                              (t (hunchentoot-error "Client tried to use chunked encoding, but acceptor is configured to not use it."))))))
                   (let* ((*reply* (http:make-response acceptor
-                                                      :keep-alive-p (keep-alive-p *request*)
                                                       :server-protocol protocol
                                                       ;; create the output stream which supports character output for the headers
                                                       ;; with the initial character encoding set to ascii
                                                       :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
+                         (input-stream (make-instance 'http:input-stream :real-stream socket-stream))
                          (*request* (http:make-request acceptor
                                                        :socket socket
                                                        :headers-in headers-in
-                                                       :content-stream *hunchentoot-stream*
+                                                       :content-stream input-stream
                                                        :method method
                                                        :uri url-string
                                                        :server-protocol protocol))
                          (http:*request* *request*)
                          (http:*response* *reply*)
                          (*tmp-files* nil)
-                         (*session* nil))
+                         (*session* nil)
+                         (transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
                     ;; instantiation must follow this order as any errors are recorded as side-effects on the response
                     ;; return code, which must be checked...
                     (setf (http:response-request *reply*) *request*)
+                    (setf (http:request-response *request*) *reply*)
+                    (when transfer-encodings
+                      (setq transfer-encodings
+                            (split "\\s*,\\s*" transfer-encodings))
+                      (when (member "chunked" transfer-encodings :test #'equalp)
+                        (cond ((acceptor-input-chunking-p acceptor)
+                               ;; turn chunking on before we read the request body
+                               (setf (chunked-stream-input-chunking-p input-stream) t))
+                              (t (http:bad-request "Client tried to use chunked encoding, but acceptor is configured to not use it.")))))
                     (if (eql +http-ok+ (return-code *reply*))
                       ;; if initialization succeeded, process
                       (with-acceptor-request-count-incremented (acceptor)
                         (catch 'request-processed
                           (http:respond-to-request acceptor *request* *reply*)))
-                      ;; otherwise, eport the error
+                      ;; otherwise, report the error
                       (http:error :code (return-code *reply*)))
                     (finish-output (http:response-content-stream *reply*))
                     ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                     ;; access log message
                     (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                  ;;(finish-output *hunchentoot-stream*)
-                  
-                  (setq *hunchentoot-stream* (reset-connection-stream *acceptor* *hunchentoot-stream*))
                   (finish-output socket-stream)
                   (when *close-hunchentoot-stream*
                     (return)))))))

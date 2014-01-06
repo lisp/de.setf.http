@@ -91,7 +91,14 @@
 
 
 (defclass http:request ()
-  ((agent
+  ((acceptor
+    :initarg :acceptor
+    :reader http:request-acceptor)
+   (response
+    :initform nil :initarg :response
+    :accessor http:request-response     ; allow setting due to instantiation order
+    :documentation "the response respective this active request.")
+   (agent
     :initform nil :initarg :agent
     :accessor http:request-agent
     :documentation "Provides for an agent instance to be determined by any
@@ -246,7 +253,7 @@
     :initarg :acceptor
     :reader http:response-acceptor)
    (request
-    :initarg :request
+    :initform nil :initarg :request
     :accessor http:response-request     ; allow setting due to instantiation order
     :documentation "the request respective this active response.")
    (state
@@ -268,10 +275,7 @@
     :accessor http:response-protocol)
    (close-stream-p
     :initform nil :initarg :close-stream-p
-    :accessor http:response-close-stream-p)
-   (keep-alive-p
-    :initarg :keep-alive-p
-    :accessor http:response-keep-alive-p))
+    :accessor http:response-close-stream-p))
   (:documentation
     "Each response is represented with an instance of this class. It serves as
      a protocol class and to extend the respective class from any concrete
@@ -607,13 +611,21 @@
   )
 
 (defgeneric http:request-header (request key)
-  )
+  (:method ((headers list) key)
+    (rest (assoc key headers :test #'string-equal))))
 
 (defgeneric http:request-host (request)
   )
 
 (defgeneric http:request-if-modified-since (request)
   )
+
+(defgeneric http:request-keep-alive-p (request)
+  (:documentation "Derive the keep-alive status from the request headers combined with the 
+   server configuration.")
+  (:method ((request http:request))
+    (http:request-keep-alive-p (http:request-header request "communication"))
+    
 
 (defgeneric http:request-media-type (request)
   (:method ((request http:request))
@@ -1158,6 +1170,11 @@
     (case (response-state response)
       ((nil) t)
       (t nil))))
+
+(defgeneric http:response-keep-alive-p (response)
+  (:method ((response http:response))
+    (let ((request (http:response-request response)))
+      (when request (http:request-keep-alive-p request)))))
 
 (defgeneric (setf http:response-last-modified) (timestamp response)
   (:method ((timestamp integer) (response http:response))

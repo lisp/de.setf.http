@@ -126,6 +126,7 @@
            :request-header
            :request-host
            :request-if-modified-since
+           :request-keep-alive-p
            :request-media-type
            :request-method
            :request-negotiated-character-encoding
@@ -137,6 +138,7 @@
            :request-query-argument
            :request-query-arguments
            :request-remote-ip-address
+           :request-response
            :request-session-id
            :request-session-cookie-name
            :request-timeout
