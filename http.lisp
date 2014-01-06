@@ -621,11 +621,7 @@
   )
 
 (defgeneric http:request-keep-alive-p (request)
-  (:documentation "Derive the keep-alive status from the request headers combined with the 
-   server configuration.")
-  (:method ((request http:request))
-    (http:request-keep-alive-p (http:request-header request "communication"))
-    
+  )
 
 (defgeneric http:request-media-type (request)
   (:method ((request http:request))
