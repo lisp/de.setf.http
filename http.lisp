@@ -718,7 +718,7 @@
 
 (defmethod print-object ((object http:resource) stream)
   (print-unreadable-object (object stream :type t :identity t)
-    (format stream "~a" (http:resource-path object))))
+    (format stream "~a" (when (slot-boundp object 'path) (http:resource-path object)))))
 
 (defgeneric http:resource-request-argument (resource name)
   (:method ((resource http:resource) name)
@@ -816,8 +816,8 @@
                             (around (:around) )
                             (decode (:decode . *)) ;; should be singleton
                             (encode (:encode . *))
-                            (get (:get))
-                            (put (:put))
+                            (get (:get))        ; nb. cannot be required as the :as definitions
+                            (put (:put))        ; cut processing off to delegate to anther media type
                             (head (:head))
                             (patch (:patch))
                             (post (:post))
@@ -872,6 +872,11 @@
     (setf (http:response-allow response) verbs)
     nil))
 
+
+;; the sbcl code for make method fails to allow for a method which does nothing
+;; and always warns about unused parameters, instead of (make-method nil), use a real method
+(defgeneric the-null-function (&rest args) (:method (&rest args) (declare (ignore args)) nil))
+(defparameter *the-null-method* (find-method #'the-null-function () ()))
 
 (defun compute-effective-resource-function-method (function authentication authorization authentication-around
                                                             around
@@ -930,7 +935,9 @@
                                                                             ;; otherwise arrange to return nil
                                                                             (or decode-methods
                                                                                 '((make-method (http:unsupported-media-type))))
-                                                                            '((make-method nil)))))
+                                                                            ;;'((make-method nil))
+                                                                            (list *the-null-method*)
+                                                                            )))
                                                    '(http:not-implemented))))
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
@@ -1009,16 +1016,17 @@
                                                         (append lambda-list `((,(gensym "content-type") t) (,(gensym "accept-type") t))))
                                                      ,@body))))
                                              (:encode
-                                              (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (ldiff clause after-qualifiers)))
-                                                (if (consp (first after-qualifiers))
-                                                  `(:method ,@clause)
+                                              (if (consp (second clause))
+                                                ;; literal definition
+                                                `(:method ,@clause)
+                                                (let ((qualifiers (remove-if-not #'keywordp clause))
+                                                      (media-types (remove-if #'keywordp clause)))
                                                   (ecase (second qualifiers)
                                                     (:as
-                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
-                                                        (,name resource request response content-type ,(second after-qualifiers))))
+                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
+                                                        (,name resource request response content-type ,(second media-types))))
                                                     ((nil)
-                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first after-qualifiers)))
+                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
                                                         ;; encode as per the derived response content type, which will be an instance of the
                                                         ;; specializer class, but include the character set encoding
                                                         (let ((content (call-next-method))
