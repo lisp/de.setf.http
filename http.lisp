@@ -183,7 +183,7 @@
 (defmethod c2mop:finalize-inheritance :after ((class http:resource-class))
   (finalize-pattern-subsumption class))
 
-(defgneric finalize-pattern-subsumption (class)
+(defgeneric finalize-pattern-subsumption (class)
   (:documentation "Ensure that this class and all of its sub-classes are included among
     patterns tested by the respective super-pattern class. The mop definition for
     add-direct-subclass specifices that the direct relation should exists for all
