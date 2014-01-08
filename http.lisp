@@ -181,12 +181,25 @@
          initargs))
 
 (defmethod c2mop:finalize-inheritance :after ((class http:resource-class))
-  (loop for class-name in (class-direct-superpatterns class)
-        for superpattern-class = (find-class class-name nil)
-        do (if superpattern-class
-             (when (typep superpattern-class 'http:resource-class)
-               (pushnew class (class-direct-subpatterns superpattern-class)))
-             (warn "superpattern class not found: ~s: ~s" (class-name class) class-name))))
+  (finalize-pattern-subsumption class))
+
+(defgneric finalize-pattern-subsumption (class)
+  (:documentation "Ensure that this class and all of its sub-classes are included among
+    patterns tested by the respective super-pattern class. The mop definition for
+    add-direct-subclass specifices that the direct relation should exists for all
+    _initialized_ classes, even prior to finalization.")
+  (:method ((class http:resource-class))
+    ;; ensure pattern registration for sub-classes to permit them to render a method
+    ;; specialiuzed for this class applicable
+    (loop for sub-class in (c2mop:class-direct-subclasses class)
+          do (finalize-pattern-subsumption sub-class))
+    ;; link this class' pattern with the more general
+    (loop for class-name in (class-direct-superpatterns class)
+          for superpattern-class = (find-class class-name nil)
+          do (if superpattern-class
+               (when (typep superpattern-class 'http:resource-class)
+                 (pushnew class (class-direct-subpatterns superpattern-class)))
+               (warn "superpattern class not found: ~s: ~s" (class-name class) class-name)))))
 
 (defgeneric subpattern-p (class1 class2)
   (:method ((class1 http:resource-class) (class2 http:resource-class))
