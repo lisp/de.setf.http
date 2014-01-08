@@ -440,7 +440,7 @@
   "Define a generic function to use as a server's dispatch mediator for
   request resources. The initial operator includes a method which accepts path
   strings, interns them as resources, and recurses to invoke the resource
-  specific implementation. Is signals a not-found condition, should no
+  specific implementation. It signals a not-found condition, should no
   dispatch method match the path."
 
   (let* ((function (ensure-generic-function name
