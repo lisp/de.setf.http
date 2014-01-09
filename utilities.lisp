@@ -139,17 +139,6 @@
 ;;; (compute-accept-encoding-ordered-codings "gzip;q=1.0, identity; q=0.5, *;q=0")
 
 
-
-
-(defgeneric intern-media-type (accept-header)
-  (:method ((header string))
-    (let* ((ordered-types (compute-accept-ordered-types header))
-           (class-name (intern (format nil "~{~a~^+~}" ordered-types) :mime))
-           (class (or (find-class class-name nil)
-                      (c2mop:ensure-class class-name :direct-superclasses ordered-types))))
-      (make-instance class))))
-
-
 (defun concrete-media-type (mime-type)
   "return an instance of the initial class in the union precedence list"
   (symbol-value (class-name (first (c2mop:class-direct-superclasses (class-of mime-type))))))

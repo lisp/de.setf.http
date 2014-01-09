@@ -110,18 +110,20 @@
      "Binds the effective request method resective over-riding headers.
      (See http:request-method)")
    (media-type
-    :accessor request-media-type :initarg :media-type
+    initform nil :initarg :media-type
+    :accessor request-media-type 
     :documentation
-    "Binds the reified concrete request content type or NIL if none was specified.
+    "Binds the reified concrete request content type or the function's default if none was specified.
+     The initial value, nil, is replaced in the inial stages of the resource function invocation.
     (See http:request-media-type - note the package)")
    (accept-type
     :initform nil
-    :reader get-request-accept-type :writer setf-request-accept-type
+    :accessor request-accept-type
     :documentation "Binds the interned media type which is computed from the
-     request accept header and accept-charset header upon first reference.
-     This is supplied to the resource function, to be used to discriminate
-     response generation methods and to derive the response content type
-     from the applicable methods.")
+     request accept header and accept-charset header upon first reference together
+     with the media type encodings defined for the matched response function.
+     This is computed on-the-fly, at the point of invocation and then used to
+     determine the applicable methods.")
    (negotiated-content-encoding
     ;; no initform
     :reader get-request-negotiated-content-encoding :writer setf-request-negotiated-content-encoding
@@ -242,7 +244,19 @@
     :initform '() :initarg :method-keys
     :accessor http:function-method-keys
     :documentation "Collects the http method keys present in the function's methods. This limits
-     the scope of the generated effective methods."))
+     the scope of the generated effective methods.")
+   (default-accept-header
+     :initform "*/*" :allocation :class
+     :type string
+     :reader http:function-default-accept-header
+     :documentation "The accept header value to be used when a request includes no accept header.")
+   (accept-types
+    :initform ()
+    :accessor resource-function-accept-types
+    :documentation "An a-list map from canonicalized accept header to the combined media type to be supplied
+     as the accept type in function calls to the operator. It is maintained as a simple association list.
+     For a moderate accept header count and allowing that conflicts updating lead to recomputing, it
+     avoids a lock."))
   (:metaclass c2mop:funcallable-standard-class)
   (:documentation
     "The class of generic functions intended to provide methods which implement
@@ -382,7 +396,7 @@
                               (,handler-name resource
                                              request response
                                              (http:request-media-type request)
-                                             (http:request-accept-type request)))
+                                             (http:request-accept-header request)))
                            :qualifiers '()
                            :lambda-list '(resource request response)
                            :specializers (list resource-class t-class t-class)))))
@@ -474,7 +488,7 @@
                               (cond (http:*resource*
                                      (,name http:*resource* request response))
                                     (t
-                                     (http:not-found)))))
+                                     (http:not-found "No resource defiend for path: ~s." resource-path)))))
                          :qualifiers '()
                          :lambda-list '(resource request response)
                          :specializers (list (find-class 'string) t-class t-class))
@@ -577,17 +591,6 @@
     if present.")
   )
 
-
-(defgeneric http:request-accept-type (request)
-  (:method ((request http:request))
-    (or (get-request-accept-type request)
-        (let ((accept (remove #\space (http:request-accept-header request))))
-          (when accept
-            (or (gethash accept (acceptor-header-instances (http:acceptor)))
-                (setf (gethash accept (acceptor-header-instances (http:acceptor)))
-                      (intern-media-type accept))))))))
-
-
 (defgeneric http:request-accept-content-encoding (request)
   (:method :around ((request http:request))
     (compute-accept-encoding-ordered-codings (call-next-method))))
@@ -611,6 +614,17 @@
            (content (make-array length :element-type (stream-element-type stream) :adjustable t)))
       (http:copy-stream stream content :length (or (http:request-content-length request) http:*content-length-limit*)))))
 
+(defgeneric http:request-cache-matched-p (request etag time)
+  (:method ((request http:request) etag time)
+    (and (find etag (http:request-etags request) :test #'equalp)
+         (loop for request-time in (http:request-if-modified-since request)
+               unless (<= time request-time)
+               return nil)
+         (loop for request-time in (http:request-unmodified-since request)
+               when (<= time request-time)
+               return nil)
+         t)))
+
 (defgeneric http:request-content-stream (request)
   )
 
@@ -618,6 +632,9 @@
   )
 
 (defgeneric http:request-content-type-header (request)
+  )
+
+(defgeneric http:request-etags (request)
   )
 
 (defgeneric http:request-header (request key)
@@ -643,6 +660,9 @@
                 (mime:mime-type header)))))))
 
 (defgeneric http:request-method (request)
+  (:documentation "Upon first reference, cache the effective http verb. This is sought from among the
+   various protocl-level and request-specific hiding places with the fall bask to the actual request
+   header.")
   (:method ((request http:request))
     (or (get-request-method request)
         (setf-request-method (flet ((as-method-key (string)
@@ -713,16 +733,6 @@
 (defgeneric http:request-session-id (request)
   (:documentation
     "Given a request, return a session id, if present."))
-
-
-#+(or)                                  ; artifactual
-(defmethod intern-media-type (acceptor (request http:request))
-    (let ((header (case (http:request-method request)
-                    ((:post :put :patch) (or (http:request-content-type-header request) (http:bad-request)))
-                    ((:get :head) (or (http:request-accept-header request) "*/*")))))
-      (if header
-        (intern-media-type acceptor header)
-        mime:*/*)))
 
 (defgeneric http:request-unmodified-since (request)
   )
@@ -1071,7 +1081,68 @@
                          (5 lambda-list))))
       `(defgeneric ,name ,lambda-list
          (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
+         ;; include a method to compute the accept type argument from the header string
+         (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type string))
+           (let ((media-type (resource-function-request-media-type #',name accept-type)))
+             (setf (request-media-type request) media-type))
+           (,name resource request response content-type media-type))
+         ;; and one to interpose the function's default if the request included no accept header
+         (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
+           (,name resource request response content-type (resource-function-default-accept #',name)))
          ,@definition-clauses))))
+
+
+(defgeneric resource-function-media-types (function)
+  (:documentation "Return the set of media type specializers for which encode methods are defined in the function.
+    This is without regard to other specializers and is used to compute from a request accept media type specification
+    the proxy instance which serves as the response media type argument to call the function.")
+  (:method ((function http:resource-function))
+    (remove-duplicates (loop for method in (c2mop:generic-function-methods function)
+                             for specializer = (fifth (c2mop:method-specializers method))
+                             when (and (eq :encode (first (method-qualifiers method)))
+                                       (subtypep specializer 'mime:mime-type))
+                             collect (class-name specializer)))))
+
+(defgeneric resource-function-acceptable-media-types (function accept-types)
+  (:documentation "Return the ordered sequence of those of the functions encoding media type specializers
+   which are subtypes of the given list of accept types. The order is respective the accept types and any
+   duplicates are removed from the end.")
+  (:method ((function http:resource-function) (accept-types list))
+    (remove-duplicates (loop with defined-types = (resource-function-media-types function)
+                             for accept-type in accept-types
+                             append (loop for defined-type in defined-types
+                                          when (or (eq defined-type accept-type)
+                                                   (subtypep defined-type accept-type))
+                                          collect defined-type))
+                       :from-end t)))
+
+(defgeneric resource-function-acceptable-media-type (function candidate-types)
+  (:documentation "Combine the media types from the request accept header with those defined for the function
+    to derive a composite type compatible with the function's methods. If none are compatible, yield
+    a literal combination, which will then result in a not-acceptable error.")
+  
+  (:method ((function http:resource-function) (accept-header string))
+    (setf accept-header (remove #\space accept-header))
+    (let ((cache (resource-function-accept-types function)))
+      (or (rest (assoc accept-header cache :test #'string-equal))
+          (let ((type (resource-function-acceptable-media-type function (compute-accept-ordered-types accept-header))))
+            (setf (resource-function-accept-types function)
+                  (acons accept-header type cache))
+            type))))
+  
+  (:method ((function http:resource-function) (accept-specification null))
+    (resource-function-acceptable-media-type function (http:function-default-accept-header function)))
+  
+  (:method ((function http:resource-function) (accept-specification cons))
+    (assert (every #'symbolp accept-specification) ()
+            "Invalid accept specification: ~s." accept-specification)
+    (let* ((acceptable-type-list (or (resource-function-acceptable-media-types function accept-specification)
+                                     ;; if none match, fall-back to that provided, which should yield a not-acceptable error
+                                     accept-specification))
+           (class-name (intern (format nil "~{~a~^,~}" acceptable-type-list) :mime))
+           (media-type-class (or (find-class class-name nil)
+                                 (c2mop:ensure-class class-name :direct-superclasses acceptable-type-list))))
+      (make-instance media-type-class))))
 
 
 (defgeneric compute-acceptable-methods (function resource request response request-type response-type)
@@ -1095,26 +1166,12 @@
                            (subtypep (class-name response-type-q) response-type-class))))
           collect method)))
               
-    
+
 (defgeneric compute-acceptable-media-type (function resource request response request-type response-type)
   (:method ((function http:resource-function) resource request response request-type (response-type mime:mime-type))
     (let ((methods (compute-acceptable-methods function resource request response request-type response-type)))
       (when methods
         (make-instance (fifth (c2mop:method-specializers (first methods))))))))
-
-(defgeneric http:request-etags (request)
-  )
-
-(defgeneric http:request-cache-matched-p (request etag time)
-  (:method ((request http:request) etag time)
-    (and (find etag (http:request-etags request) :test #'equalp)
-         (loop for request-time in (http:request-if-modified-since request)
-               unless (<= time request-time)
-               return nil)
-         (loop for request-time in (http:request-unmodified-since request)
-               when (<= time request-time)
-               return nil)
-         t)))
 
 ;;;
 ;;; response

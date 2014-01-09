@@ -66,6 +66,7 @@
            :expectation-failed
            :forbidden
            :found
+           :function-default-accept-header
            :function-method-keys
            :function-package
            :function-resource-classes
