@@ -112,17 +112,16 @@
    (media-type
     :initform nil :initarg :media-type
     :accessor request-media-type 
-    :documentation
-    "Binds the reified concrete request content type or the function's default if none was specified.
-     The initial value, nil, is replaced in the inial stages of the resource function invocation.
-    (See http:request-media-type - note the package)")
+    :documentation "Binds the concrete media type for request content.
+     The initial state is unbound and the mime type instance is computed upon first reference from the
+     conteht-type header value. (See http:request-media-type - note the package)")
    (accept-type
     :initform nil
-    :accessor request-accept-type
-    :documentation "Binds the interned media type which is computed from the
+    :accessor http:request-accept-type
+    :documentation "Binds the combined media type which is computed from the
      request accept header and accept-charset header upon first reference together
      with the media type encodings defined for the matched response function.
-     This is computed on-the-fly, at the point of invocation and then used to
+     This is computed on-the-fly, at the point of response function invocation and then used to
      determine the applicable methods.")
    (negotiated-content-encoding
     ;; no initform
@@ -992,6 +991,9 @@
                    main-clause)))
       ;; ensure the headers are sent
       (setf form `(progn ,form (http:send-headers (http:response))))
+      )))
+
+#|
       ;; if there was an encode clause, use the comuted form.
       ;; otherwise, if a response is required, if there was an acceptable concrete content type,
       ;; delegate to its implementation and, if not, signal not-acceptable.
@@ -1012,7 +1014,7 @@
                     (setf (http:response-media-type (http:response)) mime:text/plain)
                     (http::not-acceptable))))
            ,form)))))
-
+|#
 
 
 (defmacro http:def-resource-function (name lambda-list &rest clauses)
@@ -1082,10 +1084,10 @@
       `(defgeneric ,name ,lambda-list
          (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
          ;; include a method to compute the accept type argument from the header string
-         (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type string))
-           (let ((media-type (resource-function-request-media-type #',name accept-type)))
-             (setf (request-media-type request) media-type))
-           (,name resource request response content-type media-type))
+         (:method :around ((resource t) (request t) (response t) (content-type t) (accept-header string))
+           (let ((media-type (resource-function-acceptable-media-type #',name accept-header)))
+             (setf (http:request-accept-type request) media-type)
+             (,name resource request response content-type media-type)))
          ;; and one to interpose the function's default if the request included no accept header
          (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
            (,name resource request response content-type (resource-function-default-accept #',name)))
