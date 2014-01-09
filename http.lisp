@@ -110,7 +110,7 @@
      "Binds the effective request method resective over-riding headers.
      (See http:request-method)")
    (media-type
-    :initform nil :initarg :media-type
+    :initarg :media-type
     :accessor request-media-type 
     :documentation "Binds the concrete media type for request content.
      The initial state is unbound and the mime type instance is computed upon first reference from the
@@ -867,25 +867,28 @@
                             do (push method (getf categorized method-key))))
              (loop for (key methods) on categorized by #'cddr
                    collect key collect (reverse methods)))))
-    (if (and encode (eq (second (method-qualifiers (first encode))) :as))
-      `(call-method ,(first encode) ())
-      (let* ((form
-              `(handler-case
-                 ,(compute-effective-resource-function-method function
-                                                              (append authenticate-password authenticate-token authenticate-session)
-                                                              authorize-request
-                                                              auth-around
-                                                              around 
-                                                              decode
-                                                              (qualify-methods)
-                                                              encode)
-                 (redirection-condition (redirection)
-                                ;; if the redirection is internal invoke it, otherwise resignal it
-                                (let ((location (http:condition-location redirection)))
-                                  (if (functionp location)
-                                    (funcall location)
-                                    (error redirection)))))))
-        form))))
+    (cond ((and encode (eq (second (method-qualifiers (first encode))) :as))
+           `(call-method ,(first encode) ()))
+          ((and decode (eq (second (method-qualifiers (first decode))) :as))
+           `(call-method ,(first decode) ()))
+          (t
+           (let* ((form
+                   `(handler-case
+                      ,(compute-effective-resource-function-method function
+                                                                   (append authenticate-password authenticate-token authenticate-session)
+                                                                   authorize-request
+                                                                   auth-around
+                                                                   around 
+                                                                   decode
+                                                                   (qualify-methods)
+                                                                   encode)
+                      (redirection-condition (redirection)
+                                             ;; if the redirection is internal invoke it, otherwise resignal it
+                                             (let ((location (http:condition-location redirection)))
+                                               (if (functionp location)
+                                                 (funcall location)
+                                                 (error redirection)))))))
+             form)))))
 
 (defgeneric http:respond-to-option-request (function request response verbs)
   (:documentation "The base method implements the default heade response.
@@ -1064,12 +1067,18 @@
                                                           ;; (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
                                                           (http:encode-response content response effective-content-type))))))))
                                              (:decode
-                                              (let* ((after-qualifiers (member-if (complement #'keywordp) clause))
-                                                     (qualifiers (ldiff clause after-qualifiers)))
-                                                (if (consp (first after-qualifiers))
-                                                  `(:method ,@clause)
-                                                  `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first after-qualifiers)) (accept-type t))
-                                                     (http:decode-request resource request content-type)))))
+                                              (if (consp (second clause))
+                                                ;; literal definition
+                                                `(:method ,@clause)
+                                                (let ((qualifiers (remove-if-not #'keywordp clause))
+                                                      (media-types (remove-if #'keywordp clause)))
+                                                  (ecase (second qualifiers)
+                                                    (:as
+                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
+                                                        (,name resource request response ,(second media-types) accept-type)))
+                                                    ((nil))
+                                                    `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
+                                                              (http:decode-request resource request content-type))))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
