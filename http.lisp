@@ -110,7 +110,7 @@
      "Binds the effective request method resective over-riding headers.
      (See http:request-method)")
    (media-type
-    initform nil :initarg :media-type
+    :initform nil :initarg :media-type
     :accessor request-media-type 
     :documentation
     "Binds the reified concrete request content type or the function's default if none was specified.
