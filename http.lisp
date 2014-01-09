@@ -114,7 +114,7 @@
     :accessor request-media-type 
     :documentation "Binds the concrete media type for request content.
      The initial state is unbound and the mime type instance is computed upon first reference from the
-     conteht-type header value. (See http:request-media-type - note the package)")
+     content-type header value. (See http:request-media-type - note the package)")
    (accept-type
     :initform nil
     :accessor http:request-accept-type
@@ -190,17 +190,20 @@
     add-direct-subclass specifices that the direct relation should exists for all
     _initialized_ classes, even prior to finalization.")
   (:method ((class http:resource-class))
-    ;; ensure pattern registration for sub-classes to permit them to render a method
-    ;; specialiuzed for this class applicable
-    (loop for sub-class in (c2mop:class-direct-subclasses class)
-          do (finalize-pattern-subsumption sub-class))
+    ;; use the class general method to involve sub-classes
+    (call-next-method)
     ;; link this class' pattern with the more general
     (loop for class-name in (class-direct-superpatterns class)
           for superpattern-class = (find-class class-name nil)
           do (if superpattern-class
                (when (typep superpattern-class 'http:resource-class)
                  (pushnew class (class-direct-subpatterns superpattern-class)))
-               (warn "superpattern class not found: ~s: ~s" (class-name class) class-name)))))
+               (warn "superpattern class not found: ~s: ~s" (class-name class) class-name))))
+  (:method ((class standard-class))
+    ;; ensure pattern registration for sub-classes to permit them to render a method
+    ;; specialized for this class applicable
+    (loop for sub-class in (c2mop:class-direct-subclasses class)
+          do (finalize-pattern-subsumption sub-class))))
 
 (defgeneric subpattern-p (class1 class2)
   (:method ((class1 http:resource-class) (class2 http:resource-class))
@@ -956,7 +959,8 @@
                                                                             ;; include decode methods iff the verb supports content
                                                                             ;; otherwise arrange to return nil
                                                                             (or decode-methods
-                                                                                '((make-method (http:unsupported-media-type))))
+                                                                                '((make-method (http:unsupported-media-type "Media type not supported: ~s."
+                                                                                                                            (http:request-media-type (http:request))))))
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
@@ -1090,7 +1094,7 @@
              (,name resource request response content-type media-type)))
          ;; and one to interpose the function's default if the request included no accept header
          (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
-           (,name resource request response content-type (resource-function-default-accept #',name)))
+           (,name resource request response content-type nil))
          ,@definition-clauses))))
 
 
