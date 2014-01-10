@@ -1073,7 +1073,7 @@
                                                           ;; (format *trace-output* "~%;;; effective-content: ~s" content)
                                                           ;; (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
                                                           (http:encode-response content response effective-content-type))))))))
-                                             (:decode
+                                             (:decode clause
                                               (if (consp (second clause))
                                                 ;; literal definition
                                                 `(:method ,@clause)
@@ -1083,9 +1083,9 @@
                                                     (:as
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
                                                         (,name resource request response ,(second media-types) accept-type)))
-                                                    ((nil))
+                                                    ((nil)
                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
-                                                              (http:decode-request resource request content-type))))))
+                                                              (http:decode-request resource request content-type)))))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
@@ -1101,17 +1101,19 @@
                          (1 (append lambda-list '(request response content-type accept-type)))
                          (3 (append lambda-list '(content-type accept-type)))
                          (5 lambda-list))))
-      `(defgeneric ,name ,lambda-list
-         (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
-         ;; include a method to compute the accept type argument from the header string
-         (:method :around ((resource t) (request t) (response t) (content-type t) (accept-header string))
-           (let ((media-type (resource-function-acceptable-media-type #',name accept-header)))
+      `(prog1 (defgeneric ,name ,lambda-list
+                (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
+                ;; include a method to compute the accept type argument from the header string
+                ;; and one to interpose the function's default if the request included no accept header
+                (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
+                         (,name resource request response content-type nil))
+                ,@definition-clauses)
+         (defmethod ,name :around ((resource t) (request t) (response t) (content-type t) (accept-header string))
+           ;; fix the function value to avoid problems with trace
+           (let ((media-type (resource-function-acceptable-media-type (load-time-value #',name) accept-header)))
              (setf (http:request-accept-type request) media-type)
-             (,name resource request response content-type media-type)))
-         ;; and one to interpose the function's default if the request included no accept header
-         (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
-           (,name resource request response content-type nil))
-         ,@definition-clauses))))
+             (,name resource request response content-type media-type)))))))
+                
 
 
 (defgeneric resource-function-media-types (function)

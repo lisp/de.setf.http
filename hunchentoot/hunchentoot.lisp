@@ -86,8 +86,11 @@
   (append (get-parameters request) (post-parameters request)))
 
 (defmethod http:request-auth-token ((request request))
-  (or (header-in :authorization request)
-      (get-parameter "auth_token" request)))
+  ;; return either the explicit auth-token or the just-user-name authorization header
+  (or (get-parameter "auth_token" request)
+      (multiple-value-bind (user-name password) (authorization request)
+        (when (and user-name (or (null password) (equal password "")))
+          user-name))))
 
 (defmethod http:request-authentication ((request request))
   (authorization request))
