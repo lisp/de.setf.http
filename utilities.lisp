@@ -44,7 +44,8 @@
   (def-log-op :warn)
   (def-log-op :notice)
   (def-log-op :info)
-  (def-log-op :debug))
+  (def-log-op :debug)
+  (def-log-op :trace))
 
 (defgeneric http:log (level destination format-control &rest arguments)
   (:documentation

@@ -524,16 +524,16 @@
                                      when (http:resource-function-p function)
                                      collect function))
            (root-resource-class (http:function-resource-class dispatch-function)))
-      (http:log :debug *trace-output* "resource-functions: ~a"
-                (mapcar #'c2mop:generic-function-name resource-functions))
+      (http:log-debug *trace-output* "resource-functions: ~a"
+                      (mapcar #'c2mop:generic-function-name resource-functions))
       (loop for resource-function in resource-functions
             for name = (c2mop:generic-function-name resource-function)
             do (loop for method in (c2mop:generic-function-methods resource-function)
                      for resource-class = (first (c2mop:method-specializers method))
                      when (and (subtypep resource-class root-resource-class)
                                (http-verb-list-p (method-qualifiers method)))
-                     do (progn (http:log :debug *trace-output* "adding resource dispatch method: ~a ~a ~s"
-                                         name (class-name resource-class) (method-qualifiers method))
+                     do (progn (http:log-debug *trace-output* "adding resource dispatch method: ~a ~a ~s"
+                                               name (class-name resource-class) (method-qualifiers method))
                                (http:define-dispatch-method dispatch-function name resource-class))))
       dispatch-function)))
 
@@ -850,6 +850,7 @@
                             (options (:options))
                             (trace (:trace))
                             (connect (:connect))
+                            (debug (:debug))
                             (multiple http-verb-list-p))
   (:generic-function function)
   (flet ((qualify-methods ()
@@ -867,28 +868,32 @@
                             do (push method (getf categorized method-key))))
              (loop for (key methods) on categorized by #'cddr
                    collect key collect (reverse methods)))))
-    (cond ((and encode (eq (second (method-qualifiers (first encode))) :as))
-           `(call-method ,(first encode) ()))
-          ((and decode (eq (second (method-qualifiers (first decode))) :as))
-           `(call-method ,(first decode) ()))
-          (t
-           (let* ((form
-                   `(handler-case
-                      ,(compute-effective-resource-function-method function
-                                                                   (append authenticate-password authenticate-token authenticate-session)
-                                                                   authorize-request
-                                                                   auth-around
-                                                                   around 
-                                                                   decode
-                                                                   (qualify-methods)
-                                                                   encode)
-                      (redirection-condition (redirection)
-                                             ;; if the redirection is internal invoke it, otherwise resignal it
-                                             (let ((location (http:condition-location redirection)))
-                                               (if (functionp location)
-                                                 (funcall location)
-                                                 (error redirection)))))))
-             form)))))
+    (let ((form (cond ((and encode (eq (second (method-qualifiers (first encode))) :as))
+                       `(call-method ,(first encode) ()))
+                      ((and decode (eq (second (method-qualifiers (first decode))) :as))
+                       `(call-method ,(first decode) ()))
+                      (t
+                       (let* ((form
+                               `(handler-case
+                                  ,(compute-effective-resource-function-method function
+                                                                               (append authenticate-password authenticate-token authenticate-session)
+                                                                               authorize-request
+                                                                               auth-around
+                                                                               around 
+                                                                               decode
+                                                                               (qualify-methods)
+                                                                               encode)
+                                  (redirection-condition (redirection)
+                                                         ;; if the redirection is internal invoke it, otherwise resignal it
+                                                         (let ((location (http:condition-location redirection)))
+                                                           (if (functionp location)
+                                                             (funcall location)
+                                                             (error redirection)))))))
+                         form)))))
+      (if debug
+        `(progn (call-method ,(first debug) ,(rest debug))
+                ,form)
+        form))))
 
 (defgeneric http:respond-to-option-request (function request response verbs)
   (:documentation "The base method implements the default heade response.
@@ -997,7 +1002,9 @@
                    `(call-method ,(first around) (,@(rest around) (make-method ,main-clause)))
                    main-clause)))
       ;; ensure the headers are sent
-      (setf form `(progn ,form (http:send-headers (http:response))))
+      (setf form `(progn
+                    ,form
+                    (http:send-headers (http:response))))
       )))
 
 #|
