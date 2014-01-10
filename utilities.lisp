@@ -277,13 +277,7 @@
 (defgeneric http:decode-request (resource request content-type)
   (:documentation "Implements the default behavior for resource function
     encoding methods when they are declared without a body. the default
-    methods delegate to send-entity-body.")
-
- (:method (resource request (content-type mime:application/json))
-   (let* ((length (http:request-content-length request))
-         (buffer (make-array (or length 128) :element-type 'character :adjustable t)))
-     (http:copy-stream (http:request-content-stream request) buffer :length length)
-     (spocq.i::parse-json buffer))))
+    methods delegate to send-entity-body."))
 
 
 ;;; times
