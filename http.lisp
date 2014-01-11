@@ -904,7 +904,7 @@
                                                  auth-around
                                                  around 
                                                  decode
-                                                 verb-methods
+                                                 (reduce #'append (remove-if #'keywordp verb-methods))
                                                  encode))))
               ,form))))
 
@@ -913,14 +913,15 @@
     (flet ((write-log-message ()
              (let* ((*print-pretty* nil)
                     (arguments (list resource request response content-type accept-type)))
-               (format *trace-output* "~%~a: verb: ~a" function-name (http:request-method request))
-               (format *trace-output* "~%headers: ~s" (http:request-headers request))
+               (format *trace-output* "~%function:  ~a: verb: ~a" function-name (http:request-method request))
+               (format *trace-output* "~%headers:   ~s" (http:request-headers request))
                (format *trace-output* "~%arguments: ~s"  arguments)
-               (format *trace-output* "~%methods: ~{~s~^~%~10t~}" methods)
-               (terpri *trace-output*)
-               (finish-output *trace-output*))))
+               (format *trace-output* "~%methods:   ~{~s~^~%~11t~}" methods))))
       (declare (dynamic-extent #'write-log-message))
-      (http.i::call-if-log-level-qualifies :trace #'write-log-message))))
+      (http.i::call-if-log-level-qualifies :trace #'write-log-message)))
+  (:method :after ((function-name t) (resource t) (request t) (response t) (content-type t) (accept-type t) (methods t))
+    (terpri *trace-output*)
+    (finish-output *trace-output*)))
 
 
 (defgeneric http:respond-to-option-request (function request response verbs)
