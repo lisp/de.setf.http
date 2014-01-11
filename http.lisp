@@ -1109,7 +1109,6 @@
            ,@definition-clauses)))))
 
 (defgeneric funcall-resource-function (function resource request response content-type accept-type)
-  (:argument-precedence-order accept-type content-type resource request response)
   (:method ((function symbol) (resource t) (request t) (response t) (content-type t) (accept-header t))
     (funcall-resource-function (cond ((boundp function) (symbol-value function))
                                      ((fboundp function) (symbol-function function))
