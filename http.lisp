@@ -1108,9 +1108,11 @@
                 (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
                          (,name resource request response content-type nil))
                 ,@definition-clauses)
+         (defparameter ,name (function ,name))
          (defmethod ,name :around ((resource t) (request t) (response t) (content-type t) (accept-header string))
            ;; fix the function value to avoid problems with trace
-           (let ((media-type (resource-function-acceptable-media-type (load-time-value #',name) accept-header)))
+           ;; load time value does not work in sbcl as it prepares the value prior to the function definition
+           (let ((media-type (resource-function-acceptable-media-type ,name accept-header)))
              (setf (http:request-accept-type request) media-type)
              (,name resource request response content-type media-type)))))))
                 
