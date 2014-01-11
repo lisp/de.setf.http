@@ -909,11 +909,11 @@
               ,form))))
 
 (defgeneric log-http-function (function-name resource request response content-type accept-type methods)
-  (:method ((function-name symbol) resource request response content-type accept-type methods)
+  (:method ((function t) resource request response content-type accept-type methods)
     (flet ((write-log-message ()
              (let* ((*print-pretty* nil)
                     (arguments (list resource request response content-type accept-type)))
-               (format *trace-output* "~%function:  ~a: verb: ~a" function-name (http:request-method request))
+               (format *trace-output* "~%function:  ~a: verb: ~a" function (http:request-method request))
                (format *trace-output* "~%headers:   ~s" (http:request-headers request))
                (format *trace-output* "~%arguments: ~s"  arguments)
                (format *trace-output* "~%methods:   ~{~s~^~%~11t~}" methods))))
