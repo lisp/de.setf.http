@@ -1117,7 +1117,7 @@
                                resource request response content-type accept-header))
   (:method ((function generic-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
-    (let ((media-type (resource-function-acceptable-media-type ,name accept-header)))
+    (let ((media-type (resource-function-acceptable-media-type function accept-header)))
       (setf (http:request-accept-type request) media-type)
       (funcall function resource request response content-type media-type))))
 
