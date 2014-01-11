@@ -125,6 +125,7 @@
            :request-entity-too-large
            :request-etags
            :request-header
+           :request-headers
            :request-host
            :request-if-modified-since
            :request-keep-alive-p

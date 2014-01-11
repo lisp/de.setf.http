@@ -647,6 +647,9 @@
   (:method ((headers list) key)
     (rest (assoc key headers :test #'string-equal))))
 
+(defgeneric http:request-headers (request)
+  )
+
 (defgeneric http:request-host (request)
   )
 
@@ -911,7 +914,7 @@
              (let* ((*print-pretty* nil)
                     (arguments (list resource request response content-type accept-type)))
                (format *trace-output* "~%~a: verb: ~a" function-name (http:request-method request))
-               (format *trace-output* "~%headers: ~s" (tbnl:headers-in request))
+               (format *trace-output* "~%headers: ~s" (http:request-headers request))
                (format *trace-output* "~%arguments: ~s"  arguments)
                (format *trace-output* "~%methods: ~{~s~^~%~10t~}" methods)
                (terpri *trace-output*)

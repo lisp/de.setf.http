@@ -111,6 +111,9 @@
 (defmethod http:request-header ((request tbnl-request) key)
   (header-in key request))
 
+(defmethod http:request-headers ((request tbnl-request))
+  (headers-in request))
+
 (defmethod http:request-host ((request tbnl-request))
   (acceptor-address (request-acceptor request)))
 
