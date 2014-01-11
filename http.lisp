@@ -251,7 +251,9 @@
      :initform "*/*" :allocation :class
      :type string
      :reader http:function-default-accept-header
-     :documentation "The accept header value to be used when a request includes no accept header.")
+     :documentation "The accept header value to be used when a request includes no accept header.
+      It should be a string in order that it is matched with the actual encode methods which are defined
+      for the function.")
    (accept-types
     :initform ()
     :accessor resource-function-accept-types
@@ -1101,21 +1103,23 @@
                          (1 (append lambda-list '(request response content-type accept-type)))
                          (3 (append lambda-list '(content-type accept-type)))
                          (5 lambda-list))))
-      `(prog1 (defgeneric ,name ,lambda-list
-                (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
-                ;; include a method to compute the accept type argument from the header string
-                ;; and one to interpose the function's default if the request included no accept header
-                (:method :around ((resource t) (request t) (response t) (content-type t) (accept-type null))
-                         (,name resource request response content-type nil))
-                ,@definition-clauses)
-         (defparameter ,name (function ,name))
-         (defmethod ,name :around ((resource t) (request t) (response t) (content-type t) (accept-header string))
-           ;; fix the function value to avoid problems with trace
-           ;; load time value does not work in sbcl as it prepares the value prior to the function definition
-           (let ((media-type (resource-function-acceptable-media-type ,name accept-header)))
-             (setf (http:request-accept-type request) media-type)
-             (,name resource request response content-type media-type)))))))
-                
+      `(defparameter ,name
+         (defgeneric ,name ,lambda-list
+           (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
+           ,@definition-clauses)))))
+
+(defgeneric funcall-resource-function (function resource request response content-type accept-type)
+  (:argument-precedence-order accept-type content-type resource request response)
+  (:method ((function symbol) (resource t) (request t) (response t) (content-type t) (accept-header t))
+    (funcall-resource-function (cond ((boundp function) (symbol-value function))
+                                     ((fboundp function) (symbol-function function))
+                                     (t (error "undefined resource-function: ~s." function)))
+                               resource request response content-type accept-header))
+  (:method ((function generic-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
+    "call the function with its computed acceptable response content type"
+    (let ((media-type (resource-function-acceptable-media-type ,name accept-header)))
+      (setf (http:request-accept-type request) media-type)
+      (funcall function resource request response content-type media-type))))
 
 
 (defgeneric resource-function-media-types (function)
@@ -1140,14 +1144,25 @@
                                           when (or (eq defined-type accept-type)
                                                    (subtypep defined-type accept-type))
                                           collect defined-type))
-                       :from-end t)))
+                       :from-end t)))                
+
 
 (defgeneric resource-function-acceptable-media-type (function candidate-types)
   (:documentation "Combine the media types from the request accept header with those defined for the function
     to derive a composite type compatible with the function's methods. If none are compatible, yield
     a literal combination, which will then result in a not-acceptable error.")
   
+  (:method ((function http:resource-function) (accept-media-type mime:mime-type))
+    "Given a mime type instance, return it."
+    accept-media-type)
+  
+  (:method ((function http:resource-function) (accept-specification null))
+    "Absent an exxept header, use the functin's default."
+    (resource-function-acceptable-media-type function (http:function-default-accept-header function)))
+
   (:method ((function http:resource-function) (accept-header string))
+    "Given an accept header string, canonicalize it, extract tne media type set, compute the compound type
+     for those, and cache it in the function, and return it"
     (setf accept-header (remove #\space accept-header))
     (let ((cache (resource-function-accept-types function)))
       (or (rest (assoc accept-header cache :test #'string-equal))
@@ -1156,10 +1171,9 @@
                   (acons accept-header type cache))
             type))))
   
-  (:method ((function http:resource-function) (accept-specification null))
-    (resource-function-acceptable-media-type function (http:function-default-accept-header function)))
-  
   (:method ((function http:resource-function) (accept-specification cons))
+    "Given a media type set, generate a composite media type from the match against the encode function's
+     methods."
     (assert (every #'symbolp accept-specification) ()
             "Invalid accept specification: ~s." accept-specification)
     (let* ((acceptable-type-list (or (resource-function-acceptable-media-types function accept-specification)
@@ -1170,6 +1184,8 @@
                                  (c2mop:ensure-class class-name :direct-superclasses acceptable-type-list))))
       (make-instance media-type-class))))
 
+#|
+obsolete mechanism which was in terms of the encode methods
 
 (defgeneric compute-acceptable-methods (function resource request response request-type response-type)
   (:documentation "compute applicable methods, but 
@@ -1191,13 +1207,13 @@
                            (typep request-type request-type-q)
                            (subtypep (class-name response-type-q) response-type-class))))
           collect method)))
-              
 
 (defgeneric compute-acceptable-media-type (function resource request response request-type response-type)
   (:method ((function http:resource-function) resource request response request-type (response-type mime:mime-type))
     (let ((methods (compute-acceptable-methods function resource request response request-type response-type)))
       (when methods
         (make-instance (fifth (c2mop:method-specializers (first methods))))))))
+|#
 
 ;;;
 ;;; response
