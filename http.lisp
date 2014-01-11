@@ -854,8 +854,8 @@
                             (options (:options))
                             (trace (:trace))
                             (connect (:connect))
-                            (debug (:debug))
                             (multiple http-verb-list-p))
+  (:arguments resource request response content-type accept-type)
   (:generic-function function)
   (flet ((qualify-methods ()
            (let ((categorized (append (when get `(:get ,(reverse get)))
@@ -872,7 +872,8 @@
                             do (push method (getf categorized method-key))))
              (loop for (key methods) on categorized by #'cddr
                    collect key collect (reverse methods)))))
-    (let ((form (cond ((and encode (eq (second (method-qualifiers (first encode))) :as))
+    (let* ((verb-methods (qualify-methods))
+           (form (cond ((and encode (eq (second (method-qualifiers (first encode))) :as))
                        `(call-method ,(first encode) ()))
                       ((and decode (eq (second (method-qualifiers (first decode))) :as))
                        `(call-method ,(first decode) ()))
@@ -884,9 +885,7 @@
                                                                                authorize-request
                                                                                auth-around
                                                                                around 
-                                                                               decode
-                                                                               (qualify-methods)
-                                                                               encode)
+                                                                               decode verb-methods encode)
                                   (redirection-condition (redirection)
                                                          ;; if the redirection is internal invoke it, otherwise resignal it
                                                          (let ((location (http:condition-location redirection)))
@@ -894,10 +893,32 @@
                                                              (funcall location)
                                                              (error redirection)))))))
                          form)))))
-      (if debug
-        `(progn (call-method ,(first debug) ,(rest debug))
-                ,form)
-        form))))
+      `(progn ,@(when (log-level-qualifies? :trace)
+                  `((log-http-function ',(c2mop:generic-function-name function)
+                                       ,resource ,request ,response ,content-type ,accept-type
+                                       ',(append authenticate-password authenticate-token authenticate-session
+                                                 authorize-request
+                                                 auth-around
+                                                 around 
+                                                 decode
+                                                 verb-methods
+                                                 encode))))
+              ,form))))
+
+(defgeneric log-http-function (function-name resource request response content-type accept-type methods)
+  (:method ((function-name symbol) resource request response content-type accept-type methods)
+    (flet ((write-log-message ()
+             (let* ((*print-pretty* nil)
+                    (arguments (list resource request response content-type accept-type)))
+               (format *trace-output* "~%~a: verb: ~a" function-name (http:request-method request))
+               (format *trace-output* "~%headers: ~s" (tbnl:headers-in request))
+               (format *trace-output* "~%arguments: ~s"  arguments)
+               (format *trace-output* "~%methods: ~{~s~^~%~10t~}" methods)
+               (terpri *trace-output*)
+               (finish-output *trace-output*))))
+      (declare (dynamic-extent #'write-log-message))
+      (http.i::call-if-log-level-qualifies :trace #'write-log-message))))
+
 
 (defgeneric http:respond-to-option-request (function request response verbs)
   (:documentation "The base method implements the default heade response.
