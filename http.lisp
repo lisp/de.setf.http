@@ -394,13 +394,15 @@
     (http:define-dispatch-method (http:acceptor-dispatch-function acceptor) handler-name resource-class))
   
   (:method ((function http:dispatch-function) (handler-name symbol) (resource-class class))
+    "Generate a dispatch method for the respoective resource class which will invoke the function which includes
+     the method for that class. Indirect through funcall-resource-function, which derives the composite accept
+     type from the accept header"
     (let ((t-class (find-class t)))
       (c2mop:ensure-method function
                            `(lambda (resource request response)
-                              (,handler-name resource
-                                             request response
-                                             (http:request-media-type request)
-                                             (http:request-accept-header request)))
+                              (funcall-resource-function ,handler-name resource
+                                                         request response
+                                                         (http:request-media-type request) (http:request-accept-header request)))
                            :qualifiers '()
                            :lambda-list '(resource request response)
                            :specializers (list resource-class t-class t-class)))))
@@ -910,8 +912,16 @@
 
 ;; the sbcl code for make method fails to allow for a method which does nothing
 ;; and always warns about unused parameters, instead of (make-method nil), use a real method
-(defgeneric the-null-function (&rest args) (:method (&rest args) (declare (ignore args)) nil))
-(defparameter *the-null-method* (find-method #'the-null-function () ()))
+(defgeneric the-null-function (resource request response content-type accept-type)
+  (:method ((resource t) (request t) (response t) (content-type t) (accept-type t))
+    nil))
+(defparameter *the-null-method* (first (c2mop:generic-function-methods #'the-null-function)))
+
+
+(defgeneric the-unsupported-function (resource request response content-type accept-type)
+  (:method ((resource t) (request http:request) (response t) (content-type t) (accept-type t))
+    (http:unsupported-media-type "Media type not supported: ~s." (http:request-media-type request))))
+(defparameter *the-unsupported-method* (first (c2mop:generic-function-methods #'the-unsupported-function)))
 
 (defun compute-effective-resource-function-method (function authentication authorization authentication-around
                                                             around
@@ -968,9 +978,7 @@
                                                                           (if (member key '(:patch :post :put))
                                                                             ;; include decode methods iff the verb supports content
                                                                             ;; otherwise arrange to return nil
-                                                                            (or decode-methods
-                                                                                '((make-method (http:unsupported-media-type "Media type not supported: ~s."
-                                                                                                                            (http:request-media-type (http:request))))))
+                                                                            (or decode-methods (list *the-unsupported-method*))
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
