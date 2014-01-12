@@ -896,7 +896,9 @@
                                                              (funcall location)
                                                              (error redirection)))))))
                          form)))))
-      `(progn ,(if (log-level-qualifies? :trace)
+      ;; shut the compiler up
+      resource request response content-type accept-type
+      `(progn ,@(when (log-level-qualifies? :trace)
                   `((log-http-function ',(c2mop:generic-function-name function)
                                        ,resource ,request ,response ,content-type ,accept-type
                                        ',(append authenticate-password authenticate-token authenticate-session
@@ -905,8 +907,7 @@
                                                  around 
                                                  decode
                                                  (reduce #'append (remove-if #'keywordp verb-methods))
-                                                 encode)))
-                  `(progn ,resource ,request ,response ,content-type ,accept-type))
+                                                 encode))))
               ,form))))
 
 (defgeneric log-http-function (function-name resource request response content-type accept-type methods)
