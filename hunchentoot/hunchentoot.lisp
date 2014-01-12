@@ -83,7 +83,12 @@
       (find-symbol (string-upcase header) :keyword) (http::not-acceptable))))
 
 (defmethod http:request-argument-list ((request tbnl-request))
-  (append (get-parameters request) (post-parameters request)))
+  (append (get-parameters request)
+          (typecase (http:request-content-type request)
+            ((mime:application/x-www-form-urlencoded mime:multipart/form-data)
+             (post-parameters request))
+            (t
+             nil))))
 
 (defmethod http:request-auth-token ((request request))
   ;; return either the explicit auth-token or the just-user-name authorization header

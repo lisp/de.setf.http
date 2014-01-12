@@ -347,4 +347,47 @@
 
 
 
+alternative for mime types, to resolve immediately to a concrete type
+;;;
+;;; resolve accept mime type
+
+(defparameter *accept-specification-scanner*
+  (cl-ppcre:create-scanner '(:sequence
+                             (:register (:sequence (:greedy-repetition 1 nil (:char-class (:range #\A #\Z) (:range #\a #\z) #\*))
+                                                   #\/
+                                                   (:greedy-repetition 1 nil (:char-class :word-char-class #\+ #\- #\*))))
+                             (:GREEDY-REPETITION 0 1 (:sequence #\; #\q #\= (:register (:sequence (:greedy-repetition 1 nil (:char-class (:range #\0 #\9)))
+                                                                                                  #\.
+                                                                                                  (:greedy-repetition 1 nil (:char-class (:range #\0 #\9)))))))
+                             (:GREEDY-REPETITION 0 1 #\,))))
+(defun parse-accept-specification  (accept-string)
+  (let ((accept-list ()))
+    (cl-ppcre:do-scans (binding-start bindings-end starts ends *accept-specification-scanner* accept-string)
+                       (push (cons (subseq accept-string (aref starts 0) (aref ends 0))
+                                   (if (and (aref starts 1) (> (aref ends 1) (aref starts 1)))
+                                     (meta:parse-float (subseq accept-string (aref starts 1) (aref ends 1)))
+                                     1.0))
+                             accept-list))
+    (sort accept-list #'> :key #'rest)))
+;;; (cl-ppcre:scan-to-strings *accept-specification-scanner* "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8,application/rdf+xml;q=0.93,text/rdf+n3;q=0.5")
+;;; (parse-accept-specification "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8,application/rdf+xml;q=0.93,text/rdf+n3;q=0.5")
+
+(defgeneric select-mime-type (accept-specification mime-types)
+  (:method ((accept-specification null) (mime-types list))
+    (first mime-types))
+  (:method ((accept-string string) mime-types)
+    (select-mime-type (mapcar #'first (parse-accept-specification accept-string)) mime-types))
+  (:method ((accept-list list) (mime-types list))
+    (loop for accept-mime-type-string in accept-list
+          for accept-mime-type = (cond ((ignore-errors (mime-type accept-mime-type-string)))
+                                       (t
+                                        (log-warn "Unsupported mime type: ~s." accept-mime-type-string)
+                                        nil))
+          when (find accept-mime-type mime-types)
+          do (return accept-mime-type)
+          finally (return (first mime-types)))))
+;;; (select-mime-type "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8,application/rdf+xml;q=0.93,text/rdf+n3;q=0.5" (list mime:text/plain mime:application/link-format mime:*/*))
+;;; (select-mime-type "" (list mime:text/plain mime:application/link-format mime:*/*))
+
+
 |#
