@@ -85,7 +85,7 @@
 (defmethod http:request-argument-list ((request tbnl-request))
   (append (get-parameters request)
           (typecase (http:request-media-type request)
-            ((mime:application/x-www-form-urlencoded mime:multipart/form-data)
+            ((or mime:application/x-www-form-urlencoded mime:multipart/form-data)
              (post-parameters request))
             (t
              nil))))
