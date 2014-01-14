@@ -860,6 +860,8 @@
                             (multiple http-verb-list-p))
   (:arguments resource request response content-type accept-type)
   (:generic-function function)
+  ;; shut the compiler up
+  (declare (ignorable resource request response content-type accept-type))
   (flet ((qualify-methods ()
            (let ((categorized (append (when get `(:get ,(reverse get)))
                                       (when put `(:put ,(reverse put)))
@@ -896,8 +898,6 @@
                                                              (funcall location)
                                                              (error redirection)))))))
                          form)))))
-      ;; shut the compiler up
-      resource request response content-type accept-type
       `(progn ,@(when (log-level-qualifies? :trace)
                   `((log-http-function ',(c2mop:generic-function-name function)
                                        ,resource ,request ,response ,content-type ,accept-type
