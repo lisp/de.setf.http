@@ -11,6 +11,7 @@
    http:request
    http:response
    http:resource
+   http:resource-function
    http:agent
  three operators
    http:encode-response

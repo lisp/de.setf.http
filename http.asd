@@ -1,12 +1,11 @@
 ;;; -*- Mode: lisp; Syntax: ansi-common-lisp; Base: 10; Package: common-lisp-user; -*-
-;;; Copyright 2013 [james anderson](mailto:james.anderson@setf.de) All Rights Reserved
+;;; Copyright 2014 [james anderson](mailto:james.anderson@setf.de) All Rights Reserved
 
 (in-package :common-lisp-user)
 
 ;;;
-;;;  This file is the system definition for http support for'org.datagraph.spocq'.
+;;;  This file is the system definition for the http library 'de.setf.http'.
 ;;;
-;;;  Copyright 2013 [james anderson](mailto:james.anderson@setf.de) All Rights Reserved
 
 (setq *compile-verbose* nil)
 
@@ -22,7 +21,7 @@
   "a modulor CLOS framework to implement HTTP with concrete implementations
    for hunchentoot and cl-fastcgi"
   :serial t
-  :version "do not even think about it"
+  :version "0.01"
   :components ((:file "package")
                (:file "parameters")
                (:file "utilities")
