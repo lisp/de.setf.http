@@ -297,7 +297,8 @@
       ;; handler, or the peer fails to send a request
       ;; use as the base stream either the original socket stream or, if the connector
       ;; supports ssl, a wrapped stream for ssl support
-      (let ((*hunchentoot-stream* (initialize-connection-stream acceptor socket-stream)))
+      (let ((acceptor-stream (initialize-connection-stream acceptor socket-stream))
+            (*hunchentoot-stream* acceptor-stream)) ; provide the dynamic binding
           ;; establish http condition handlers and an error handler which mapps to internal-error
           (handler-bind
             ((http:condition (lambda (c)
@@ -371,17 +372,16 @@
                     ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                     ;; access log message
                     (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                  (finish-output socket-stream)
+                  (finish-output acceptor-stream)
                   (when *close-hunchentoot-stream*
                     (return))))))
-        (unless (eq *hunchentoot-stream* socket-stream)
-           (close *hunchentoot-stream* :abort t)))
-      (progn
+        (close acceptor-stream :abort t)
+        (setq socket-stream nil))
+      (when socket-stream
         ;; as we are at the end of the request here, we ignore all
         ;; errors that may occur while flushing and/or closing the
         ;; stream.
-        (ignore-errors*
-          (finish-output socket-stream))
+        ;; as the socket string is still bound, an error occurred - do not flush, just close
         (ignore-errors*
           (close socket-stream :abort t))))))
 
