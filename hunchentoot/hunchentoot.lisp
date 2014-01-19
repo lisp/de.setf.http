@@ -329,12 +329,13 @@
                     (return))
                   ;; bind per-request special variables, then process the
                   ;; request - note that *ACCEPTOR* was bound by an aound method
-                  (let* ((*reply* (http:make-response acceptor
+                  (let* ((output-stream (make-instance 'http:output-stream :real-stream *hunchentoot-stream*))
+                         (*reply* (http:make-response acceptor
                                                       :server-protocol protocol
                                                       ;; create the output stream which supports character output for the headers
                                                       ;; with the initial character encoding set to ascii
-                                                      :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
-                         (input-stream (make-instance 'http:input-stream :real-stream socket-stream))
+                                                      :content-stream output-stream))
+                         (input-stream (make-instance 'http:input-stream :real-stream *hunchentoot-stream*))
                          (*request* (http:make-request acceptor
                                                        :socket socket
                                                        :headers-in headers-in
@@ -366,13 +367,15 @@
                           (http:respond-to-request acceptor *request* *reply*)))
                       ;; otherwise, report the error
                       (http:error :code (return-code *reply*)))
-                    (finish-output (http:response-content-stream *reply*))
+                    (finish-output output-stream)
                     ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                     ;; access log message
                     (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
                   (finish-output socket-stream)
                   (when *close-hunchentoot-stream*
-                    (return)))))))
+                    (return))))))
+        (unless (eq *hunchentoot-stream* socket-stream)
+           (close *hunchentoot-stream* :abort t)))
       (progn
         ;; as we are at the end of the request here, we ignore all
         ;; errors that may occur while flushing and/or closing the
