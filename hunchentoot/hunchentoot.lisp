@@ -297,8 +297,8 @@
       ;; handler, or the peer fails to send a request
       ;; use as the base stream either the original socket stream or, if the connector
       ;; supports ssl, a wrapped stream for ssl support
-      (let ((acceptor-stream (initialize-connection-stream acceptor socket-stream))
-            (*hunchentoot-stream* acceptor-stream)) ; provide the dynamic binding
+      (let* ((acceptor-stream (initialize-connection-stream acceptor socket-stream))
+             (*hunchentoot-stream* acceptor-stream)) ; provide the dynamic binding
           ;; establish http condition handlers and an error handler which mapps to internal-error
           (handler-bind
             ((http:condition (lambda (c)
