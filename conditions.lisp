@@ -77,11 +77,6 @@
                   (setf (condition-code-class ,code) ',name)))
             (define-condition ,name ,classes ,slots ,@options))))
 
-(defmethod http:report-condition-headers ((condition http:condition) (response t))
-  (setf (http:response-status-code response) (http:condition-code condition)))
-
-(defmethod http:report-condition-body ((condition http:condition) (response t))
-  (format (http:response-content-stream response) "~%~a~%" condition))
 
 (def-condition http:continue (http:condition)
   ((code :initform 100 :allocation :class)
@@ -125,8 +120,6 @@
                     (http:condition-text condition)
                     (http:condition-location condition)))))
 
-(defmethod http:report-condition-headers ((condition redirection-condition) (response t))
-  (setf (http:response-location response) (http:condition-location condition)))
 
 (def-condition http:multiple-choices (redirection-condition)
   ((code :initform 300 :allocation :class)
@@ -171,9 +164,7 @@
    (mtime
     :initarg :mtime :initform (error "mtime is required")
     :reader http:condition-mtime)))
-(defmethod http:report-condition-headers ((condition http:not-modified) (response t))
-  (setf (http:response-etag response) (http:condition-etag condition))
-  (setf (http:response-date response) (http:condition-mtime condition)))
+
 
 (def-condition http:use-proxy (redirection-condition)
   ((code :initform 305 :allocation :class)

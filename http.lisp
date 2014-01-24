@@ -1344,6 +1344,9 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric (setf http:response-retry-after-header) (time response)
   )
 
+(defgeneric http:response-transfer-encoding-header (response)
+  )
+
 (defgeneric (setf http:response-transfer-encoding-header) (time response)
   )
 
@@ -1365,11 +1368,16 @@ obsolete mechanism which was in terms of the encode methods
     ;; ensure text plain for error response
     (setf (http:response-media-type response) mime:text/plain))
 
+  (:method ((condition http:condition) (response t))
+    (setf (http:response-status-code response) (http:condition-code condition)))
+
   (:method ((condition redirection-condition) response)
     (setf (http:response-location response) (http:condition-location condition))
     (call-next-method))
 
   (:method ((condition http:not-modified) response)
+    (setf (http:response-etag response) (http:condition-etag condition))
+    (setf (http:response-date response) (http:condition-mtime condition))
     (call-next-method))
 
   (:method ((condition http:unauthorized) response)
@@ -1387,7 +1395,10 @@ obsolete mechanism which was in terms of the encode methods
   (:documentation "Given a condition, write it to the response
     content stream. This is intended to be invoked in the error handler
     for request processing once the headers have been sent to report
-    error detainls as the response body."))
+    error detainls as the response body.")
+  (:method ((condition http:condition) (response t))
+    (format (http:response-content-stream response) "~%~a~%" condition)))
+
 
 
 (defgeneric http:send-headers (response)
