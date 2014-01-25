@@ -11,6 +11,7 @@
    http:request
    http:response
    http:resource
+   http:resource-function
    http:agent
  three operators
    http:encode-response
@@ -626,7 +627,8 @@
     (let* ((length (or (http:request-content-length request) http:*content-initial-length*))
            (stream (http:request-content-stream request))
            (content (make-array length :element-type (stream-element-type stream) :adjustable t)))
-      (http:copy-stream stream content :length (or (http:request-content-length request) http:*content-length-limit*)))))
+      (http:copy-stream stream content :length (or (http:request-content-length request) http:*content-length-limit*))
+      content)))
 
 (defgeneric http:request-cache-matched-p (request etag time)
   (:method ((request http:request) etag time)

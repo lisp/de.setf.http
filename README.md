@@ -1,7 +1,5 @@
 ## An abstract HTTP implementation:
 
-DRAFT ONLY
-
  In the course of processing an HTTP request, the following sorts of things happen:
 
  - identify the resource
@@ -11,18 +9,19 @@ DRAFT ONLY
  - effect the method, which means some operations on, to, or with the resource
  - generate response metadata and content
 
- This library realizes this protocol in terms of classes, abstract operators,
+ The `de.setf.http` library realizes this protocol in terms of classes, abstract operators,
  condition handlers, and a generic function pattern.
  It mediates between the application, which implements the sorts of things
  above, and a communication library, which provides the communication operations,
  wire-level protocol support, and event mediation.
 
  - classes: 
+   - http:agent
+   - mime:mime-type
    - http:request
    - http:response
    - http:resource
-   - http:agent
-   - mime:mime-type
+   - http:resource-function
  - operators :
    - http:encode-content
    - http:decode-content
@@ -33,15 +32,15 @@ DRAFT ONLY
 
 -------
 
- The library proposes as the application structure:
+ The library proposes, as the application structure:
 
  - implement the protocol independent of the concrete application as a method
    combination which constructs the effective response function
-   from constituents qualified according to their role in the protocol
+   from constituent methods qualified according to their role in the protocol
    - :auth : authentication and authorization
-   - :pre-processing : request content decoding, specialized by media type
+   - :decode : request content decoding, specialized by media type
    - :get, :put, etc : protocol method
-   - :post-processing : response content encoding, specialized by media type
+   - :encode : response content encoding, specialized by media type
  - riefy all other protocol components
    - resource : combines the literal http request path with slots for extracted
      properties  and with authorization information provided by the application
@@ -54,7 +53,7 @@ DRAFT ONLY
      model the response type as a type union
 
  Its design suggests the following principles
- - It should be possible to understand the structure and, better yet, the beahviour
+ - It should be possible to understand the structure and, better yet, the behaviour
    of an application five years later with just knowledge of the HTTP protocol
    specification and an abstract application declaration.
  - It should be possible to compose the implementation of simultaneously
@@ -62,8 +61,8 @@ DRAFT ONLY
  - Base the implementation on a model for the protocol and its porcessing and
    reify all entities in that model.
 
- A concrete application implements the resource manipulation methods (the :get,
- :put, etc) and either implements ideosyncratic media types or integrates
+ A concrete application implements the resource manipulation methods - that ism the verbed
+ :get, :put, etc) and either implements ideosyncratic media types or integrates
  standard forms, such as json or xml. The approach accommodates through
  specialization those aspect which vary among aplications and declares their
  interaction by associating each with a static protocol element through the
