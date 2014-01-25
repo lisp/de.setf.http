@@ -300,7 +300,8 @@
       (let ((*hunchentoot-stream* (initialize-connection-stream acceptor socket-stream)))
           ;; establish http condition handlers and an error handler which mapps to internal-error
           (handler-bind
-            ((http:condition (lambda (c)
+            (;; declared conditions are handled according to their report implementation
+             (http:condition (lambda (c)
                                ;; when the headers are still pending, emit an error report as the
                                ;; response. otherwise, just terminate the processing
                                (when (http:response-headers-unsent-p *reply*)
@@ -312,67 +313,79 @@
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                                (return-from process-connection
                                  (values nil c nil))))
-             (error (lambda (c)
-                      (http:log *lisp-errors-log-level* acceptor "unhandled error in http response: ~a" c)
-                      (format *error-output* "~%~a" (get-backtrace))
-                      ;; re-signal to the acceptor's general handler
-                      (http:internal-error "unhandled error in http response: ~a" c))))
+             ;; a connection error is ignored completely to permit higher-level handlers to
+             ;; determine response - likely, just to ignore and close
+             (usocket:connection-aborted-error (lambda ())))
+            (handler-bind
+              ;; establish an additional level to permit a eneral handler which maps to http:condition
+              (;; at this level decline to handle http:condition, to cause it to pass one level up
+               (http:condition (lambda ()))
+               ;; while any other error is handled as per acceptor, where the default implementation
+               ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
+               ;; as well as declining to handle in which the condition is re-signaled as an internal error
+               (error (lambda (c)
+                        (http:handle-condition acceptor c)
+                        ;; if it remains unhandled, then resignal as an internal error
+                        (http:log *lisp-errors-log-level* acceptor "unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (format *error-output* "~%~a" (get-backtrace))
+                        ;; re-signal to the acceptor's general handler
+                        (http:internal-error "unhandled error in http response: [~a] ~a" (type-of c) c))))
             
-            (loop
-              (let ((*close-hunchentoot-stream* t))
-                (when (acceptor-shutdown-p acceptor)
-                  (return))
-                (multiple-value-bind (headers-in method url-string protocol)
-                                     (get-request-data *hunchentoot-stream*)
-                  ;; check if there was a request at all
-                  (unless method
+              (loop
+                (let ((*close-hunchentoot-stream* t))
+                  (when (acceptor-shutdown-p acceptor)
                     (return))
-                  ;; bind per-request special variables, then process the
-                  ;; request - note that *ACCEPTOR* was bound by an aound method
-                  (let* ((*reply* (http:make-response acceptor
-                                                      :server-protocol protocol
-                                                      ;; create the output stream which supports character output for the headers
-                                                      ;; with the initial character encoding set to ascii
-                                                      :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
-                         (input-stream (make-instance 'http:input-stream :real-stream socket-stream))
-                         (*request* (http:make-request acceptor
-                                                       :socket socket
-                                                       :headers-in headers-in
-                                                       :content-stream input-stream
-                                                       :method method
-                                                       :uri url-string
-                                                       :server-protocol protocol))
-                         (http:*request* *request*)
-                         (http:*response* *reply*)
-                         (*tmp-files* nil)
-                         (*session* nil)
-                         (transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
-                    ;; instantiation must follow this order as any errors are recorded as side-effects on the response
-                    ;; return code, which must be checked...
-                    (setf (http:response-request *reply*) *request*)
-                    (setf (http:request-response *request*) *reply*)
-                    (when transfer-encodings
-                      (setq transfer-encodings
-                            (split "\\s*,\\s*" transfer-encodings))
-                      (when (member "chunked" transfer-encodings :test #'equalp)
-                        (cond ((acceptor-input-chunking-p acceptor)
-                               ;; turn chunking on before we read the request body
-                               (setf (chunked-stream-input-chunking-p input-stream) t))
-                              (t (http:bad-request "Client tried to use chunked encoding, but acceptor is configured to not use it.")))))
-                    (if (eql +http-ok+ (return-code *reply*))
-                      ;; if initialization succeeded, process
-                      (with-acceptor-request-count-incremented (acceptor)
-                        (catch 'request-processed
-                          (http:respond-to-request acceptor *request* *reply*)))
-                      ;; otherwise, report the error
-                      (http:error :code (return-code *reply*)))
-                    (finish-output (http:response-content-stream *reply*))
-                    ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
-                    ;; access log message
-                    (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                  (finish-output socket-stream)
-                  (when *close-hunchentoot-stream*
-                    (return)))))))
+                  (multiple-value-bind (headers-in method url-string protocol)
+                                       (get-request-data *hunchentoot-stream*)
+                    ;; check if there was a request at all
+                    (unless method
+                      (return))
+                    ;; bind per-request special variables, then process the
+                    ;; request - note that *ACCEPTOR* was bound by an aound method
+                    (let* ((*reply* (http:make-response acceptor
+                                                        :server-protocol protocol
+                                                        ;; create the output stream which supports character output for the headers
+                                                        ;; with the initial character encoding set to ascii
+                                                        :content-stream (make-instance 'http:output-stream :real-stream socket-stream)))
+                           (input-stream (make-instance 'http:input-stream :real-stream socket-stream))
+                           (*request* (http:make-request acceptor
+                                                         :socket socket
+                                                         :headers-in headers-in
+                                                         :content-stream input-stream
+                                                         :method method
+                                                         :uri url-string
+                                                         :server-protocol protocol))
+                           (http:*request* *request*)
+                           (http:*response* *reply*)
+                           (*tmp-files* nil)
+                           (*session* nil)
+                           (transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
+                      ;; instantiation must follow this order as any errors are recorded as side-effects on the response
+                      ;; return code, which must be checked...
+                      (setf (http:response-request *reply*) *request*)
+                      (setf (http:request-response *request*) *reply*)
+                      (when transfer-encodings
+                        (setq transfer-encodings
+                              (split "\\s*,\\s*" transfer-encodings))
+                        (when (member "chunked" transfer-encodings :test #'equalp)
+                          (cond ((acceptor-input-chunking-p acceptor)
+                                 ;; turn chunking on before we read the request body
+                                 (setf (chunked-stream-input-chunking-p input-stream) t))
+                                (t (http:bad-request "Client tried to use chunked encoding, but acceptor is configured to not use it.")))))
+                      (if (eql +http-ok+ (return-code *reply*))
+                        ;; if initialization succeeded, process
+                        (with-acceptor-request-count-incremented (acceptor)
+                          (catch 'request-processed
+                            (http:respond-to-request acceptor *request* *reply*)))
+                        ;; otherwise, report the error
+                        (http:error :code (return-code *reply*)))
+                      (finish-output (http:response-content-stream *reply*))
+                      ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
+                      ;; access log message
+                      (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
+                    (finish-output socket-stream)
+                    (when *close-hunchentoot-stream*
+                      (return))))))))
       (progn
         ;; as we are at the end of the request here, we ignore all
         ;; errors that may occur while flushing and/or closing the

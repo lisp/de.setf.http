@@ -73,6 +73,7 @@
            :function-resource-class
            :function-resource-function-class
            :gone
+           :handle-condition
            :http
            :input-stream
            :length-required
