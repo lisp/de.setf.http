@@ -351,7 +351,7 @@
 (defgeneric stream-header-output-finished-p (stream)
   (:documentation "Return true iff the buffered header output has been written.")
   (:method ((stream http:output-stream))
-    (let* ((header-stream (http:stream-header-stream stream)))
+    (let ((header-stream (http:stream-header-stream stream)))
       (not (open-stream-p header-stream)))))
  
 

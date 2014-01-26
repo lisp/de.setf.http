@@ -42,6 +42,7 @@
            :bind-resource
            :class-resource-keywords
            :class-resource-pattern
+           :clear-headers
            :conflict
            :condition
            :condition-code
@@ -149,7 +150,6 @@
            :request-uri-too-long
            :requested-range-not-satisfiable
            :reset-content
-           :reset-headers
            :resource
            :resource-authorization-list
            :resource-class

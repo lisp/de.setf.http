@@ -1323,7 +1323,9 @@ obsolete mechanism which was in terms of the encode methods
 
 (defgeneric http:response-headers-sent-p (response)
   (:method ((response http:response))
-    (null (http:stream-header-stream (http:response-content-stream response)))))
+    (let ((header-stream (http:stream-header-stream stream)))
+      (or (not (open-stream-p header-stream))
+          (plusp (stream-file-position header-stream))))))
 
 (defgeneric http:response-keep-alive-p (response)
   (:method ((response http:response))
@@ -1407,14 +1409,16 @@ obsolete mechanism which was in terms of the encode methods
   (:method ((condition http:condition) (response t))
     (format (http:response-content-stream response) "~%~a~%" condition)))
 
-
-(defgeneric http:reset-headers (response)
+(defgeneric http:clear-headers (response)
   (:documentation "Reset any buffered headers which are pending output. This will
     occur when an error occures during response processing, yet the headers have not
     yet been written.")
   (:method ((response http:response))
     (stream-clear-header-output (http:response-content-stream response))))
 
+(defgeneric http:header-output-finished-p (response)
+  (:method ((response http:response))
+    (stream-header-output-finished-p (http:response-content-stream response))))
 
 (defgeneric http:send-headers (response)
   (:documentation

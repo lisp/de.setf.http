@@ -305,8 +305,7 @@
              (http:condition (lambda (c)
                                ;; when the headers are still pending, emit an error report as the
                                ;; response. otherwise, just terminate the processing
-                               (unless (http:response-header-output-finished-p *reply*)
-                                 (http:response-clear-header-output *reply*)
+                               (when (http:clear-headers *reply*)
                                  (http:report-condition-headers c *reply*)
                                  (http:send-headers *reply*))
                                ;; emit any body
