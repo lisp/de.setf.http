@@ -408,17 +408,8 @@
 
 
 (defmethod http:send-headers ((response tbnl-response))
-  "Sends all headers and maybe the content body to
-*HUNCHENTOOT-STREAM*.  Returns immediately and does nothing if called
-more than once per request.  Called by PROCESS-REQUEST and/or
-SEND-HEADERS.  The RETURN-CODE argument represents the integer return
-code of the request.  The corresponding reason phrase is determined by
-calling the REASON-PHRASE function.  The CONTENT provided represents
-the body data to send to the client, if any.  If it is not specified,
-no body is written to the client.  The handler function is expected to
-directly write to the stream in this case.
-
-Returns the stream that is connected to the client."
+  "Buffer headers to the response stream.
+ Returns the response stream."
   
   (let* ((content-stream (http:response-content-stream response))
          (header-stream (http:stream-header-stream content-stream))
@@ -497,5 +488,4 @@ Returns the stream that is connected to the client."
     ;; this is transcribed from the original hunchentoot implementation, but seems bogus
     ;; one could check for eof, but that would preclude pipelined interaction
     ;; (raw-post-data :force-binary t)
-    (setf (
     (http:response-content-stream response)))
