@@ -1307,8 +1307,8 @@ obsolete mechanism which was in terms of the encode methods
    the response head has been sent before the body")
   (:method ((response http:response))
     ;; ensure the headers are sent
-    (when (http:response-headers-unsent-p response)
-      (http:send-headers response))
+    (unless (http:response-headers-sent-p response)
+      (http:compute-headers response))
     (get-response-content-stream response)))
 
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
@@ -1321,11 +1321,9 @@ obsolete mechanism which was in terms of the encode methods
   (:method ((timestamp integer) (response http:response))
     (setf (http:response-date response) (http:encode-rfc1123 timestamp))))
 
-(defgeneric http:response-headers-unsent-p (response)
+(defgeneric http:response-headers-sent-p (response)
   (:method ((response http:response))
-    (case (response-state response)
-      ((nil) t)
-      (t nil))))
+    (null (http:stream-header-stream (http:response-content-stream response)))))
 
 (defgeneric http:response-keep-alive-p (response)
   (:method ((response http:response))
@@ -1410,6 +1408,16 @@ obsolete mechanism which was in terms of the encode methods
     (format (http:response-content-stream response) "~%~a~%" condition)))
 
 
+(defgeneric http:reset-headers (response)
+  (:documentation "Reset any buffered headers which are pending output. This will
+    occur when an error occures during response processing, yet the headers have not
+    yet been written.")
+  (:method ((response http:response))
+    (let ((header-stream (http:response-content-stream response)))
+      (if header-stream
+        (http:stream-reset-header-stream header-stream)
+        (http:log *lisp-errors-log-level* http:*acceptor*
+                  "Attempt to reset sent headers")))))
 
 (defgeneric http:send-headers (response)
   (:documentation

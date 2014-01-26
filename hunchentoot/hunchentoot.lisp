@@ -305,22 +305,25 @@
              (http:condition (lambda (c)
                                ;; when the headers are still pending, emit an error report as the
                                ;; response. otherwise, just terminate the processing
-                               (when (http:response-headers-unsent-p *reply*)
+                               (unless (http:response-header-output-finished-p *reply*)
+                                 (http:response-clear-header-output *reply*)
                                  (http:report-condition-headers c *reply*)
                                  (http:send-headers *reply*))
                                ;; emit any body
                                (http:report-condition-body c *reply*)
+                               (finish-output (http:response-content-stream *reply*))
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                                (return-from process-connection
                                  (values nil c nil))))
              ;; a connection error is ignored completely to permit higher-level handlers to
              ;; determine response - likely, just to ignore and close
-             (usocket:connection-aborted-error (lambda ())))
+             (usocket:connection-aborted-error (lambda (c) (declare (ignore c)))))
             (handler-bind
               ;; establish an additional level to permit a eneral handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
-               (http:condition (lambda ()))
+               (http:condition (lambda (c)
+                                 (signal c)))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
@@ -418,7 +421,8 @@ directly write to the stream in this case.
 
 Returns the stream that is connected to the client."
   
-  (let* ((header-stream (http:response-content-stream response))
+  (let* ((content-stream (http:response-content-stream response))
+         (header-stream (http:stream-header-stream content-stream))
          (headers-out (headers-out response))
          (content-length (rest (assoc :content-length headers-out)))
          (head-request-p (eq :head (request-method (http:response-request response))))
@@ -494,4 +498,5 @@ Returns the stream that is connected to the client."
     ;; this is transcribed from the original hunchentoot implementation, but seems bogus
     ;; one could check for eof, but that would preclude pipelined interaction
     ;; (raw-post-data :force-binary t)
+    (setf (
     (http:response-content-stream response)))

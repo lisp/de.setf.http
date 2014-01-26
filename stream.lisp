@@ -53,8 +53,13 @@
     :reader stream-line-buffer)))
 
 (defclass http:output-stream (http:stream chunga:chunked-output-stream)
-  ())
-
+  ((header-stream
+    :initform (make-string-output-stream)
+    :accessor http:stream-header-stream
+    :documentation "A string stream to buffer headers until the content is actually sent
+     in order that (some) error can suppres the initial headers and instead emit an
+     error code. Once the headers are emitted, the slot is cleared to indicate that
+     no change is possible.")))
 
 
 (defmethod initialize-instance :after ((instance http:stream) &key)
@@ -96,7 +101,14 @@
         (unless (slot-boundp stream 'decoder)
           (setf-stream-decoder decoder stream))
         (unless (slot-boundp stream 'encoder)
-          (setf-stream-encoder encoder stream)))
+          (if (stream-header-output-finished-p stream)
+            (setf-stream-encoder encoder stream)
+            ;; if the headers are not yet written, interpose a method which will flush them
+            ;; prior to writing
+            (setf-stream-encoder #'(lambda (character arg encoder-stream)
+                                     (setf-stream-encoder encoder stream)
+                                     (stream-finish-header-output stream)
+                                     (funcall encoder character arg encoder-stream))))))
       media-type)))
 
 ;;;
@@ -293,20 +305,81 @@
 
 ;;; output
 
+;; headers
+;; an output stream provides buffering for response headers in order that it is possibe
+;; for them to indicate a condition which is signaled when content is being prepared, but before the
+;; body output has commenced. the buffer is a string output stream, to which headers are
+;; staged from the request instance at the point when the stream is first retrieved from the request.
+;; this buffer retains pending output until the first operation which would write content
+;; to the binary response stream, at which point the stream string is retrieved and interposed, and
+;; the stream is closed. up to this point, the buffer stream can be reset and alternative headers
+;; inroduced. after that point - that is, once body content has been written that is no longer possible
+;; and the response will not reflect the error.
+;;
+;; in order to trigger header output:
+;; byte/char output operators use the encoder function, which initially
+;; checks to encure hat headees ae emitted
+;; finish output checks for buffered headers before flushing
+;; writer accessor check before returning the base writer.
+;;
+;; in addition, finish-header-output is invoked by finish-output for the response stream to
+;; ensure that they are written when there is no content
+
+(defgeneric stream-clear-header-output (stream)
+  (:documentation "Reset the header buffer stream to accept new specifications
+   by retrieving its string. Return the string to indicate success, but return
+   nil if the stream has been closed, as the closed state indicates that the
+   headers have already been sent.")
+  (:method ((stream http:output-stream))
+    (let ((header-stream (http:stream-header-stream stream)))
+      (when (open-stream-p header-stream)
+        (get-output-stream-string header-stream)))))
+
+(defgeneric stream-finish-header-output (stream)
+  (:documentation "Ensure that headers have been written to the reference stream.")
+  (:method ((stream http:output-stream))
+    (let* ((header-stream (http:stream-header-stream stream))
+           (header-string (get-output-stream-string header-stream))
+           (reference-stream (chunked-stream-stream stream)))
+      (when (open-stream-p header-stream)
+        (loop for char across header-string
+              for char-code = (char-code char)
+              do (write-byte char-code reference-stream))
+        (close header-stream)
+        header-string))))
+
+(defgeneric stream-header-output-finished-p (stream)
+  (:documentation "Return true iff the buffered header output has been written.")
+  (:method ((stream http:output-stream))
+    (let* ((header-stream (http:stream-header-stream stream)))
+      (not (open-stream-p header-stream)))))
+ 
+
+;; content
+
+(defun ensure-header-output-finished (stream)
+  (unless (stream-header-output-finished-p stream)
+    (stream-finish-header-output stream)))
+
+(defmethod chunga::flush-buffer :before ((stream http:output-stream))
+  (ensure-header-output-finished stream))
+        
 (defun chunked-stream-write-byte (stream byte)
   ;; transliterated from stream-write-byte (chunked-stream)
   "Writes one byte by simply adding it to the end of the output
    buffer iff output chunking is enabled. Otherwise write through to
    the wrapped stream.
    The buffer is flushed if necessary."
-  (if (chunked-stream-output-chunking-p stream)
-    (with-slots (chunga::output-index chunga::output-buffer) stream
-      (when (>= chunga::output-index chunga::+output-buffer-size+)
-        (chunga::flush-buffer stream))
-      (setf (aref chunga::output-buffer chunga::output-index) byte)
-      (incf chunga::output-index)
-      byte)
-    (write-byte byte (chunked-stream-stream stream))))
+  (cond ((chunked-stream-output-chunking-p stream)
+         (with-slots (chunga::output-index chunga::output-buffer) stream
+           (when (>= chunga::output-index chunga::+output-buffer-size+)
+             (chunga::flush-buffer stream))
+           (setf (aref chunga::output-buffer chunga::output-index) byte)
+           (incf chunga::output-index)
+           byte))
+        (t
+         (ensure-header-output-finished stream)
+         (write-byte byte (chunked-stream-stream stream)))))
 
 (defun always-chunked-stream-write-byte (stream byte)
   "Write the byte presuming the sream is chunked.
@@ -328,12 +401,21 @@
 
 (defmethod stream-binary-writer ((stream stream))
   (values (if (find-method #'stream-write-byte () (list (class-of stream) (find-class t)) nil)
-            #'stream-write-byte
-            #'(lambda (stream byte) (write-byte byte stream)))
+            (if (stream-header-output-finished-p stream)
+              #'stream-write-byte
+              #'(lambda (stream byte)
+                  (ensure-header-output-finished stream)
+                  (stream-write-byte stream byte)))
+            (if (stream-header-output-finished-p stream)
+              #'(lambda (stream byte)
+                  (write-byte byte stream))
+              #'(lambda (stream byte)
+                  (ensure-header-output-finished stream)
+                  (write-byte byte stream))))
           stream))
 
 (defmethod stream-writer ((stream http:output-stream))
-  ;; allow for combintation encoder/not chunking/not
+  ;; allow for combination encoder/not chunking/not
   (if (slot-boundp stream 'encoder)
     ;; encoded output
     (with-slots (encoder) stream
@@ -343,9 +425,11 @@
              (unchunked-stream-character-writer (stream character)
                ;; no chunking encode direct to the wrapped stream
                (funcall encoder character #'stream-write-byte stream)))
-        (if (chunked-stream-output-chunking-p stream)
-          (values #'chunked-stream-character-writer stream)
-          (values #'unchunked-stream-character-writer (chunked-stream-stream stream)))))
+        (cond ((chunked-stream-output-chunking-p stream)
+               (values #'chunked-stream-character-writer stream))
+              (t
+               (ensure-header-output-finished stream)
+               (values #'unchunked-stream-character-writer (chunked-stream-stream stream))))))
     ;; binary output
     (stream-binary-writer stream)))
 
@@ -354,6 +438,7 @@
 
 
 (defmethod stream-finish-output ((stream http:output-stream))
+  (stream-finish-header-output stream))
   (call-next-method stream)
   ;; ensure that the last block is flushed
   (setf (chunga:chunked-stream-output-chunking-p stream) nil))
@@ -368,6 +453,9 @@
 (defmethod stream-terpri ((stream http:output-stream))
   (stream-write-char stream (stream-eol-marker stream)))
 
+
+(defmethod stream-write-byte (stream byte)
+  (chunked-stream-write-byte stream byte))
 
 (defmethod stream-write-char ((stream http:output-stream) character)
   (with-slots (encoder) stream

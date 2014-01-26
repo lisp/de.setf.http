@@ -149,6 +149,7 @@
            :request-uri-too-long
            :requested-range-not-satisfiable
            :reset-content
+           :reset-headers
            :resource
            :resource-authorization-list
            :resource-class
@@ -180,7 +181,7 @@
            :response-close-stream-p
            :response-date
            :response-etag
-           :response-headers-unsent-p
+           :response-headers-sent-p
            :response-keep-alive-p
            :response-last-modified
            :response-location
@@ -197,6 +198,7 @@
            :send-entity-body
            :send-headers
            :stream
+           :stream-header-stream
            :stream-media-type
            :switching-protocols
            :temporary-redirect
