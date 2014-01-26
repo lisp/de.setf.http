@@ -1413,11 +1413,8 @@ obsolete mechanism which was in terms of the encode methods
     occur when an error occures during response processing, yet the headers have not
     yet been written.")
   (:method ((response http:response))
-    (let ((header-stream (http:response-content-stream response)))
-      (if header-stream
-        (http:stream-reset-header-stream header-stream)
-        (http:log *lisp-errors-log-level* http:*acceptor*
-                  "Attempt to reset sent headers")))))
+    (stream-clear-header-output (http:response-content-stream response))))
+
 
 (defgeneric http:send-headers (response)
   (:documentation
