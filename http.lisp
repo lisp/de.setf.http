@@ -1324,7 +1324,7 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric http:response-headers-sent-p (response)
   (:method ((response http:response))
     (let* ((response-stream (http:response-content-stream response))
-           (header-stream (http:stream-header-stream stream)))
+           (header-stream (http:stream-header-stream response-stream)))
       (or (not (open-stream-p header-stream))
           (plusp (stream-file-position header-stream))))))
 
