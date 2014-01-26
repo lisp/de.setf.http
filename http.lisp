@@ -1306,9 +1306,9 @@ obsolete mechanism which was in terms of the encode methods
   (:documentation "Return the response content stream while ensuring that
    the response head has been sent before the body")
   (:method ((response http:response))
-    ;; ensure the headers are sent
+    ;; ensure the headers are staged
     (unless (http:response-headers-sent-p response)
-      (http:compute-headers response))
+      (http:send-headers response))
     (get-response-content-stream response)))
 
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
