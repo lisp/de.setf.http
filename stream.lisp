@@ -438,9 +438,9 @@
 
 
 (defmethod stream-finish-output ((stream http:output-stream))
-  (stream-finish-header-output stream))
+  (stream-finish-header-output stream)
   (call-next-method stream)
-  ;; ensure that the last block is flushed
+  ;; ensure that the last block is flushed - even prior too close
   (setf (chunga:chunked-stream-output-chunking-p stream) nil))
 
 
