@@ -27,9 +27,9 @@
     :documentation "Binds the media type instance, whichh encapsulates the
      character encoding. The setf operator modifies the codec operators as
      a sode-effect.")
-   (character-encoder
+   (encoder
     :type function
-    :reader  stream-character-encoder :writer setf-stream-character-encoder
+    :reader  stream-encoder :writer setf-stream-encoder
     :documentation "Binds a function which is then used to encode character
      values for output to the stream. If no media type is specified, text/plain
      with utf-8 encoding is used. if the media type is binary, the encoide for iso-8859-1
@@ -115,14 +115,7 @@
         (unless (slot-boundp stream 'decoder)
           (setf-stream-decoder decoder stream))
         (unless (slot-boundp stream 'encoder)
-          (if (stream-header-output-finished-p stream)
-            (setf-stream-encoder encoder stream)
-            ;; if the headers are not yet written, interpose a method which will flush them
-            ;; prior to writing
-            (setf-stream-encoder #'(lambda (character arg encoder-stream)
-                                     (setf-stream-encoder encoder stream)
-                                     (stream-finish-header-output stream)
-                                     (funcall encoder character arg encoder-stream))))))
+          (setf-stream-encoder encoder stream)))
       media-type)))
 
 
@@ -443,7 +436,7 @@
 
 (defmethod stream-writer ((stream http:output-stream))
   "Return the character encoding writer which combines the current character encoder and binary writer/arg"
-  (let ((encoder (stream-chracter-encoder stream)))
+  (let ((encoder (stream-encoder stream)))
     (multiple-value-bind (writer arg) (stream-binary-writer stream)
       (flet ((character-writer (writer.arg character)
                (funcall encoder character (first writer.arg) (rest writer.arg))))
@@ -479,14 +472,14 @@
 
 
 (defmethod stream-write-char ((stream http:output-stream) character)
-  (let ((encoder (stream-chracter-encoder stream)))
+  (let ((encoder (stream-encoder stream)))
     (multiple-value-bind (writer arg) (stream-binary-writer stream)
       (funcall encoder character writer arg))))
 
 
 (defmethod stream-write-string ((stream http:output-stream) (string string) #-mcl &optional start end)
   "Write a string to chunked stream according to its current encoding."
-  (let ((encoder (stream-chracter-encoder stream)))
+  (let ((encoder (stream-encoder stream)))
     (multiple-value-bind (writer arg) (stream-binary-writer stream)
       (unless start (setf start 0))
       (unless end (setf end (length string)))
