@@ -56,6 +56,13 @@
     (format destination "~&;;; [~a] ~?" level format-control arguments))
   )
 
+;;; gray stream compatibility
+
+#+sbcl
+(defmethod stream-file-position ((stream t))
+  ;; for anything which has no implementation, delegate it to the sbcl implementation
+  (sb-gray:stream-file-position stream))
+
 ;;;
 ;;; media type support
 ;;; implement media type unions and resolution
