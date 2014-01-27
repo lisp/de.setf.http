@@ -868,10 +868,7 @@
                             (trace (:trace))
                             (connect (:connect))
                             (multiple http-verb-list-p))
-  (:arguments resource request response content-type accept-type)
   (:generic-function function)
-  ;; shut the compiler up
-  (declare (ignorable resource request response content-type accept-type))
   (flet ((qualify-methods ()
            (let ((categorized (append (when get `(:get ,(reverse get)))
                                       (when put `(:put ,(reverse put)))
@@ -908,17 +905,8 @@
                                                              (funcall location)
                                                              (error redirection)))))))
                          form)))))
-      `(progn ,@(when (log-level-qualifies? :trace)
-                  `((log-http-function ',(c2mop:generic-function-name function)
-                                       ,resource ,request ,response ,content-type ,accept-type
-                                       ',(append authenticate-password authenticate-token authenticate-session
-                                                 authorize-request
-                                                 auth-around
-                                                 around 
-                                                 decode
-                                                 (reduce #'append (remove-if #'keywordp verb-methods))
-                                                 encode))))
-              ,form))))
+      form)))
+
 
 (defgeneric log-http-function (function-name resource request response content-type accept-type methods)
   (:method :around ((function t) resource request response content-type accept-type methods)
