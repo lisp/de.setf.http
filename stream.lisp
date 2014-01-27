@@ -438,6 +438,7 @@
             #'stream-write-byte
             #'(lambda (stream byte)
                 (write-byte byte stream)))
+          stream))
 
 
 (defmethod stream-writer ((stream http:output-stream))
