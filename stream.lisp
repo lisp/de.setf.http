@@ -126,7 +126,7 @@
       media-type)))
 
 
-(defmethod chunga:chunked-stream-output-chunking-p :after ((new-value t) (stream http:output-stream))
+(defmethod (setf chunga:chunked-stream-output-chunking-p) :after ((new-value t) (stream http:output-stream))
   "update the writer configuration to reflect the changed chunking setting"
   (update-stream-writers stream))
 
