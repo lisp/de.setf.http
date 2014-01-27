@@ -493,7 +493,7 @@
       (do ((i start (1+ i)))
           ((>= i end))
         (funcall encoder (char string i) writer arg)))
-  string)
+    string))
 
 
 (defmethod chunga::stream-write-sequence ((stream chunked-output-stream) (sequence string) #+ccl &key start end #-ccl &key)
