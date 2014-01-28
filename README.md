@@ -22,6 +22,7 @@
    - http:response
    - http:resource
    - http:resource-function
+   - http:stream
  - operators :
    - http:encode-content
    - http:decode-content
@@ -32,11 +33,11 @@
 
 -------
 
- The library proposes, as the application structure:
+ The library proposes, as the processing pattern:
 
- - implement the protocol independent of the concrete application as a method
-   combination which constructs the effective response function
-   from constituent methods qualified according to their role in the protocol
+ - implement the protocol itself as a method combination which constructs the effective response function
+   independent of the concrete application which is implemented in the constituent methods, each of which
+   is qualified according to its role in the protocol
    - :auth : authentication and authorization
    - :decode : request content decoding, specialized by media type
    - :get, :put, etc : protocol method
@@ -194,7 +195,9 @@ named functions, It would stell be better to separate those two aspects:
 implement the operators and then wire them together
 by ascribing properties in terms of a model for the protocol.
 
+-----
 
+### The HTTP processing model
  This library proposes, that the model for HTTP has two aspects: resources and representation types which
  the implementation maps onto function compositions.
  a web server accepts response specification in the form of resource and representation designators, uses those
@@ -262,6 +265,22 @@ by ascribing properties in terms of a model for the protocol.
 
     (defparameter *a*
       (hunchentoot:start (make-instance 'tbnl::tbnl-acceptor :port 8009 :address "127.0.0.1")))
+
+### The condition model
+
+The HTTP protocol provides standard indicators - status codes, with which to communicate processing conditions and/or results
+in the response. The library reflects this request disposition model in condition classes and arranges dynmic handlers to
+permit the application to communicate dispositions in responses by signaling those conditions. In order to reconcile the 
+ordering constraint, that response headers must proceed content, with the desire to reflect any response condition in those
+headers, the library understakes to
+
+ - permit delay header generation to be delayed until the first reference to the response output stream
+ - buffer actual header output until the first actual output to the response output stream
+
+This permits a condition which is signaled during output computation but prior to actual encoding to be correctly
+reflected in the HTTP status code, without requiring that the content be completely buffered and headers and buffered
+content written 'simultaneously'. It does have the effect, that an error which occurs in long-running output - such as
+exceeding a resource constraint, is reflected only as a prematurely terminated response, but it is not clear, that this is a deficiency.
 
 ----
 [1] : http://expressjs.com/  

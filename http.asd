@@ -21,7 +21,7 @@
   "a modulor CLOS framework to implement HTTP with concrete implementations
    for hunchentoot and cl-fastcgi"
   :serial t
-  :version "0.01"
+  :version "0.01.01"
   :components ((:file "package")
                (:file "parameters")
                (:file "utilities")
