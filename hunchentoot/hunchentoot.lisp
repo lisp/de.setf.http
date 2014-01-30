@@ -303,14 +303,7 @@
           (handler-bind
             (;; declared conditions are handled according to their report implementation
              (http:condition (lambda (c)
-                               ;; when the headers are still pending, emit an error report as the
-                               ;; response. otherwise, just terminate the processing
-                               (when (http:clear-headers *reply*)
-                                 (http:report-condition-headers c *reply*)
-                                 (http:send-headers *reply*))
-                               ;; emit any body
-                               (http:report-condition-body c *reply*)
-                               (finish-output (http:response-content-stream *reply*))
+                               (http:send-condition *reply* c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                                (return-from process-connection
@@ -488,4 +481,4 @@
     ;; this is transcribed from the original hunchentoot implementation, but seems bogus
     ;; one could check for eof, but that would preclude pipelined interaction
     ;; (raw-post-data :force-binary t)
-    (http:response-content-stream response)))
+    content-stream))

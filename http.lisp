@@ -1396,7 +1396,7 @@ obsolete mechanism which was in terms of the encode methods
     for request processing once the headers have been sent to report
     error detainls as the response body.")
   (:method ((condition http:condition) (response t))
-    (format (http:response-content-stream response) "~%~a~%" condition)))
+    (format (get-response-content-stream response) "~%~a~%" condition)))
 
 
 (defgeneric http:clear-headers (response)
@@ -1404,8 +1404,42 @@ obsolete mechanism which was in terms of the encode methods
     occur when an error occures during response processing, yet the headers have not
     yet been written.")
   (:method ((response http:response))
-    (stream-clear-header-output (http:response-content-stream response))))
+    (stream-clear-header-output (get-response-content-stream response))))
 
+
+(defgeneric http:send-condition (response condition)
+  (:documentation "Attempt to reset the response state and respond with the
+   status and report for the given condition.")
+  (:method ((response http:response) condition)
+    ;; when the headers are still pending, stage an error report as the new headers
+    ;; and write the condition report as the content.
+    ;; if the headers are already gone, just append to the content and terminate the processing
+    (when (http:clear-headers response)
+      (http:report-condition-headers condition response)
+      (http:send-headers response))
+    ;; emit any body
+    (http:report-condition-body condition response)
+    (finish-output (get-response-content-stream response))))
+
+                               
+(defgeneric http:send-entity-body (response body)
+  (:documentation
+    "Send a monolithic response body.
+    Ensure that the headers have been sent, by using the guarded accessor.")
+
+  (:method ((response http:response) (body vector))
+    ;; try to disable chunking; for binary sequences length is the byte count
+    (setf (http:response-content-length response) (length body))
+    (write-sequence body (http:response-content-stream response)))
+
+  (:method ((response http:response) (body string))
+    ;; try to disable chunking; for strings, the encoded length is the byte count
+    (setf (http:response-content-length response)
+          (mime:size-string body (mime:mime-type-charset (http:response-media-type response))))
+    (write-string body (http:response-content-stream response)))
+
+  (:method (response (content null))))
+      
 
 (defgeneric http:send-headers (response)
   (:documentation
@@ -1436,24 +1470,6 @@ obsolete mechanism which was in terms of the encode methods
           ;; one which pipes through a zip process. need to take a possible ssl 
           ;; wrapper into account.
           )))))
-      
-
-(defgeneric http:send-entity-body (response body)
-  (:documentation
-    "Send a monolithic response body.")
-
-  (:method ((response http:response) (body vector))
-    ;; try to disable chunking; for binary sequences length is the byte count
-    (setf (http:response-content-length response) (length body))
-    (write-sequence body (http:response-content-stream response)))
-
-  (:method ((response http:response) (body string))
-    ;; try to disable chunking; for strings, the encoded length is the byte count
-    (setf (http:response-content-length response)
-          (mime:size-string body (mime:mime-type-charset (http:response-media-type response))))
-    (write-string body (http:response-content-stream response)))
-
-  (:method (response (content null))))
 
 
 (defgeneric http:response-status-code (response)

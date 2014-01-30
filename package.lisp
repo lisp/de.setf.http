@@ -195,6 +195,7 @@
            :response-vary
            :response-www-authenticate-header
            :see-other
+           :send-condition
            :send-entity-body
            :send-headers
            :stream
