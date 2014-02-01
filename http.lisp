@@ -208,10 +208,13 @@
 
 (defgeneric subpattern-p (class1 class2)
   (:method ((class1 http:resource-class) (class2 http:resource-class))
-    (or (find class1 (class-direct-superpatterns class2))
-        (loop for class in (class-direct-superpatterns class2)
-              when (subpattern-p class1 class)
-              return t)))
+    (flet ((eqv (c1 c2)
+             (eq (if (symbolp c1) (find-class c1) c1)
+                 (if (symbolp c2) (find-class c2) c2))))
+      (or (eqv class1 class2)
+          (loop for class in (class-direct-subpatterns class2)
+                when (subpattern-p class1 class)
+                return t))))
   (:method ((class1 symbol) (class2 t))
     (and class1 (subpattern-p (find-class class1) class2)))
   (:method ((class1 t) (class2 symbol))
@@ -474,16 +477,16 @@
     (loop for method in (c2mop:generic-function-methods function)
           for specializer = (first (c2mop:method-specializers method))
           when (typep specializer 'http:resource-class)
-          do (add-resource-class function specializer))))
+          do (add-resource-class function specializer))
+    (http:function-resource-classes function)))
 
 (defun ensure-dispatch-function (name &key package
                                       resource-function-class
                                       (generic-function-class 'http:dispatch-function))
   "Define a generic function to use as a server's dispatch mediator for
   request resources. The initial operator includes a method which accepts path
-  strings, interns them as resources, and recurses to invoke the resource
-  specific implementation. It signals a not-found condition, should no
-  dispatch method match the path."
+  strings, interns them as resources, and recurses to invoke the resource-specific implementation.
+  Should no dispatch method match the path, it signals a not-found condition."
 
   (let* ((function (ensure-generic-function name
                                             :lambda-list '(resource request response)
@@ -571,8 +574,9 @@
       (when start
         (flet ((search-subpatterns (sub-class) (http:bind-resource sub-class path request)))
           (declare (dynamic-extent #'search-subpatterns))
-          (or ;; (some #'search-sub-classes (c2mop:class-direct-subclasses specializer))
-           (some #'search-subpatterns (class-direct-subpatterns specializer))
+          (or (let ((subpatterns (class-direct-subpatterns specializer)))
+                ; (print (list specializer subpatterns))
+                (some #'search-subpatterns subpatterns))
               (apply #'make-instance specializer
                      :path path
                      :request request
@@ -582,6 +586,22 @@
                            collect initarg
                            collect (subseq path start end)))))))))
 
+
+(defgeneric print-resource-patterns (specializer &key stream level)
+  (:documentation
+   "Given resource matching context - either a dispatch function or a resource class,
+    descend through the pattern tree and print the respective pattern class name")
+
+  (:method ((function http:dispatch-function) &key (stream *trace-output*) (level 0))
+    (format stream "~%~a" (sb-mop:generic-function-name function))
+    (loop for class in (http:function-resource-classes function)
+          do (print-resource-patterns class :stream stream :level level)))
+
+  (:method ((specializer http:resource-class) &key (stream *trace-output*) (level 0))
+    (format stream "~%~vT~a" (* 2 (1+ level)) (class-name specializer))
+    (loop for subpattern in (class-direct-subpatterns specializer)
+          with next-level = (1+ level)
+          do (print-resource-patterns subpattern :stream stream :level next-level))))
 
 ;;;
 ;;;  request
