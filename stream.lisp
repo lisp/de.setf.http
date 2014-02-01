@@ -466,7 +466,7 @@
       (stream-write-char stream marker))))
 
 
-(defmethod stream-write-byte (stream byte)
+(defmethod stream-write-byte ((stream http:output-stream) byte)
   (multiple-value-bind (writer arg) (stream-binary-writer stream)
     (funcall writer arg byte)))
 
