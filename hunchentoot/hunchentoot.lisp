@@ -18,7 +18,10 @@
   ((reply-class :initarg :response-class))
   (:default-initargs
     :request-class 'tbnl-request
-    :response-class 'tbnl-response))
+    :response-class 'tbnl-response)
+  (:documentation "mix the http:acceptor into the base acceptor class in order to get
+   - dispatch function computation when the acceptor is instantiated
+   "))
 
 (defun http:acceptor () tbnl:*acceptor*)
 

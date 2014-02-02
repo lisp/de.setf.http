@@ -956,6 +956,7 @@
 
 ;; the sbcl code for make method fails to allow for a method which does nothing
 ;; and always warns about unused parameters, instead of (make-method nil), use a real method
+
 (defgeneric the-null-function (resource request response content-type accept-type)
   (:method ((resource t) (request t) (response t) (content-type t) (accept-type t))
     nil))
