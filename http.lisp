@@ -337,7 +337,7 @@
             (dispatch-function-class 'http:dispatch-function)
             (resource-function-class 'http:resource-function)
             (name (intern address package)))
-    (setf (acceptor-dispatch-function acceptor)
+    (setf (http:acceptor-dispatch-function acceptor)
           (apply #'ensure-dispatch-function name
                  `(,@(when dispatch-function-class
                        `(:generic-function-class ,dispatch-function-class))
