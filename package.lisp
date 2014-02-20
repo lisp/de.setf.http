@@ -26,6 +26,7 @@
            :+method-keys+
            :accepted
            :acceptor
+           :acceptor-address
            :acceptor-dispatch-function
            :acceptor-request-class
            :acceptor-response-class

@@ -332,7 +332,7 @@
            acceptor
            args))
 
-  (:method ((package package) (acceptor http:acceptor) &key (address (or (tbnl:acceptor-address acceptor)
+  (:method ((package package) (acceptor http:acceptor) &key (address (or (http:acceptor-address acceptor)
                                                                          (error "Acceptor address is required: ~s." acceptor)))
             (dispatch-function-class 'http:dispatch-function)
             (resource-function-class 'http:resource-function)
@@ -352,6 +352,9 @@
 
 ;;;
 ;;; acceptor
+
+(defgeneric http:acceptor-address (acceptor)
+  )
 
 (defgeneric http:make-request (context &rest initargs)
   (:documentation

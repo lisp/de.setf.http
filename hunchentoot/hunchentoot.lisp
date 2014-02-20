@@ -23,6 +23,8 @@
    - dispatch function computation when the acceptor is instantiated
    "))
 
+;;; acceptor
+
 (defun http:acceptor () tbnl:*acceptor*)
 
 #+(or)
@@ -37,6 +39,9 @@
     (setf (getf initargs :reply-class) response-class))
   (apply #'call-next-method instance
          initargs))
+
+(defmethod http:acceptor-address ((acceptor tbnl-acceptor))
+  (tbnl:acceptor-address acceptor))
 
 (defmethod http:acceptor-request-class ((acceptor tbnl-acceptor))
   'tbnl-request)
