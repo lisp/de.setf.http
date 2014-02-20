@@ -30,6 +30,7 @@
   ((http:dispatch-function
     :initform (error "dispatch-function is required.") :initarg :dispatch-function
     :reader http:acceptor-dispatch-function
+    :writer setf-acceptor-dispatch-function
     :documentation
     "An acceptor invokes this function for each request path. It interns the
     path and dispatches to the combination of path, request and response
@@ -39,8 +40,6 @@
    (header-instances
     :initform (make-hash-table :test 'equalp)
     :reader acceptor-header-instances))
-  (:default-initargs
-    :dispatch-function-class 'http:dispatch-function)
   (:documentation
     "The acceptor class implements pattern-based http request path dispatching
     based on methods implemented in the package which corresponds to the
@@ -320,27 +319,31 @@
 ;;; class protocols
 
 
-(defmethod initialize-instance ((instance http:acceptor) &rest initargs
-                                &key
-                                host
-                                (address host)
-                                (package (when address (find-package address)))
-                                (dispatch-function nil)
-                                (dispatch-function-class nil)
-                                (resource-function-class nil))
-  (declare (dynamic-extent initargs))
-  (apply #'call-next-method instance
-           :dispatch-function (or dispatch-function
-                                  (let* ((name (intern address package))
-                                         (function-args `(,@(when dispatch-function-class
-                                                              `(:generic-function-class ,dispatch-function-class))
-                                                          ,@(when resource-function-class
-                                                              `(:resource-function-class ,resource-function-class))
-                                                          ,@(when package 
-                                                              `(:package ,package)))))
-                                    (apply #'ensure-dispatch-function name
-                                           function-args)))
-           initargs))
+(defmethod initialize-instance ((instance http:acceptor) &key)
+  ;; just a place-holder stub
+  (call-next-method))
+
+(defgeneric (setf http:acceptor-dispatch-function) (function acceptor &key address dispatch-function-class name resource-function-class)
+  (:method ((function function) (acceptor http:acceptor) &key &allow-other-keys)
+    (setf-acceptor-dispatch-function function acceptor))
+
+  (:method ((package-name string) (acceptor http:acceptor) &rest args)
+    (apply #'(setf http:acceptor-dispatch-function) (or (find-package package-name) (error "Invalid acceptor package: ~s." package-name))
+           acceptor
+           args))
+
+  (:method ((package package) (acceptor http:acceptor) &key (address (or (tbnl:acceptor-address acceptor)
+                                                                         (error "Acceptor address is required: ~s." acceptor)))
+            (dispatch-function-class 'http:dispatch-function)
+            (resource-function-class 'http:resource-function)
+            (name (intern address package)))
+    (setf (acceptor-dispatch-function acceptor)
+          (apply #'ensure-dispatch-function name
+                 `(,@(when dispatch-function-class
+                       `(:generic-function-class ,dispatch-function-class))
+                   ,@(when resource-function-class
+                       `(:resource-function-class ,resource-function-class))
+                   :package ,package)))))
 
 
 ;;;

@@ -41,8 +41,9 @@
  (trace de.setf.http.implementation::compute-dispatch-methods http:function-package)
  )
 
-(defparameter *a*
-  (hunchentoot:start (make-instance 'tbnl::tbnl-acceptor :port 8009 :address "127.0.0.1")))
+(defparameter *a* (make-instance 'tbnl::tbnl-acceptor :port 8009 :address "127.0.0.1"))
+(setf (http:acceptor-dispatch-function *a*) "127.0.0.1")
+(hunchentoot:start *a*)
 
 ;;; (compute-dispatch-methods cl-user::*a*)
 
