@@ -28,7 +28,7 @@
 
 (defclass http:acceptor ()
   ((http:dispatch-function
-    :initform (error "dispatch-function is required.") :initarg :dispatch-function
+    :initform nil :initarg :dispatch-function
     :reader http:acceptor-dispatch-function
     :writer setf-acceptor-dispatch-function
     :documentation
@@ -322,6 +322,11 @@
 (defmethod initialize-instance ((instance http:acceptor) &key)
   ;; just a place-holder stub
   (call-next-method))
+
+(defgeneric http:start (acceptor)
+  (:method ((acceptor http:acceptor))
+    (assert (http:acceptor-dispatch-function acceptor) ()
+            "A dispatch function is required.")))
 
 (defgeneric (setf http:acceptor-dispatch-function) (function acceptor &key address dispatch-function-class name resource-function-class)
   (:method ((function function) (acceptor http:acceptor) &key &allow-other-keys)

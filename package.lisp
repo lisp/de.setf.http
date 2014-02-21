@@ -199,6 +199,7 @@
            :send-condition
            :send-entity-body
            :send-headers
+           :start
            :stream
            :stream-header-stream
            :stream-media-type
