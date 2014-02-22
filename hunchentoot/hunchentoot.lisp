@@ -40,6 +40,9 @@
   (apply #'call-next-method instance
          initargs))
 
+(defmethod http:start ((acceptor tbnl-acceptor))
+  (tbnl:start acceptor))
+
 (defmethod http:acceptor-address ((acceptor tbnl-acceptor))
   (tbnl:acceptor-address acceptor))
 
