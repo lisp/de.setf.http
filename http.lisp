@@ -1167,6 +1167,9 @@
                          (1 (append lambda-list '(request response content-type accept-type)))
                          (3 (append lambda-list '(content-type accept-type)))
                          (5 lambda-list))))
+      ;; there is an issue with tracing these operators:
+      ;; the binding process precludes a tracing wrapper, which means that must happen after the functions
+      ;; are bound to the acceptor
       `(defgeneric ,name ,lambda-list
          (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
          ,@definition-clauses))))
