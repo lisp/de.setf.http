@@ -383,6 +383,7 @@
                     (if (eql +http-ok+ (return-code *reply*))
                       ;; if initialization succeeded, process
                       (with-acceptor-request-count-incremented (acceptor)
+                        ;; at this point thread counts as active wrt eventual soft shutdown (see stop)
                         (catch 'request-processed
                           (http:respond-to-request acceptor *request* *reply*)))
                       ;; otherwise, report the error

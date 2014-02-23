@@ -415,7 +415,7 @@
     (let ((t-class (find-class t)))
       (c2mop:ensure-method function
                            `(lambda (resource request response)
-                              (funcall-resource-function ,handler-name resource
+                              (funcall-resource-function ',handler-name resource
                                                          request response
                                                          (http:request-media-type request) (http:request-accept-header request)))
                            :qualifiers '()
@@ -1129,29 +1129,29 @@
                                                   (ecase (second qualifiers)
                                                     (:as
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
-                                                        (,name resource request response content-type ,(second media-types))))
+                                                               (,name resource request response content-type ,(second media-types))))
                                                     ((nil)
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
-                                                        ;; encode as per the derived response content type, which will be an instance of the
-                                                        ;; specializer class, but include the character set encoding
-                                                        (let ((content (call-next-method))
-                                                              (effective-content-type (http:response-media-type response)))
-                                                          ;; (format *trace-output* "~%;;; effective-content: ~s" content)
-                                                          ;; (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
-                                                          (http:encode-response content response effective-content-type))))))))
+                                                               ;; encode as per the derived response content type, which will be an instance of the
+                                                               ;; specializer class, but include the character set encoding
+                                                               (let ((content (call-next-method))
+                                                                     (effective-content-type (http:response-media-type response)))
+                                                                 ;; (format *trace-output* "~%;;; effective-content: ~s" content)
+                                                                 ;; (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
+                                                                 (http:encode-response content response effective-content-type))))))))
                                              (:decode clause
-                                              (if (consp (second clause))
-                                                ;; literal definition
-                                                `(:method ,@clause)
-                                                (let ((qualifiers (remove-if-not #'keywordp clause))
-                                                      (media-types (remove-if #'keywordp clause)))
-                                                  (ecase (second qualifiers)
-                                                    (:as
-                                                     `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
-                                                        (,name resource request response ,(second media-types) accept-type)))
-                                                    ((nil)
-                                                    `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
-                                                              (http:decode-request resource request content-type)))))))
+                                                      (if (consp (second clause))
+                                                        ;; literal definition
+                                                        `(:method ,@clause)
+                                                        (let ((qualifiers (remove-if-not #'keywordp clause))
+                                                              (media-types (remove-if #'keywordp clause)))
+                                                          (ecase (second qualifiers)
+                                                            (:as
+                                                             `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
+                                                                       (,name resource request response ,(second media-types) accept-type)))
+                                                            ((nil)
+                                                             `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
+                                                                       (http:decode-request resource request content-type)))))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
@@ -1167,17 +1167,17 @@
                          (1 (append lambda-list '(request response content-type accept-type)))
                          (3 (append lambda-list '(content-type accept-type)))
                          (5 lambda-list))))
-      `(defparameter ,name
-         (defgeneric ,name ,lambda-list
-           (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
-           ,@definition-clauses)))))
+      `(defgeneric ,name ,lambda-list
+         (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
+         ,@definition-clauses))))
+
 
 (defgeneric funcall-resource-function (function resource request response content-type accept-type)
   (:method ((function symbol) (resource t) (request t) (response t) (content-type t) (accept-header t))
-    (funcall-resource-function (cond ((boundp function) (symbol-value function))
-                                     ((fboundp function) (symbol-function function))
+    (funcall-resource-function (cond ((fboundp function) (symbol-function function))
                                      (t (error "undefined resource-function: ~s." function)))
                                resource request response content-type accept-header))
+
   (:method ((function generic-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
     (let ((media-type (resource-function-acceptable-media-type function accept-header)))
