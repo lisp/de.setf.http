@@ -223,9 +223,8 @@
     (stream-binary-reader stream)))
 
 (defmethod stream-binary-reader ((stream stream))
-  (values (if (find-method #'stream-read-byte () (list (class-of stream)) nil)
-              #'stream-read-byte
-              #'read-byte)
+  ;; just return a read-byte wrapper which transforms eof into nil
+  (values #'(lambda (stream) (read-byte stream nil nil))
             stream))
 
 
