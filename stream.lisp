@@ -224,7 +224,10 @@
 
 (defmethod stream-binary-reader ((stream stream))
   ;; just return a read-byte wrapper which transforms eof into nil
-  (values #'(lambda (stream) (read-byte stream nil nil))
+  (values #'(lambda (stream)
+              (let ((byte (read-byte stream nil nil)))
+                (when (integerp byte)
+                  byte)))
             stream))
 
 
@@ -442,8 +445,8 @@
         (values #'character-writer (cons writer arg))))))
 
 
-;;; stream-fresh-line : NYI . would have to track the last character
-
+(defmethod stream-fresh-line ((stream http:output-stream))
+  (stream-write-char stream #\newline))
 
 (defmethod stream-finish-output ((stream http:output-stream))
   (stream-finish-header-output stream)

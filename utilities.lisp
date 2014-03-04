@@ -157,17 +157,19 @@
 (defmethod stream-listen ((stream SB-SYS:FD-STREAM)) (not (sb-impl::sysread-may-block-p stream)))
 
 (defgeneric http:copy-stream (input-stream output-stream &key length)
-  (:method ((input-stream stream) (output-stream stream) &key (length (1- most-positive-fixnum)))
+  (:method ((input-stream stream) (output-stream stream) &key length)
+    (if length
+      (incf length)
+      (setf length most-positive-fixnum))
     (let* ((count 0))
-      (declare (type fixnum count))
+      (declare (type fixnum count length))
       (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
         (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
           (loop for byte = (funcall reader reader-arg)
-                when byte
-                do (funcall writer writer-arg byte)
-                until  (>= (incf count) length)
-                finally (when (and byte (listen input-stream))
-                          (http:request-entity-too-large "Limit of ~d bytes exceeded." length)))))
+                while byte
+                do (if (>= (incf count) length)
+                     (http:request-entity-too-large "Limit of ~d bytes exceeded." length)
+                     (funcall writer writer-arg byte)))))
       count))
 
   #+(or)

@@ -1180,8 +1180,8 @@
     (funcall-resource-function (cond ((fboundp function) (symbol-function function))
                                      (t (error "undefined resource-function: ~s." function)))
                                resource request response content-type accept-header))
-
-  (:method ((function generic-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
+  ;; specialize on resource-function as its fileds are required to compute the response effective method
+  (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
     (let ((media-type (resource-function-acceptable-media-type function accept-header)))
       (setf (http:request-accept-type request) media-type)
