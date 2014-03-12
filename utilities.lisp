@@ -158,8 +158,7 @@
 
 (defgeneric http:copy-stream (input-stream output-stream &key length)
   (:method ((input-stream stream) (output-stream stream) &key length)
-    (if length
-      (incf length)
+    (unless length
       (setf length most-positive-fixnum))
     (let* ((count 0))
       (declare (type fixnum count length))
@@ -167,32 +166,11 @@
         (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
           (loop for byte = (funcall reader reader-arg)
                 while byte
-                do (if (>= (incf count) length)
-                     (http:request-entity-too-large "Limit of ~d bytes exceeded." length)
-                     (funcall writer writer-arg byte)))))
+                do (funcall writer writer-arg byte)
+                until (>= (incf count) length))))
+      (when (listen input-stream)
+        (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
       count))
-
-  #+(or)
-  (:method ((input-stream stream) (output-stream stream) &key length)
-    (let* ((buffer-length 4096)
-           (buffer (make-array buffer-length :element-type (stream-element-type input-stream)))
-           (total-count 0))
-      (loop with remaining-length = length
-            while (or (null remaining-length) (plusp remaining-length))
-            for end = (if remaining-length (min buffer-length remaining-length) buffer-length)
-            for count = (read-sequence buffer input-stream
-                                       ;; :partial-fill t
-                                       :end end)
-            while (plusp count)
-            do (progn (write-sequence buffer output-stream :end count)
-                      (incf total-count count)
-                      (when remaining-length
-                        (unless (plusp (decf remaining-length count))
-                          (when (listen input-stream)
-                            (http:request-entity-too-large "Limit of ~d ~:[characters~;bytes~] exceeded."
-                                                           length
-                                                           (eq (stream-element-type input-stream) 'character)))))))
-      total-count))
   
   (:method ((input-stream stream) (output pathname) &rest args)
     (declare (dynamic-extent args))
@@ -204,6 +182,54 @@
         (when (probe-file output) (delete-file output))
         (error c))))
 
+  ;; read into a binary buffer
+  (:method ((input-stream stream) (content vector) &key length)
+    (unless (and length (= length (length content)))
+      (assert (adjustable-array-p content) ()
+              "Destinaton sequence must either of the specified length or be adjustable for chunked content: ~a."
+              (type-of content))
+      (setf length most-positive-fixnum))
+
+    (let* ((count 0))
+      (declare (type fixnum count length))
+      (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
+          (loop for char = (funcall reader reader-arg)
+                while char
+                when (>= count (length content))
+                do (setf content (adjust-array content (list (+ count 1024))))
+                do (setf (aref content count) char)
+                until (>= (incf count) length)))
+      (when (listen input-stream)
+        (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+      (when (> count (length content))
+        (setf content (adjust-array content (list count))))
+      count))
+
+  ;; read into a string (character buffer)
+  (:method ((input-stream stream) (content string) &key length)
+    (unless (and length (= length (length content)))
+      (assert (adjustable-array-p content) ()
+              "Destinaton sequence must either of the specified length or be adjustable for chunked content: ~a."
+              (type-of content))
+      (setf length most-positive-fixnum))
+
+    (let* ((count 0))
+      (declare (type fixnum count length))
+      (multiple-value-bind (reader reader-arg) (stream-reader input-stream)
+          (loop for char = (funcall reader reader-arg)
+                while char
+                when (>= count (length content))
+                do (setf content (adjust-array content (list (+ count 1024))))
+                do (setf (char content count) char)
+                until (>= (incf count) length)))
+      (when (listen input-stream)
+        (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+      (when (and (adjustable-array-p content)
+                 (> count (length content)))
+        (setf content (adjust-array content (list count))))
+      (values count content)))
+
+  #+(or)                                ; unused method which tries to do the unchunking in-line
   (:method ((input-stream stream) (content vector) &key length)
     (assert (equalp (array-element-type content) (stream-element-type input-stream)) ()
             "Destination sequence type does not agree with the source stream element type: ~s: ~s."
