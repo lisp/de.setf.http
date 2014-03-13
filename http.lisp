@@ -413,6 +413,7 @@
      the method for that class. Indirect through funcall-resource-function, which derives the composite accept
      type from the accept header"
     (let ((t-class (find-class t)))
+      (c2mop:finalize-inheritance resource-class)
       (c2mop:ensure-method function
                            `(lambda (resource request response)
                               (funcall-resource-function ',handler-name resource
@@ -575,23 +576,23 @@
 
   (:method ((function http:dispatch-function) (path string) request)
     (loop for class in (http:function-resource-classes function)
-          for resource = (http:bind-resource class path request)
-          when resource
-          return resource))
+          for instantiation-form = (match-resource class path)
+          when instantiation-form
+          return (apply #'make-instance class
+                        :request request
+                        instantiation-form))))
 
-  (:method ((specializer http:resource-class) (path string) request)
-    (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern specializer) path)
+(defgeneric match-resource (class path)
+  (:method ((class class) path)
+    (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern class) path)
       (declare (ignore end))
       (when start
-        (flet ((search-subpatterns (sub-class) (http:bind-resource sub-class path request)))
+        (flet ((search-subpatterns (sub-class) (match-resource-class sub-class path)))
           (declare (dynamic-extent #'search-subpatterns))
-          (or (let ((subpatterns (class-direct-subpatterns specializer)))
-                ; (print (list specializer subpatterns))
+          (or (let ((subpatterns (class-direct-subpatterns class)))
                 (some #'search-subpatterns subpatterns))
-              (apply #'make-instance specializer
-                     :path path
-                     :request request
-                     (loop for initarg in (class-keywords specializer)
+              (list* :path path
+                     (loop for initarg in (class-keywords class)
                            for start across starts
                            for end across ends
                            collect initarg
