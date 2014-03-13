@@ -576,13 +576,13 @@
 
   (:method ((function http:dispatch-function) (path string) request)
     (loop for class in (http:function-resource-classes function)
-          for instantiation-form = (match-resource class path)
+          for instantiation-form = (match-resource-class class path)
           when instantiation-form
           return (apply #'make-instance class
                         :request request
                         instantiation-form))))
 
-(defgeneric match-resource (class path)
+(defgeneric match-resource-class (class path)
   (:method ((class class) path)
     (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern class) path)
       (declare (ignore end))
