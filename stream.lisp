@@ -214,9 +214,13 @@
                ;; chunked encoded output
                (funcall decoder #'always-chunked-stream-read-byte stream))
              (unchunked-stream-character-reader (stream)
+                (with-slots (chunga::input-buffer chunga::input-index) stream
+               (print (list :read
+                            chunga::input-buffer chunga::input-index)))
+                            
                ;; no chunking decode direct from the wrapped stream
-               (funcall decoder #'stream-read-byte stream)))
-        (if (chunked-stream-output-chunking-p stream)
+               (funcall decoder #'read-byte stream)))
+        (if (chunked-stream-input-chunking-p stream)
           (values #'chunked-stream-character-reader stream)
           (values #'unchunked-stream-character-reader (chunked-stream-stream stream)))))
     ;; binary input

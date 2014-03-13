@@ -207,6 +207,7 @@
 
   ;; read into a string (character buffer)
   (:method ((input-stream stream) (content string) &key length)
+    (print (cons :chunked? (chunked-stream-input-chunking-p input-stream)))
     (unless (and length (= length (length content)))
       (assert (adjustable-array-p content) ()
               "Destinaton sequence must either of the specified length or be adjustable for chunked content: ~a."
@@ -217,7 +218,7 @@
       (declare (type fixnum count length))
       (multiple-value-bind (reader reader-arg) (stream-reader input-stream)
           (loop for char = (funcall reader reader-arg)
-                while char
+                while (print char)
                 when (>= count (length content))
                 do (setf content (adjust-array content (list (+ count 1024))))
                 do (setf (char content count) char)

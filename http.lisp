@@ -197,7 +197,9 @@
           for superpattern-class = (find-class class-name nil)
           do (if superpattern-class
                (when (typep superpattern-class 'http:resource-class)
-                 (pushnew class (class-direct-subpatterns superpattern-class)))
+                 (setf (class-direct-subpatterns superpattern-class)
+                       (merge'list (list class) (class-direct-subpatterns superpattern-class)
+                             #'> :key #'(lambda (class) (count #\* (symbol-name (class-name class)))))))
                (warn "superpattern class not found: ~s: ~s" (class-name class) class-name))))
   (:method ((class standard-class))
     ;; ensure pattern registration for sub-classes to permit them to render a method
@@ -575,10 +577,10 @@
    regular expression match.")
 
   (:method ((function http:dispatch-function) (path string) request)
-    (loop for class in (http:function-resource-classes function)
-          for instantiation-form = (match-resource-class class path)
-          when instantiation-form
-          return (apply #'make-instance class
+    (loop for class in (print (http:function-resource-classes function))
+          for (matched-class . instantiation-form) = (match-resource-class class path)
+          when matched-class
+          return (apply #'make-instance matched-class
                         :request request
                         instantiation-form))))
 
@@ -591,7 +593,8 @@
           (declare (dynamic-extent #'search-subpatterns))
           (or (let ((subpatterns (class-direct-subpatterns class)))
                 (some #'search-subpatterns subpatterns))
-              (list* :path path
+              (list* class
+                     :path path
                      (loop for initarg in (class-keywords class)
                            for start across starts
                            for end across ends
