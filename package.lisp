@@ -71,7 +71,7 @@
            :function-default-accept-header
            :function-method-keys
            :function-package
-           :function-resource-classes
+           :function-patterns
            :function-resource-class
            :function-resource-function-class
            :gone
@@ -159,6 +159,11 @@
            :resource-identifier
            :resource-path
            :resource-pattern
+           :resource-pattern-class
+           :resource-pattern-name
+           :resource-pattern-path
+           :resource-pattern-predicate
+           :resource-pattern-subpatterns
            :resource-request
            :resource-request-argument
            :respond-to-option-request

@@ -207,7 +207,6 @@
 
   ;; read into a string (character buffer)
   (:method ((input-stream stream) (content string) &key length)
-    (print (cons :chunked? (chunked-stream-input-chunking-p input-stream)))
     (unless (and length (= length (length content)))
       (assert (adjustable-array-p content) ()
               "Destinaton sequence must either of the specified length or be adjustable for chunked content: ~a."

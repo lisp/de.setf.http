@@ -60,11 +60,11 @@
 
 
 (defclass http:dispatch-function (standard-generic-function)
-  ((resource-classes
-    :initform nil :initarg :resource-classes
-    :accessor http:function-resource-classes
+  ((patterns
+    :initform nil :initarg :patterns
+    :accessor http:function-patterns
     :documentation
-    "Binds a list of the top bound resource classes as the discrimination
+    "Binds a list of the top resource patterns as the discrimination
     graph root when interning request resource paths.")
    (resource-class
     :initform 'http:resource :initarg :resource-class
@@ -471,18 +471,28 @@
         (setf (http:function-resource-classes function)
               (cons specializer (remove-if #'old-is-subtype (http:function-resource-classes function))))))))
 
-(defgeneric add-resource-class (function specializer)
-  (:method ((function http:dispatch-function) (specializer http:resource-class))
-    (flet ((old-is-subpattern (old)
-             (or (eq old specializer)
-                 (subpattern-p old specializer)))
-           (new-is-subpattern (old)
-             (or (eq specializer old)
-                 (subpattern-p specializer old))))
-      (declare (dynamic-extent #'old-is-subpattern #'new-is-subpattern))
-      (unless (some #'new-is-subpattern (http:function-resource-classes function))
-        (setf (http:function-resource-classes function)
-              (cons specializer (remove-if #'old-is-subpattern (http:function-resource-classes function))))))))
+
+(defgeneric add-pattern (function pattern)
+  (:documentation "Add a pattern to the tree already known to the function.")
+
+  (:method ((function http:dispatch-function) (new-pattern http:resource-pattern))
+    (setf (http:function-patterns function)
+          (add-pattern (http:function-patterns function) new-pattern)))
+
+  (:method ((known-patterns list) (new-pattern http:resource-pattern))
+    (loop for known-pattern in known-patterns
+          for merged-pattern = (merge-patterns known-pattern new-pattern)
+          when merged-pattern
+          return (if (eq merged-pattern known-pattern)
+                   known-patterns
+                   (sort (cons new-pattern (remove known-pattern known-patterns))
+                         #'<
+                         :key #'pattern-wildcard-count))
+          finally (return (merge 'list (list new-pattern) known-patterns #'<
+                                 :key #'pattern-wildcard-count)))))
+#+(or)
+(add-pattern (list (make-instance 'http:resource-pattern :name "*/account/*" :class t))
+             (make-instance 'http:resource-pattern :name "*/account/*/repositories" :class t))
 
 
 (defgeneric update-resource-classes (function)
@@ -577,6 +587,8 @@
    regular expression match.")
 
   (:method ((function http:dispatch-function) (path string) request)
+    (loop for pattern in (http:function-patterns function)
+
     (loop for class in (print (http:function-resource-classes function))
           for (matched-class . instantiation-form) = (match-resource-class class path)
           when matched-class
@@ -1580,4 +1592,95 @@ obsolete mechanism which was in terms of the encode methods
 ;;;
 
 
+;;;
+;;; resource patterns modeled explicitly
 
+(defclass http:resource-pattern ()
+  ((name
+    :initarg :name :initform (error "name is required.")
+    :reader http:resource-pattern-name)
+   (path
+    :reader http:resource-pattern-path)
+   (subpatterns
+    :initarg :subpatterns :initform nil
+    :accessor http:resource-pattern-subpatterns)
+   (class
+    :initarg :class :initform (error "class is required.")
+    :reader http:resource-pattern-class)
+   (predicate
+    :reader http:resource-pattern-predicate)))
+
+(defmethod initialize-instance ((instance http:resource-pattern) &key name)
+  (let ((path (split-string name #(#\/))))
+    (flet ((test-path (test-path)
+             (loop (let ((pattern-element (pop path))
+                         (test-element (pop test-path)))
+                     (if pattern-element
+                       (if test-element
+                         (unless (or (string-equal pattern-element "*")
+                                     (string-equal pattern-element test-element))
+                           (return nil)))
+                       (return (null test-element)))))))
+      (setf (slot-value instance 'path) path)
+      (setf (slot-value instance 'predicate) #'test-path))
+    (call-next-method)))
+
+(defgeneric pattern-wildcard-count (pattern)
+  (:method ((pattern http:resource-pattern))
+    (count "*" (http:resource-pattern-path pattern) :test #'equal)))
+          
+
+(defmethod print-object ((instance http:resource-pattern) stream)
+  (print-unreadable-object (instance stream :identity nil :type nil)
+    (format stream "? ~a~@[ ~a~]" (http:resource-pattern-name instance) (http:resource-pattern-subpatterns instance))))
+;; (make-instance 'resource-pattern :name "*/account/*" :class t)
+
+
+(defun merge-patterns (p1 p2)
+  (cond ((pattern-subsumes-p p1 p2)
+         (setf (http:resource-pattern-subpatterns p1)
+               (merge 'list (list p2) (http:resource-pattern-subpatterns p1) #'> :key #'(lambda (p) (length (http:resource-pattern-path p)))))
+         p1)
+        ((pattern-subsumes-p p2 p1)
+         (setf (http:resource-pattern-subpatterns p2)
+               (merge 'list (list p1) (http:resource-pattern-subpatterns p2) #'> :key #'(lambda (p) (length (http:resource-pattern-path p)))))
+         p2)))
+
+(defgeneric pattern-subsumes-p (p1 p2)
+  (:method ((p1 http:resource-pattern) (p2 http:resource-pattern))
+    (pattern-subsumes-p (http:resource-pattern-path p1) (http:resource-pattern-path p2)))
+  (:method ((p1 null) (p2 null))
+    nil)
+  (:method ((p1 null) (p2 cons))
+    t)
+  (:method ((p1 cons) (p2 null))
+    nil)
+  (:method ((p1 cons) (p2 cons))
+    (if (equalp (first p1) (first p2))
+      (pattern-subsumes-p (rest p1) (rest p2))
+      (string-equal (first p1) "*"))))
+#+(or)
+(merge-patterns (make-instance 'resource-pattern :name "*/account/*" :class t)
+                  (make-instance 'resource-pattern :name "*/account/*/repositories" :class t))
+
+
+(defgeneric match-pattern (pattern path)
+  (:method ((pattern http:resource-pattern) (path list))
+    (multiple-value-bind (match-p elements) (match-pattern (http:resource-pattern-path pattern) path)
+      (when match-p
+        (loop for subpattern in (http:resource-pattern-subpatterns pattern)
+              for (sub-match-p sub-elements) = (multiple-value-list (match-pattern subpattern path))
+              when sub-match-p
+              do (return-from match-pattern (values sub-match-p sub-elements)))
+        (values match-p elements))))
+  (:method ((pattern null) (path null))
+    (values t nil))
+  (:method ((pattern list) (path list))
+    (cond ((equal (first pattern) (first path))
+           (match-pattern (rest pattern) (rest path)))
+          ((string-equal (first pattern) "*")
+           (multiple-value-bind (match-p elements) (match-pattern (rest pattern) (rest path))
+             (when match-p
+               (values t (cons (first path) elements))))))))
+
+;;; (match-pattern (make-resource-pattern :path '(* "asdf")) '("qwer" "asdf"))
