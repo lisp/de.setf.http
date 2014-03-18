@@ -612,23 +612,6 @@
                         :request request
                         properties))))
 
-(defgeneric match-resource-class (class path)
-  (:method ((class class) path)
-    (multiple-value-bind (start end starts ends) (cl-ppcre:scan (class-pattern class) path)
-      (declare (ignore end))
-      (when start
-        (flet ((search-subpatterns (sub-class) (match-resource-class sub-class path)))
-          (declare (dynamic-extent #'search-subpatterns))
-          (or (let ((subpatterns (class-direct-subpatterns class)))
-                (some #'search-subpatterns subpatterns))
-              (list* class
-                     :path path
-                     (loop for initarg in 
-                           for start across starts
-                           for end across ends
-                           collect initarg
-                           collect (subseq path start end)))))))))
-
 
 (defgeneric print-resource-patterns (specializer &key stream level)
   (:documentation
