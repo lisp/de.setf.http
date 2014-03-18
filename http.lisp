@@ -281,6 +281,24 @@
   (:method ((object t))
     nil))
 
+(defclass http:resource-pattern ()
+  ((name
+    :initarg :name :initform (error "name is required.")
+    :reader http:resource-pattern-name)
+   (path
+    :reader http:resource-pattern-path)
+   (keywords
+    :reader http:resource-pattern-keywords)
+   (subpatterns
+    :initarg :subpatterns :initform nil
+    :accessor http:resource-pattern-subpatterns)
+   (class
+    :initarg :class :initform (error "class is required.")
+    :reader http:resource-pattern-class)
+   (predicate
+    :reader http:resource-pattern-predicate)))
+
+
 (defclass http:response ()
   ((acceptor
     :initarg :acceptor
@@ -457,7 +475,7 @@
  the generic function's interning discrimination network."
   (let ((class (first (c2mop:method-specializers method))))
     (when (typep class 'http:resource-class)
-      (add-resource-class function class))))
+      (add-pattern function (make-instance 'resource-pattern :class class)))))
 
 #+(or) ;; type based
 (defgeneric add-resource-class (function specializer)
@@ -471,6 +489,15 @@
         (setf (http:function-resource-classes function)
               (cons specializer (remove-if #'old-is-subtype (http:function-resource-classes function))))))))
 
+#+(or)
+(defgeneric update-resource-classes (function)
+  (:method ((function http:dispatch-function))
+    (setf (http:function-resource-classes function) nil)
+    (loop for method in (c2mop:generic-function-methods function)
+          for specializer = (first (c2mop:method-specializers method))
+          when (typep specializer 'http:resource-class)
+          do (add-resource-class function specializer))
+    (http:function-resource-classes function)))
 
 (defgeneric add-pattern (function pattern)
   (:documentation "Add a pattern to the tree already known to the function.")
@@ -490,19 +517,11 @@
                          :key #'pattern-wildcard-count))
           finally (return (merge 'list (list new-pattern) known-patterns #'<
                                  :key #'pattern-wildcard-count)))))
+
 #+(or)
 (add-pattern (list (make-instance 'http:resource-pattern :name "*/account/*" :class t))
              (make-instance 'http:resource-pattern :name "*/account/*/repositories" :class t))
 
-
-(defgeneric update-resource-classes (function)
-  (:method ((function http:dispatch-function))
-    (setf (http:function-resource-classes function) nil)
-    (loop for method in (c2mop:generic-function-methods function)
-          for specializer = (first (c2mop:method-specializers method))
-          when (typep specializer 'http:resource-class)
-          do (add-resource-class function specializer))
-    (http:function-resource-classes function)))
 
 (defun ensure-dispatch-function (name &key package
                                       resource-function-class
@@ -517,7 +536,7 @@
                                             :documentation (format nil "the request dispatch function for package '~a'" package)
                                             :generic-function-class generic-function-class))
          (t-class (find-class 't)))
-    (setf (http:function-resource-classes function) nil)
+    (setf (http:function-patterns function) nil)
     (when resource-function-class
       (setf (http:function-resource-function-class function) resource-function-class))
     (when package
@@ -587,14 +606,13 @@
    regular expression match.")
 
   (:method ((function http:dispatch-function) (path string) request)
-    (loop for pattern in (http:function-patterns function)
-
-    (loop for class in (print (http:function-resource-classes function))
-          for (matched-class . instantiation-form) = (match-resource-class class path)
-          when matched-class
-          return (apply #'make-instance matched-class
+    (loop with parsed-path = (split-string path #(#\/))
+          for pattern in (print (http:function-patterns function))
+          for (match-class properties) = (multiple-value-list (match-pattern pattern parsed-path))
+          when match-p
+          return (apply #'make-instance (http:resoo
                         :request request
-                        instantiation-form))))
+                        properties))))
 
 (defgeneric match-resource-class (class path)
   (:method ((class class) path)
@@ -607,7 +625,7 @@
                 (some #'search-subpatterns subpatterns))
               (list* class
                      :path path
-                     (loop for initarg in (class-keywords class)
+                     (loop for initarg in 
                            for start across starts
                            for end across ends
                            collect initarg
@@ -1595,23 +1613,15 @@ obsolete mechanism which was in terms of the encode methods
 ;;;
 ;;; resource patterns modeled explicitly
 
-(defclass http:resource-pattern ()
-  ((name
-    :initarg :name :initform (error "name is required.")
-    :reader http:resource-pattern-name)
-   (path
-    :reader http:resource-pattern-path)
-   (subpatterns
-    :initarg :subpatterns :initform nil
-    :accessor http:resource-pattern-subpatterns)
-   (class
-    :initarg :class :initform (error "class is required.")
-    :reader http:resource-pattern-class)
-   (predicate
-    :reader http:resource-pattern-predicate)))
-
-(defmethod initialize-instance ((instance http:resource-pattern) &key name)
-  (let ((path (split-string name #(#\/))))
+(defmethod initialize-instance ((instance http:resource-pattern) &rest initargs &key
+                                class
+                                (name (string (class-name class))))
+  (declare (dynamic-extent initargs))
+  (let ((path (loop for element in (split-string name #(#\/))
+                    when (plusp (length element))
+                    collect (if (char= #\: (char element 0))
+                              (cons-symbol :keyword (subseq element 1))
+                              element))))
     (flet ((test-path (test-path)
              (loop (let ((pattern-element (pop path))
                          (test-element (pop test-path)))
@@ -1623,7 +1633,9 @@ obsolete mechanism which was in terms of the encode methods
                        (return (null test-element)))))))
       (setf (slot-value instance 'path) path)
       (setf (slot-value instance 'predicate) #'test-path))
-    (call-next-method)))
+    (apply #'call-next-method instance
+           :name name
+           initargs)))
 
 (defgeneric pattern-wildcard-count (pattern)
   (:method ((pattern http:resource-pattern))
@@ -1666,21 +1678,22 @@ obsolete mechanism which was in terms of the encode methods
 
 (defgeneric match-pattern (pattern path)
   (:method ((pattern http:resource-pattern) (path list))
-    (multiple-value-bind (match-p elements) (match-pattern (http:resource-pattern-path pattern) path)
+    (multiple-value-bind (match-p properties) (match-pattern (http:resource-pattern-path pattern) path)
       (when match-p
         (loop for subpattern in (http:resource-pattern-subpatterns pattern)
-              for (sub-match-p sub-elements) = (multiple-value-list (match-pattern subpattern path))
-              when sub-match-p
-              do (return-from match-pattern (values sub-match-p sub-elements)))
-        (values match-p elements))))
+              for (sub-class sub-properties) = (multiple-value-list (match-pattern subpattern path))
+              when sub-class
+              do (return-from match-pattern (values sub-class sub-properties)))
+        (values (http:resource-pattern-class pattern) properties))))
   (:method ((pattern null) (path null))
     (values t nil))
   (:method ((pattern list) (path list))
     (cond ((equal (first pattern) (first path))
            (match-pattern (rest pattern) (rest path)))
-          ((string-equal (first pattern) "*")
-           (multiple-value-bind (match-p elements) (match-pattern (rest pattern) (rest path))
+          ((keywordp (first pattern))
+           (multiple-value-bind (match-p properties) (match-pattern (rest pattern) (rest path))
              (when match-p
-               (values t (cons (first path) elements))))))))
+               (values t (list* (first pattern) (first path) properties))))))))
 
-;;; (match-pattern (make-resource-pattern :path '(* "asdf")) '("qwer" "asdf"))
+;;; (match-pattern (make-instance 'http:resource-pattern :class t :name ":asdf/asdf") '("qwer" "asdf"))
+
