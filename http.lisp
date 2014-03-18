@@ -607,7 +607,7 @@
     (loop with parsed-path = (split-string path #(#\/))
           for pattern in (print (http:function-patterns function))
           for (match-class properties) = (multiple-value-list (match-pattern pattern parsed-path))
-          when match-p
+          when match-class
           return (apply #'make-instance match-class
                         :request request
                         properties))))
