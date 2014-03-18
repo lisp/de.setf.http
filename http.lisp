@@ -613,22 +613,6 @@
                         properties))))
 
 
-(defgeneric print-resource-patterns (specializer &key stream level)
-  (:documentation
-   "Given resource matching context - either a dispatch function or a resource class,
-    descend through the pattern tree and print the respective pattern class name")
-
-  (:method ((function http:dispatch-function) &key (stream *trace-output*) (level 0))
-    (format stream "~%~a" (sb-mop:generic-function-name function))
-    (loop for class in (http:function-resource-classes function)
-          do (print-resource-patterns class :stream stream :level level)))
-
-  (:method ((specializer http:resource-class) &key (stream *trace-output*) (level 0))
-    (format stream "~%~vT~a" (* 2 (1+ level)) (class-name specializer))
-    (loop for subpattern in (class-direct-subpatterns specializer)
-          with next-level = (1+ level)
-          do (print-resource-patterns subpattern :stream stream :level next-level))))
-
 ;;;
 ;;;  request
 
