@@ -287,8 +287,6 @@
     :reader http:resource-pattern-name)
    (path
     :reader http:resource-pattern-path)
-   (keywords
-    :reader http:resource-pattern-keywords)
    (subpatterns
     :initarg :subpatterns :initform nil
     :accessor http:resource-pattern-subpatterns)
