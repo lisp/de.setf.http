@@ -383,7 +383,7 @@
   "As a side effect of adding a method, integrate its path pattern into
  the generic function's resource discrimination network."
   (let ((class (first (c2mop:method-specializers method))))
-    (when (typep class 'http:resource-class)
+    (when (subtypep class 'http:resource)
       (add-pattern function (make-instance 'http:resource-pattern :class class)))))
 
 
@@ -700,6 +700,7 @@
 ;;;
 ;;; def-resource
 
+#+(or)
 (defmacro http:def-resource ((name pattern &rest keywords) parent-classes slots &rest options)
   (unless (assoc :metaclass options)
     (push '(:metaclass http:resource-class) options))
