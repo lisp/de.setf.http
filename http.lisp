@@ -1199,7 +1199,7 @@ obsolete mechanism which was in terms of the encode methods
            initargs)))
 
 (defgeneric class-resource-path (class)
-  (:method ((class class) (symbol-name (class-name class))))
+  (:method ((class class)) (symbol-name (class-name class)))
   (:method ((name symbol)) (symbol-name name)))
 
 (defgeneric pattern-wildcard-count (pattern)
