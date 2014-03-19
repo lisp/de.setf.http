@@ -153,7 +153,6 @@
            :reset-content
            :resource
            :resource-authorization-list
-           :resource-class
            :resource-function
            :resource-function-p
            :resource-identifier
