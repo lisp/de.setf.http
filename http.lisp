@@ -1610,7 +1610,7 @@ obsolete mechanism which was in terms of the encode methods
               (not (merge-patterns (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)
                                    (make-instance 'http:resource-pattern :name "/?account/protocol" :class t))))
          
-         (equal (nth-value 1 (match-pattern (make-instance 'http:resource-pattern :class t :name ":asdf/asdf") '("qwer" "asdf")))
+         (equal (nth-value 1 (match-pattern (make-instance 'http:resource-pattern :class t :name "?asdf/asdf") '("qwer" "asdf")))
                 '(:asdf "qwer")))
   (warn "Some resource pattern validation failed..."))
 
