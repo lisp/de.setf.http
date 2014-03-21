@@ -394,16 +394,22 @@
     (setf (http:function-patterns function)
           (add-pattern (http:function-patterns function) new-pattern)))
 
-  (:method ((known-patterns list) (new-pattern http:resource-pattern))
-    (loop for known-pattern in known-patterns
-          for merged-pattern = (merge-patterns known-pattern new-pattern)
-          when merged-pattern
-          return (if (eq merged-pattern known-pattern)
-                   known-patterns
-                   (merge 'list (list new-pattern) (remove known-pattern known-patterns) #'<
-                          :key #'pattern-wildcard-count))
-          finally (return (merge 'list (list new-pattern) known-patterns #'<
+  (:method ((known-patterns cons) (new-pattern http:resource-pattern))
+    (let ((patterns-not-subsumed (loop for known-pattern in known-patterns
+                                       if (pattern-subsumes-p new-pattern known-pattern)
+                                       do (setf (http:resource-pattern-subpatterns new-pattern)
+                                                (add-pattern (http:resource-pattern-subpatterns new-pattern) known-pattern))
+                                       else collect known-pattern)))
+      (loop for known-pattern in patterns-not-subsumed
+            if (pattern-subsumes-p known-pattern new-pattern)
+            do (progn (setf (http:resource-pattern-subpatterns known-pattern)
+                            (add-pattern (http:resource-pattern-subpatterns known-pattern) new-pattern))
+                      (return known-patterns))
+            finally (return (merge 'list (list new-pattern) patterns-not-subsumed #'<
                                  :key #'pattern-wildcard-count)))))
+
+  (:method ((known-patterns null) (new-pattern http:resource-pattern))
+    (list new-pattern)))
 
 
 (defun ensure-dispatch-function (name &key package
