@@ -1228,7 +1228,9 @@ obsolete mechanism which was in terms of the encode methods
 
 
 (defun merge-patterns (p1 p2)
-  (cond ((pattern-subsumes-p p1 p2)
+  (cond ((equalp (http:resource-pattern-path p1) (http:resource-pattern-path p2))
+         p1)
+        ((pattern-subsumes-p p1 p2)
          (setf (http:resource-pattern-subpatterns p1)
                (merge 'list (list p2) (http:resource-pattern-subpatterns p1) #'> :key #'(lambda (p) (length (http:resource-pattern-path p)))))
          p1)
