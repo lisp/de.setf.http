@@ -1232,11 +1232,11 @@ obsolete mechanism which was in terms of the encode methods
          p1)
         ((pattern-subsumes-p p1 p2)
          (setf (http:resource-pattern-subpatterns p1)
-               (merge 'list (list p2) (http:resource-pattern-subpatterns p1) #'> :key #'(lambda (p) (length (http:resource-pattern-path p)))))
+               (add-pattern (http:resource-pattern-subpatterns p1) p2))
          p1)
         ((pattern-subsumes-p p2 p1)
          (setf (http:resource-pattern-subpatterns p2)
-               (merge 'list (list p1) (http:resource-pattern-subpatterns p2) #'> :key #'(lambda (p) (length (http:resource-pattern-path p)))))
+               (add-pattern (http:resource-pattern-subpatterns p2) p1))
          p2)))
 
 
