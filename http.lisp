@@ -396,6 +396,8 @@
 
   (:method ((known-patterns cons) (new-pattern http:resource-pattern))
     (let ((patterns-not-subsumed (loop for known-pattern in known-patterns
+                                       if (equalp (http:resource-pattern-path known-pattern) (http:resource-pattern-path new-pattern))
+                                       do (return-from add-pattern known-patterns)
                                        if (pattern-subsumes-p new-pattern known-pattern)
                                        do (setf (http:resource-pattern-subpatterns new-pattern)
                                                 (add-pattern (http:resource-pattern-subpatterns new-pattern) known-pattern))
@@ -1186,7 +1188,7 @@ obsolete mechanism which was in terms of the encode methods
   (declare (dynamic-extent initargs))
   (let ((path (loop for element in (split-string name #(#\/))
                     when (plusp (length element))
-                    collect (if (char= #\? (char element 0))
+                    collect (if (char= *keyword-marker-character* (char element 0))
                               (cons-symbol :keyword (subseq element 1))
                               element))))
     (flet ((test-path (test-path)
@@ -1232,7 +1234,7 @@ obsolete mechanism which was in terms of the encode methods
     (when (or (equalp (first p1) (first p2)) (keywordp (first p1)))
       (pattern-subsumes-p (rest p1) (rest p2)))))
 
-
+#+(or)
 (defun merge-patterns (p1 p2)
   (cond ((equalp (http:resource-pattern-path p1) (http:resource-pattern-path p2))
          p1)
@@ -1244,7 +1246,6 @@ obsolete mechanism which was in terms of the encode methods
          (setf (http:resource-pattern-subpatterns p2)
                (add-pattern (http:resource-pattern-subpatterns p2) p1))
          p2)))
-
 
 (defgeneric match-pattern (pattern path)
   (:documentation

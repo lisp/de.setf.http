@@ -14,6 +14,9 @@
   "When non-nulll, constrains the byte count of a request entity body content. If nil, no constaint applies.
  (default nil)")
 
+(defparameter *keyword-marker-character* #\:
+  "Specifies the initial character which marks keyword elements in a pattern. #\: is the default")
+
 (defparameter http:*request* nil
   "Bound to the request instance for the dynamic extent of the respond-to-request call.")
 
