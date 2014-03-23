@@ -1257,6 +1257,9 @@ obsolete mechanism which was in terms of the encode methods
      element, but add nothing to the result properties. If all elements match, return as values the pattern
     instance and the property list.")
 
+  (:method ((pattern t) (path string))
+    (match-pattern pattern (split-string path #(#\/))))
+
   (:method ((pattern http:resource-pattern) (path list))
     (flet ((try-subpattern ()
              (loop for subpattern in (http:resource-pattern-subpatterns pattern)
@@ -1276,14 +1279,18 @@ obsolete mechanism which was in terms of the encode methods
     (values :complete nil))
   (:method ((pattern null) (path cons))
     (values :partial nil))
-  (:method ((pattern list) (path list))
-    (cond ((equal (first pattern) (first path))
-           (match-pattern (rest pattern) (rest path)))
-          ((and (keywordp (first pattern)) path)
-           (multiple-value-bind (match-p properties) (match-pattern (rest pattern) (rest path))
-             (when match-p
-               (values match-p (list* (first pattern) (first path) properties))))))))
-
+  (:method ((pattern list) (parsed-path list))
+    (etypecase (first pattern)
+      (string (when (equal (first pattern) (first parsed-path))
+                (match-pattern (rest pattern) (rest parsed-path))))
+      (keyword (when parsed-path
+                 (multiple-value-bind (match-p properties) (match-pattern (rest pattern) (rest parsed-path))
+                   (when match-p
+                     (values match-p (list* (first pattern) (first parsed-path) properties))))))
+      (http:resource-pattern (loop for pattern in pattern
+                                   for (matched-pattern properties) = (multiple-value-list (match-pattern pattern parsed-path))
+                                   when matched-pattern
+                                   return (values matched-pattern properties))))))
 ;;;
 ;;; response
 
@@ -1591,41 +1598,53 @@ obsolete mechanism which was in terms of the encode methods
 (unless (and
          (equal (sort (mapcar #'http:resource-pattern-name (add-pattern
                                                             (add-pattern
-                                                             (list (make-instance 'http:resource-pattern :name "/?account/protocol" :class t))
-                                                             (make-instance 'http:resource-pattern :name "/?account/repositories" :class t))
-                                                            (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)))
+                                                             (list (make-instance 'http:resource-pattern :name "/:account/protocol" :class t))
+                                                             (make-instance 'http:resource-pattern :name "/:account/repositories" :class t))
+                                                            (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)))
                       #'string-lessp)
-                '("/?account/protocol" "/?account/repositories"))
+                '("/:account/protocol" "/:account/repositories"))
 
          (typep (http:bind-resource (add-pattern
                                      (add-pattern
-                                      (list (make-instance 'http:resource-pattern :name "/?account/protocol" :class t))
-                                      (make-instance 'http:resource-pattern :name "/?account/repositories" :class 'account-resource))
-                                     (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class 'repository-resource))
+                                      (list (make-instance 'http:resource-pattern :name "/:account/protocol" :class t))
+                                      (make-instance 'http:resource-pattern :name "/:account/repositories" :class 'account-resource))
+                                     (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class 'repository-resource))
                                     "/asdf/repositories"
                                     :request)
                 'account-resource)
 
          (equal (mapcar #'pattern-wildcard-count
-                        (list (make-instance 'http:resource-pattern :name "/?account/repositories" :class t)
-                              (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)))
+                        (list (make-instance 'http:resource-pattern :name "/:account/repositories" :class t)
+                              (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)))
                 '(1 2))
+
+         (let ((pattern (add-pattern
+                         (add-pattern
+                          (list (make-instance 'http:resource-pattern :name "/:account/protocol" :class t))
+                          (make-instance 'http:resource-pattern :name "/:account/repositories" :class 'account-resource))
+                         (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class 'repository-resource))))
+           (and (match-pattern pattern "/an-account/protocol")
+                (match-pattern pattern "/an-account/repositories")
+                (match-pattern pattern "/an-account/repositories/aa-repository")))
          
-         (and (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/?account/repositories" :class t)
-                                  (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t))
-              (not (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)
-                                       (make-instance 'http:resource-pattern :name "/?account/repositories" :class t)))
-              (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)
-                                  (make-instance 'http:resource-pattern :name "/?account/repositories/a-repository" :class t))
-              (not (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/?account/repositories/a-repository" :class t)
-                                       (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t))))
+         (and (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/:account/repositories" :class t)
+                                  (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t))
+              (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/:account/repositories" :class t)
+                                  (make-instance 'http:resource-pattern :name "/:account/repositories/count" :class t))
+              (not (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)
+                                       (make-instance 'http:resource-pattern :name "/:account/repositories" :class t)))
+              (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)
+                                  (make-instance 'http:resource-pattern :name "/:account/repositories/a-repository" :class t))
+              (not (pattern-subsumes-p (make-instance 'http:resource-pattern :name "/:account/repositories/a-repository" :class t)
+                                       (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t))))
          
-         (and (merge-patterns (make-instance 'http:resource-pattern :name "/?account/repositories" :class t)
-                              (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t))
-              (merge-patterns (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)
-                              (make-instance 'http:resource-pattern :name "/?account/repositories" :class t))
-              (not (merge-patterns (make-instance 'http:resource-pattern :name "/?account/repositories/?repository" :class t)
-                                   (make-instance 'http:resource-pattern :name "/?account/protocol" :class t))))
+         #+(or)
+         (and (merge-patterns (make-instance 'http:resource-pattern :name "/:account/repositories" :class t)
+                              (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t))
+              (merge-patterns (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)
+                              (make-instance 'http:resource-pattern :name "/:account/repositories" :class t))
+              (not (merge-patterns (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)
+                                   (make-instance 'http:resource-pattern :name "/:account/protocol" :class t))))
          
          (equal (nth-value 1 (match-pattern (make-instance 'http:resource-pattern :class t :name "?asdf/asdf") '("qwer" "asdf")))
                 '(:asdf "qwer")))
