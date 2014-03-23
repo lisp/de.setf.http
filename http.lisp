@@ -480,12 +480,14 @@
             for name = (c2mop:generic-function-name resource-function)
             do (loop for method in (c2mop:generic-function-methods resource-function)
                      for resource-class = (first (c2mop:method-specializers method))
-                     when (and (subtypep resource-class root-resource-class)
+                     if (and (subtypep resource-class root-resource-class)
                                (http-verb-list-p (method-qualifiers method)))
                      do (progn (http:log-debug *trace-output* "adding resource dispatch method: ~a ~a ~s"
                                                name (class-name resource-class) (method-qualifiers method))
-                               (http:define-dispatch-method dispatch-function name resource-class))))
-      dispatch-function)))
+                               (http:define-dispatch-method dispatch-function name resource-class))
+                     else do (http:log-debug *trace-output* "skipping method: ~a ~a ~s"
+                                          name (class-name resource-class) (method-qualifiers method)))))
+      dispatch-function))
 
 
 (defgeneric http:bind-resource (specializer path request)
@@ -1256,23 +1258,31 @@ obsolete mechanism which was in terms of the encode methods
     instance and the property list.")
 
   (:method ((pattern http:resource-pattern) (path list))
-    (multiple-value-bind (match-p properties) (match-pattern (http:resource-pattern-path pattern) path)
-      (when match-p
-        (loop for subpattern in (http:resource-pattern-subpatterns pattern)
-              for (sub-class sub-properties) = (multiple-value-list (match-pattern subpattern path))
-              when sub-class
-              do (return-from match-pattern (values sub-class sub-properties)))
-        (values pattern properties))))
+    (flet ((try-subpattern ()
+             (loop for subpattern in (http:resource-pattern-subpatterns pattern)
+                   for (sub-class sub-properties) = (multiple-value-list (match-pattern subpattern path))
+                   when sub-class
+                   do (return-from match-pattern (values sub-class sub-properties)))))
+      (multiple-value-bind (match-p properties) (match-pattern (http:resource-pattern-path pattern) path)
+        (case match-p
+          ((nil) nil)
+          (:complete
+           (try-subpattern)
+           (values pattern properties))
+          (:partial
+           (try-subpattern))))))
 
   (:method ((pattern null) (path null))
-    (values t nil))
+    (values :complete nil))
+  (:method ((pattern null) (path cons))
+    (values :partial nil))
   (:method ((pattern list) (path list))
     (cond ((equal (first pattern) (first path))
            (match-pattern (rest pattern) (rest path)))
           ((and (keywordp (first pattern)) path)
            (multiple-value-bind (match-p properties) (match-pattern (rest pattern) (rest path))
              (when match-p
-               (values t (list* (first pattern) (first path) properties))))))))
+               (values match-p (list* (first pattern) (first path) properties))))))))
 
 ;;;
 ;;; response
