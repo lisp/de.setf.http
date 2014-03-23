@@ -474,10 +474,12 @@
                                      when (http:resource-function-p function)
                                      collect function))
            (root-resource-class (http:function-resource-class dispatch-function)))
-      (http:log-debug *trace-output* "resource-functions: ~a"
+      (http:log-debug *trace-output* "dispatch function: ~s~%resource-functions: ~a"
+                      dispatch-function
                       (mapcar #'c2mop:generic-function-name resource-functions))
       (loop for resource-function in resource-functions
             for name = (c2mop:generic-function-name resource-function)
+            do (http:log-debug *trace-output* "adding resource-function: ~s" resource-function)
             do (loop for method in (c2mop:generic-function-methods resource-function)
                      for resource-class = (first (c2mop:method-specializers method))
                      if (and (subtypep resource-class root-resource-class)
@@ -487,7 +489,9 @@
                                (http:define-dispatch-method dispatch-function name resource-class))
                      else do (http:log-debug *trace-output* "skipping method: ~a ~a ~s"
                                           name (class-name resource-class) (method-qualifiers method)))))
-      dispatch-function))
+    (http:log-debug *trace-output* "Dispatch patterns: ~%~s"
+                    (http:function-patterns dispatch-function))
+    dispatch-function))
 
 
 (defgeneric http:bind-resource (specializer path request)
