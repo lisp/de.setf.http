@@ -140,8 +140,10 @@
            :request-path
            :request-post-argument
            :request-post-arguments
+           :request-post-argument-list
            :request-query-argument
            :request-query-arguments
+           :request-query-argument-list
            :request-remote-ip-address
            :request-response
            :request-session-id

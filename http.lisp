@@ -1092,6 +1092,18 @@
       (funcall function resource request response content-type media-type))))
 
 
+(:documentation "media type computation"
+ "GIven a resource function which implements some set of response encodings and the weighted accept header
+ from a request, compute the composite media type argument to supply in the function invocation.
+
+ - resource-function-acceptable-media-type 
+   - compute-accept-ordered-types : parse the accept header  and order the media types by weight
+   - resource-function-acceptable-media-types : limit the accept list to tose which are subtypes of some implemented type and produce a composite
+   - resource-function-accept-types : manage a cache from accept header to composite type 
+
+ the compoiste type is then supplied to the function to select the applicable encoding methods in the order specified by the accept header"
+ )
+
 (defgeneric resource-function-media-types (function)
   (:documentation "Return the set of media type specializers for which encode methods are defined in the function.
     This is without regard to other specializers and is used to compute from a request accept media type specification
@@ -1111,10 +1123,10 @@
     (remove-duplicates (loop with defined-types = (resource-function-media-types function)
                              for accept-type in accept-types
                              append (loop for defined-type in defined-types
-                                          when (or (eq defined-type accept-type)
-                                                   (subtypep defined-type accept-type))
+                                          when (or (eq accept-type defined-type)
+                                                   (subtypep accept-type defined-type))
                                           collect defined-type))
-                       :from-end t)))                
+                       :from-end t)))
 
 
 (defgeneric resource-function-acceptable-media-type (function candidate-types)
