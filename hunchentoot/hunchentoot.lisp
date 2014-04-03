@@ -154,7 +154,7 @@
   (loop for (name . value) in (post-parameters* request)
         when (equal name key) collect value))
 
-(defmethod http:request-post-argument-list ((request request) key)
+(defmethod http:request-post-argument-list ((request request))
   (post-parameters* request))
 
 (defmethod http:request-query-argument ((request request) key)
@@ -164,7 +164,7 @@
   (loop for (name . value) in (get-parameters* request)
         when (equal name key) collect value))
 
-(defmethod http:request-query-argument-list ((request request) key)
+(defmethod http:request-query-argument-list ((request request))
   (get-parameters* request))
 
 (defmethod http:request-remote-ip-address ((request request))
