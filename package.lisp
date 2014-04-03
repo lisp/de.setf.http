@@ -154,7 +154,6 @@
            :requested-range-not-satisfiable
            :reset-content
            :resource
-           :resource-authorization-list
            :resource-function
            :resource-function-p
            :resource-identifier

@@ -150,10 +150,7 @@
     :initarg :path
     :reader http:resource-path
     :documentation "the path components of the resource identifer which
-     contribute to its classification.")
-   (authorization-list
-    :initarg :authorization-list
-    :accessor resource-authorization-list)))
+     contribute to its classification.")))
 
 
 (defclass http:resource-function (standard-generic-function)
