@@ -154,7 +154,7 @@
   (loop for (name . value) in (post-parameters* request)
         when (equal name key) collect value))
 
-(defmethod http:request-post-argumentlist ((request request) key)
+(defmethod http:request-post-argument-list ((request request) key)
   (post-parameters* request))
 
 (defmethod http:request-query-argument ((request request) key)
