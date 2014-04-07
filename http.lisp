@@ -142,8 +142,8 @@
     :initarg :request
     :accessor http:resource-request
     :documentation "caches the respective request for access to request parameters")
-   (identifier
-    :initarg :identifier
+   (iri
+    :initarg :identifier :initarg :iri
     :reader http:resource-identifier
     :documentation "the absolute iri which designates the resource")
    (path
