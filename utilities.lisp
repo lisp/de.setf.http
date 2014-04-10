@@ -217,7 +217,7 @@
       (declare (type fixnum count length))
       (multiple-value-bind (reader reader-arg) (stream-reader input-stream)
           (loop for char = (funcall reader reader-arg)
-                while (print char)
+                while char
                 when (>= count (length content))
                 do (setf content (adjust-array content (list (+ count 1024))))
                 do (setf (char content count) char)
