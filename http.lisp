@@ -149,7 +149,11 @@
      contribute to its classification."))
   (:documentation "The abstract class of request resources.
    Each request derives a concrete resource subclass and intantiates it with the
-   respective properties as matched from the request uri. (see http:bind-resource)"))
+   respective properties as matched from the request uri. (see http:bind-resource)
+   The resource caches the respective request - and is therefor not a singleton,
+   as well as the path string. Other fields may be added to concrete sub-classes.
+   It does not cache the request iri additional to the path.
+   The complete original is present in the request."))
 
 
 (defclass http:resource-function (standard-generic-function)
