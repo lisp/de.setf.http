@@ -156,7 +156,6 @@
            :resource
            :resource-function
            :resource-function-p
-           :resource-identifier
            :resource-path
            :resource-pattern
            :resource-pattern-class

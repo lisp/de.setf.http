@@ -142,15 +142,14 @@
     :initarg :request
     :accessor http:resource-request
     :documentation "caches the respective request for access to request parameters")
-   (iri
-    :initarg :identifier :initarg :iri
-    :reader http:resource-identifier
-    :documentation "the absolute iri which designates the resource")
    (path
     :initarg :path
     :reader http:resource-path
     :documentation "the path components of the resource identifer which
-     contribute to its classification.")))
+     contribute to its classification."))
+  (:documentation "The abstract class of request resources.
+   Each request derives a concrete resource subclass and intantiates it with the
+   respective properties as matched from the request uri. (see http:bind-resource)"))
 
 
 (defclass http:resource-function (standard-generic-function)
@@ -502,15 +501,14 @@
   (:method ((function http:dispatch-function) (path t) request)
     (http:bind-resource (http:function-patterns function) path request))
 
-  (:method ((context t) (path string) request)
-    (http:bind-resource context (split-string path #(#\/)) request))
-
-  (:method ((patterns list) (parsed-path list) request)
-    (loop for pattern in patterns
+  (:method ((patterns list) (path string) request)
+    (loop with parsed-path = (split-string path #(#\/))
+          for pattern in patterns
           for (matched-pattern properties) = (multiple-value-list (match-pattern pattern parsed-path))
           when matched-pattern
           return (apply #'make-instance (http:resource-pattern-class matched-pattern)
                         :request request
+                        :path path
                         properties))))
 
 
@@ -661,6 +659,11 @@
   )
 
 (defgeneric http:request-post-argument (request key)
+  )
+
+(defparameter http::*methods-for-post-parameters* '(:put :post))
+
+(defgeneric http:request-post-argument-list (request &key methods)
   )
 
 (defgeneric http:request-post-arguments (request key)

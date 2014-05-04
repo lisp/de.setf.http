@@ -154,8 +154,9 @@
   (loop for (name . value) in (post-parameters* request)
         when (equal name key) collect value))
 
-(defmethod http:request-post-argument-list ((request request))
-  (post-parameters* request))
+(defmethod http:request-post-argument-list ((request request) &key (methods http::*methods-for-post-parameters*))
+  (let ((tbnl:*methods-for-post-parameters* methods))
+    (post-parameters* request)))
 
 (defmethod http:request-query-argument ((request request) key)
   (get-parameter key request))
