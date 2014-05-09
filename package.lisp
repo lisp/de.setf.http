@@ -35,9 +35,11 @@
            :agent-id
            :agent-is-admin
            :anonymous-resource-p
+           :authenticate-anonymous
+           :authenticate-request-location
            :authenticate-request-password
-           :authenticate-request-token
            :authenticate-request-session
+           :authenticate-request-token
            :authorize-request
            :bad-request
            :bind-resource

@@ -788,7 +788,9 @@
                                              (error redirection)))))))
         form))))
 
-(define-method-combination http:http (&key )
+(defparameter *define-method-combination.verbose* nil)
+
+(define-method-combination http:http (&key)
                            ((authenticate-password (:auth http:authenticate-request-password))
                             (authenticate-token (:auth http:authenticate-request-token))
                             (authenticate-session (:auth http:authenticate-request-session))
@@ -912,10 +914,13 @@
                                   ;; require that either the agent is already authenticated - eg from redirection
                                   ;; or that one of the identification methods succeed, and that all of the
                                   ;; permission methods succeed
-                                  `(unless (and (or (http:request-agent (http:request))
+                                  `(unless (and (let ((resource (http:resource))
+                                                      (request (http:request)))
+                                                  (or (http:request-agent request)
                                                     ,@(loop for method in authentication
                                                             collect `(call-method ,method ()))
-                                                    (http:anonymous-resource-p (http:resource)))
+                                                    ( resource request)
+                                                    (http:authenticate-anonymous resource request)))
                                                 ,@(loop for method in authorization
                                                         collect `(call-method ,method ())))
                                      (http:unauthorized))))
@@ -924,6 +929,7 @@
          ;; add a clause to cache the concrete media type according to the most
          ;; specific class specializer applicable to the request's accept type
          ;; carrying over the character encoding from the request
+         #+(or)
          (mime-type-clause (when encode-methods
                              (let* ((method (first encode-methods))
                                     (specializer (fifth (c2mop:method-specializers method))))
@@ -960,7 +966,7 @@
          (main-clause (if encode-method
                         `(call-method ,encode-method ((make-method ,content-clause)))
                         content-clause)))
-    (when mime-type-clause
+    #+(or)(when mime-type-clause
       (setf main-clause `(progn ,mime-type-clause ,main-clause)))
     ;; arrange the authentication clause to combine the implicit methods and any explicit around method with
     ;; the main clause
@@ -1044,8 +1050,8 @@
                                                                ;; specializer class, but include the character set encoding
                                                                (let ((content (call-next-method))
                                                                      (effective-content-type (http:response-media-type response)))
-                                                                 ;; (format *trace-output* "~%;;; effective-content: ~s" content)
-                                                                 ;; (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
+                                                                  (format *trace-output* "~%;;; effective-content: ~s" content)
+                                                                  (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
                                                                  (http:encode-response content response effective-content-type))))))))
                                              (:decode clause
                                                       (if (consp (second clause))
@@ -1088,12 +1094,24 @@
     (funcall-resource-function (cond ((fboundp function) (symbol-function function))
                                      (t (error "undefined resource-function: ~s." function)))
                                resource request response content-type accept-header))
-  ;; specialize on resource-function as its fileds are required to compute the response effective method
+
+  ;; w/o a response type, just call
+  (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header null))
+    (setf (http:request-accept-type request) nil)
+    (setf (http:response-media-type response) nil)
+    (funcall function resource request response content-type nil))
+
+  ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
     (let ((media-type (resource-function-acceptable-media-type function accept-header)))
-      (setf (http:request-accept-type request) media-type)
-      (funcall function resource request response content-type media-type))))
+      (cond (media-type
+             (setf (http:request-accept-type request) media-type)
+             (setf (http:response-media-type response)
+                   (http:response-compute-media-type request response media-type :charset (or (mime:mime-type-charset media-type) :utf-8)))
+             (funcall function resource request response content-type media-type))
+            (t
+             (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))))
 
 
 (:documentation "media type computation"
@@ -1135,15 +1153,14 @@
 
 (defgeneric resource-function-acceptable-media-type (function candidate-types)
   (:documentation "Combine the media types from the request accept header with those defined for the function
-    to derive a composite type compatible with the function's methods. If none are compatible, yield
-    a literal combination, which will then result in a not-acceptable error.")
+    to derive a composite type compatible with the function's methods. If none are compatible, return nil.")
   
   (:method ((function http:resource-function) (accept-media-type mime:mime-type))
     "Given a mime type instance, return it."
     accept-media-type)
   
   (:method ((function http:resource-function) (accept-specification null))
-    "Absent an exxept header, use the functin's default."
+    "Absent an except header, use the function's default."
     (resource-function-acceptable-media-type function (http:function-default-accept-header function)))
 
   (:method ((function http:resource-function) (accept-header string))
@@ -1162,13 +1179,12 @@
      methods."
     (assert (every #'symbolp accept-specification) ()
             "Invalid accept specification: ~s." accept-specification)
-    (let* ((acceptable-type-list (or (resource-function-acceptable-media-types function accept-specification)
-                                     ;; if none match, fall-back to that provided, which should yield a not-acceptable error
-                                     accept-specification))
-           (class-name (intern (format nil "~{~a~^,~}" acceptable-type-list) :mime))
-           (media-type-class (or (find-class class-name nil)
-                                 (c2mop:ensure-class class-name :direct-superclasses acceptable-type-list))))
-      (make-instance media-type-class))))
+    (let* ((acceptable-type-list (resource-function-acceptable-media-types function accept-specification)))
+      (when acceptable-type-list
+        (let* ((class-name (intern (format nil "~{~a~^,~}" acceptable-type-list) :mime))
+              (media-type-class (or (find-class class-name nil)
+                                    (c2mop:ensure-class class-name :direct-superclasses acceptable-type-list))))
+          (make-instance media-type-class))))))
 
 #|
 obsolete mechanism which was in terms of the encode methods
@@ -1546,7 +1562,7 @@ obsolete mechanism which was in terms of the encode methods
 
 
 ;;;
-;;; example authentication/authorization functions
+;;; generic authentication/authorization functions
 ;;;
 ;;; they define the interface signature and must be specialized is used in a
 ;;; resource function definition
@@ -1568,9 +1584,24 @@ obsolete mechanism which was in terms of the encode methods
 
 (defgeneric http:authenticate-request-session (resource request)
   (:documentation
-    "Attempt to establish a requet agent identity
+    "Attempt to establish a request agent identity
     based on a session identifier. If that succeeds, bind the respective
     agent instance to the request and return true."))
+
+(defgeneric http:authenticate-request-location (resource request)
+  (:documentation
+    "If it is to be permitted, that a request location is sufficient for authentication
+     a method should be defined for (resource request) to create an agent, bind the
+     instance to the request and return true."))
+
+(defgeneric http:authenticate-anonymous (resource request)
+  (:documentation
+    "If it is to be permitted, that a request be anonymous
+     a method should be defined for (resource request) to return true.
+     The default method returns nil")
+
+  (:method ((resource t) (request t))
+    nil))
 
 
 (defgeneric http:authorize-request (resource request)
