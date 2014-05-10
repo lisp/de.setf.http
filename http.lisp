@@ -791,9 +791,11 @@
 (defparameter *define-method-combination.verbose* nil)
 
 (define-method-combination http:http (&key)
-                           ((authenticate-password (:auth http:authenticate-request-password))
+                           (;; must be distinct as the methods can have the same signature
+                            (authenticate-password (:auth http:authenticate-request-password))
                             (authenticate-token (:auth http:authenticate-request-token))
                             (authenticate-session (:auth http:authenticate-request-session))
+                            (authenticate-location (:auth http:authenticate-request-location))
                             (authorize-request (:auth http:authorize-request))
                             (auth-around (:auth :around))
                             (around (:around) )
@@ -834,7 +836,8 @@
                        (let* ((form
                                `(handler-case
                                   ,(compute-effective-resource-function-method function
-                                                                               (append authenticate-password authenticate-token authenticate-session)
+                                                                               (append authenticate-password authenticate-token
+                                                                                       authenticate-session authenticate-location)
                                                                                authorize-request
                                                                                auth-around
                                                                                around 
@@ -919,7 +922,6 @@
                                                   (or (http:request-agent request)
                                                     ,@(loop for method in authentication
                                                             collect `(call-method ,method ()))
-                                                    ( resource request)
                                                     (http:authenticate-anonymous resource request)))
                                                 ,@(loop for method in authorization
                                                         collect `(call-method ,method ())))
