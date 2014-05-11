@@ -437,6 +437,8 @@
     (c2mop:ensure-method function
                          `(lambda (resource-path request response)
                             (let ((http:*resource* (http:bind-resource (function ,name) resource-path request)))
+                              (http:log-debug *trace-output* "~a: dispatching ~a -> ~a ~a ~a"
+                                            ',name resource-path http:*resource* request response)
                               (cond (http:*resource*
                                      (,name http:*resource* request response))
                                     (t
@@ -808,7 +810,8 @@
                             (post (:post))
                             (delete (:delete))
                             (options (:options))
-                            (trace (:trace))
+                            (log (:log))        ; internal log
+                            (trace (:trace))    ; http trace
                             (connect (:connect))
                             (multiple http-verb-list-p))
   (:generic-function function)
@@ -849,6 +852,8 @@
                                                              (funcall location)
                                                              (error redirection)))))))
                          form)))))
+      (when log
+        (setf form `(progn (call-method ,(first log) ()) ,form)))
       form)))
 
 
@@ -1068,6 +1073,12 @@
                                                             ((nil)
                                                              `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type ,(first media-types)) (accept-type t))
                                                                        (http:decode-request resource request content-type)))))))
+                                             (:log
+                                              (if (rest clause)
+                                                `(:method ,@clause)
+                                                `(:method :log ((resource t) (request t) (response t) (content-type t) (accept-type t))
+                                                          (http:log-debug *trace-output* "~s: ~s ~s ~s ~s ~s"
+                                                                          ',name resource request response content-type accept-type))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
