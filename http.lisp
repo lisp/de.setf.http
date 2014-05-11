@@ -1057,8 +1057,8 @@
                                                                ;; specializer class, but include the character set encoding
                                                                (let ((content (call-next-method))
                                                                      (effective-content-type (http:response-media-type response)))
-                                                                  (format *trace-output* "~%;;; effective-content: ~s" content)
-                                                                  (format *trace-output* "~%;;; effective-content-type: ~s" effective-content-type)
+                                                                 (log-trace *trace-output* "content-type: ~a: content ~s"
+                                                                            effective-content-type content)
                                                                  (http:encode-response content response effective-content-type))))))))
                                              (:decode clause
                                                       (if (consp (second clause))
@@ -1155,13 +1155,14 @@
    which are subtypes of the given list of accept types. The order is respective the accept types and any
    duplicates are removed from the end.")
   (:method ((function http:resource-function) (accept-types list))
-    (remove-duplicates (loop with defined-types = (resource-function-media-types function)
-                             for accept-type in accept-types
-                             append (loop for defined-type in defined-types
-                                          when (or (eq accept-type defined-type)
-                                                   (subtypep accept-type defined-type))
-                                          collect defined-type))
-                       :from-end t)))
+    (sort (remove-duplicates (loop with defined-types = (resource-function-media-types function)
+                                   for accept-type in accept-types
+                                   append (loop for defined-type in defined-types
+                                                when (or (eq accept-type defined-type)
+                                                         (subtypep accept-type defined-type))
+                                                collect defined-type))
+                             :from-end t)
+          #'subtypep)))
 
 
 (defgeneric resource-function-acceptable-media-type (function candidate-types)
