@@ -916,9 +916,12 @@
   ;; 5. execute the combined content and decoding methods
   ;; 6. configure the response stream
   ;; 7. ensure that the headers are emitted
-  5. apply the encoding auxiliary to the result content methods"
+  5. apply the most specific encoding auxiliary to the result content methods - use jus the most speific in
+     order that is next method is always content
+  6. use all decoding method to produce the content methods' input in order that they can pipe content"
 
-  (let* ((authentication-clause (if (or authentication authorization)
+  (let* ((authentication-clause (when (or authentication authorization)
+                                  ;; _iff_ some auth form is specified,
                                   ;; require that either the agent is already authenticated - eg from redirection
                                   ;; or that one of the identification methods succeed, and that all of the
                                   ;; permission methods succeed
@@ -1050,6 +1053,10 @@
                                                   (ecase (second qualifiers)
                                                     (:as
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
+                                                               ;; replace the currently noted type the second one
+                                                               (http:log-trace *trace-output* "redirecting ~a: ~a -> ~a" ',name 
+                                                                               ,(first media-types) ,(second media-types))
+                                                               (setf (http:response-media-type response) ,(second media-types))
                                                                (,name resource request response content-type ,(second media-types))))
                                                     ((nil)
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
@@ -1057,7 +1064,7 @@
                                                                ;; specializer class, but include the character set encoding
                                                                (let ((content (call-next-method))
                                                                      (effective-content-type (http:response-media-type response)))
-                                                                 (log-trace *trace-output* "content-type: ~a: content ~s"
+                                                                 (http:log-trace *trace-output* "content-type: ~a: content ~s"
                                                                             effective-content-type content)
                                                                  (http:encode-response content response effective-content-type))))))))
                                              (:decode clause
