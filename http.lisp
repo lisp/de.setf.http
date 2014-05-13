@@ -611,7 +611,8 @@
       (setf (request-media-type request)
             (let ((header (http:request-content-type-header request)))
               (when header
-                (mime:mime-type header)))))))
+                (or (mime:mime-type header :if-does-not-exist nil)
+                    (http:bad-request "Invalid mime type: ~s" header))))))))
 
 (defgeneric http:request-method (request)
   (:documentation "Upon first reference, cache the effective http verb. This is sought from among the

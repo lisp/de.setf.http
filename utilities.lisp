@@ -53,7 +53,8 @@
 
   (:method (level (destination stream) format-control &rest arguments)
     (declare (dynamic-extent arguments))
-    (format destination "~&;;; [~a] ~?" level format-control arguments))
+    (let ((*print-pretty* nil))
+      (format destination "~&;;; [~a] ~?" level format-control arguments)))
   )
 
 ;;; gray stream compatibility
