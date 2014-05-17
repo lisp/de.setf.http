@@ -1166,8 +1166,9 @@
     (sort (remove-duplicates (loop with defined-types = (resource-function-media-types function)
                                    for accept-type in accept-types
                                    append (loop for defined-type in defined-types
-                                                when (or (eq accept-type defined-type)
-                                                         (subtypep accept-type defined-type))
+                                                when (eq accept-type defined-type)
+                                                ;; a subtype constraint is possible, but can also introduce unintended matches
+                                                ;; when (or (eq accept-type defined-type) (subtypep accept-type defined-type))
                                                 collect defined-type))
                              :from-end t)
           #'subtypep)))
@@ -1351,6 +1352,9 @@ obsolete mechanism which was in terms of the encode methods
                                    return (values matched-pattern properties))))))
 ;;;
 ;;; response
+
+(defgeneric (setf http:response-header) (value response header-label)
+  )
 
 (defgeneric (setf http:response-accept-encoding) (accept-codings response)
   (:method ((values list) (response http:response))

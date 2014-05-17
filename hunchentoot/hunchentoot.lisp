@@ -183,6 +183,9 @@
 ;;;
 ;;; response
 
+(defmethod (setf http:response-header) ((value string) (response tbnl-response) (name t))
+  (setf (header-out name response) value))
+
 (defmethod (setf http:response-accept-ranges) ((value string) (response tbnl-response))
   (setf (header-out :accept-ranges response) value))
 

@@ -305,7 +305,8 @@
   (:method ((content-stream stream) (response t) (content-type t))
     "the default method given a stream result is to just copy the stream. that is,
      given any standard media type, presume the result generator handles the
-     respective serialization entirely and the stream content is correct as-is."
+     respective serialization entirely and the stream content is correct as-is.
+     Always close the stream upon completion."
     (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
       (close content-stream))))
 

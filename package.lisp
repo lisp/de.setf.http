@@ -188,6 +188,7 @@
            :response-close-stream-p
            :response-date
            :response-etag
+           :response-header
            :response-headers-sent-p
            :response-keep-alive-p
            :response-last-modified
