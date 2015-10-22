@@ -512,10 +512,17 @@
           for pattern in patterns
           for (matched-pattern properties) = (multiple-value-list (match-pattern pattern parsed-path))
           when matched-pattern
-          return (apply #'make-instance (http:resource-pattern-class matched-pattern)
+          return (apply #'make-resource (http:resource-pattern-class matched-pattern)
                         :request request
                         :path path
                         properties))))
+
+;;; for tracing
+(defparameter *make-resource.args* ())
+(defun make-resource (class &rest args)
+  (declare (dynamic-extent args))
+  ;; (setq *make-resource.args* (copy-list args))
+  (apply #'make-instance class args))
 
 
 ;;;
@@ -1421,6 +1428,7 @@ obsolete mechanism which was in terms of the encode methods
     (let* ((response-stream (get-response-content-stream response))
            (header-stream (http:stream-header-stream response-stream)))
       (or (not (open-stream-p header-stream))
+          (null (stream-file-position header-stream))
           (plusp (stream-file-position header-stream))))))
 
 (defgeneric http:response-keep-alive-p (response)
@@ -1723,7 +1731,7 @@ obsolete mechanism which was in terms of the encode methods
               (not (merge-patterns (make-instance 'http:resource-pattern :name "/:account/repositories/:repository" :class t)
                                    (make-instance 'http:resource-pattern :name "/:account/protocol" :class t))))
          
-         (equal (nth-value 1 (match-pattern (make-instance 'http:resource-pattern :class t :name "?asdf/asdf") '("qwer" "asdf")))
+         (equal (nth-value 1 (match-pattern (make-instance 'http:resource-pattern :class t :name ":asdf/asdf") '("qwer" "asdf")))
                 '(:asdf "qwer")))
   (warn "Some resource pattern validation failed..."))
 

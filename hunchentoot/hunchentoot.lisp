@@ -54,10 +54,10 @@
 (defmethod initialize-instance ((instance tbnl-request) &rest initargs
                                 &key socket)
   (declare (dynamic-extent initargs))
-  (multiple-value-bind (remote-addr remote-port)
-                       (get-peer-address-and-port socket)
-    (multiple-value-bind (local-addr local-port)
-                         (get-local-address-and-port socket)
+  (let ((remote-addr nil) (remote-port nil) (local-addr nil) (local-port nil))
+    (when socket
+      (multiple-value-setq (remote-addr remote-port) (get-peer-address-and-port socket))
+      (multiple-value-setq (local-addr local-port) (get-local-address-and-port socket))
       (apply #'call-next-method instance
              :local-addr local-addr
              :local-port local-port
