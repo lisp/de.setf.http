@@ -57,13 +57,13 @@
   (let ((remote-addr nil) (remote-port nil) (local-addr nil) (local-port nil))
     (when socket
       (multiple-value-setq (remote-addr remote-port) (get-peer-address-and-port socket))
-      (multiple-value-setq (local-addr local-port) (get-local-address-and-port socket))
-      (apply #'call-next-method instance
-             :local-addr local-addr
-             :local-port local-port
-             :remote-addr remote-addr
-             :remote-port remote-port
-             initargs))))
+      (multiple-value-setq (local-addr local-port) (get-local-address-and-port socket)))
+    (apply #'call-next-method instance
+           :local-addr local-addr
+           :local-port local-port
+           :remote-addr remote-addr
+           :remote-port remote-port
+           initargs)))
 
 (defmethod http:acceptor-response-class ((acceptor acceptor))
   (acceptor-reply-class acceptor))
