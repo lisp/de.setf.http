@@ -109,7 +109,7 @@
     (read-from-string qvalue)
     (http:bad-request "Invalid qvalue: '~a'" qvalue)))
 
-
+#+(or) ; delegate most of the work to the mim type implementation
 (defun compute-accept-ordered-types (header)
   (let* ((accept-ranges (split-string header #\,))
          (types (loop for range in accept-ranges
@@ -124,6 +124,17 @@
                         do (http:log-warn (http:acceptor) "The mime type '~a/~a' is not defined." major minor))))
     (if types
       (mapcar #'first (sort types #'> :key #'rest))
+      (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
+
+(defun compute-accept-ordered-types (header)
+  (let* ((accept-ranges (split-string header #\,))
+         (types (loop for range in accept-ranges
+                  for type = (mime:mime-type range :if-does-not-exist nil)
+                  if type
+                  collect type
+                  else do (http:log-warn (http:acceptor) "The mime type '~a' is not defined." range))))
+    (if types
+      (sort types #'> :key #'mime::mime-type-quality)
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
 
 (defun compute-accept-encoding-ordered-codings (header)
