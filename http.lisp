@@ -982,7 +982,7 @@
          ;; if no method was applicable, generate logic to either derive an alternative concrete media type
          ;; signal a nont-applicable error if that fails.
          (main-clause (if encode-method
-                        `(call-method ,encode-method ((make-method ,content-clause)))
+                        `(call-method ,encode-method ,(append (rest encode-methods) `((make-method ,content-clause))))
                         content-clause)))
     #+(or)(when mime-type-clause
       (setf main-clause `(progn ,mime-type-clause ,main-clause)))
@@ -1165,6 +1165,7 @@
                                        (subtypep specializer 'mime:mime-type))
                              collect (class-name specializer)))))
 
+#+(or) ; supercede type construction approach based on type to diret selectio based on instances
 (defgeneric resource-function-acceptable-media-types (function accept-types)
   (:documentation "Return the ordered sequence of those of the functions encoding media type specializers
    which are subtypes of the given list of accept types. The order is respective the accept types and any
@@ -1179,6 +1180,16 @@
                                                 collect defined-type))
                              :from-end t)
           #'subtypep)))
+
+(defgeneric resource-function-acceptable-media-types (function accept-types)
+  (:documentation "Return the ordered sequence of those of the functions encoding media type specializers
+   which are subtypes of the given list of accept types. The order is respective the accept types and any
+   duplicates are removed from the end.")
+  (:method ((function http:resource-function) (accept-types list))
+    (loop with defined-types = (resource-function-media-types function)
+      for accept-type in accept-types
+      when (some #'(lambda (defined) (typep accept-type defined)) defined-types)
+      collect accept-type)))
 
 
 (defgeneric resource-function-acceptable-media-type (function candidate-types)
@@ -1207,14 +1218,10 @@
   (:method ((function http:resource-function) (accept-specification cons))
     "Given a media type set, generate a composite media type from the match against the encode function's
      methods."
-    (assert (every #'symbolp accept-specification) ()
-            "Invalid accept specification: ~s." accept-specification)
+    (unless (every #'mime:mime-type-p accept-specification)
+      (http:bad-request "Invalid accept specification: ~s." accept-specification))
     (let* ((acceptable-type-list (resource-function-acceptable-media-types function accept-specification)))
-      (when acceptable-type-list
-        (let* ((class-name (intern (format nil "~{~a~^,~}" acceptable-type-list) :mime))
-              (media-type-class (or (find-class class-name nil)
-                                    (c2mop:ensure-class class-name :direct-superclasses acceptable-type-list))))
-          (make-instance media-type-class))))))
+      (first acceptable-type-list))))
 
 #|
 obsolete mechanism which was in terms of the encode methods

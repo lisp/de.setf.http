@@ -109,7 +109,7 @@
     (read-from-string qvalue)
     (http:bad-request "Invalid qvalue: '~a'" qvalue)))
 
-#+(or) ; delegate most of the work to the mim type implementation
+#+(or) ; delegate most of the work to the mimw type implementation
 (defun compute-accept-ordered-types (header)
   (let* ((accept-ranges (split-string header #\,))
          (types (loop for range in accept-ranges
