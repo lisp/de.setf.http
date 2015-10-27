@@ -1125,13 +1125,19 @@
 
   ;; w/o a response type, just call
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header null))
-    (setf (http:request-accept-type request) nil)
-    (setf (http:response-media-type response) nil)
-    (funcall function resource request response content-type nil))
+    "if no header was given, use the default"
+  ;; (setf (http:request-accept-type request) nil)
+  ;; (setf (http:response-media-type response) nil)
+  ;; (funcall function resource request response content-type nil)
+    (funcall-resource-function function resource request response content-type
+                               (http:function-default-accept-header function)))
 
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
+    (when (equal accept-header "*/*")
+      (let ((default (http:function-default-accept-header function)))
+        (when default (setf accept-header default))))
     (let ((media-type (resource-function-acceptable-media-type function accept-header)))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
