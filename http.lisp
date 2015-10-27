@@ -1464,7 +1464,7 @@ obsolete mechanism which was in terms of the encode methods
 
   (:method ((media-type mime:mime-type) (response http:response))
     (setf (http:response-content-type-header response)
-          (format nil "~a~@[; charset=~a~]" (type-of media-type) (mime:mime-type-charset media-type)))
+          (mime:mime-type-namestring media-type))
     (setf-response-media-type media-type response)
     media-type))
 

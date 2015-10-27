@@ -150,6 +150,7 @@
 
 ;;; (compute-accept-ordered-types "text/html")
 ;;; (compute-accept-ordered-types "*/*")
+;;; (http.i::compute-accept-ordered-types "application/trig;q=1.0,application/n-quads;q=0.7,text/turtle;q=0.6,application/n-triples;q=0.3,text/n3;q=0.2")
 ;;; (parse-content-coding "compress")
 ;;; (compute-accept-encoding-ordered-codings "compress, gzip")
 ;;; (compute-accept-encoding-ordered-codings nil)
