@@ -1367,7 +1367,7 @@ obsolete mechanism which was in terms of the encode methods
     (values :complete nil))
   (:method ((pattern null) (path cons))
     (values :partial nil))
-  (:method ((pattern cons) (parsed-path cons))
+  (:method ((pattern cons) (parsed-path list))
     (etypecase (first pattern)
       (string (when (equal (first pattern) (first parsed-path))
                 (match-pattern (rest pattern) (rest parsed-path))))
