@@ -913,9 +913,10 @@
   - configure the output stream based on the requested media type
   - ensure that the headers are sent
   
-  1. around wraps everything
-  2. execute authentication methods (unordered) as an (or ...) and require a true result.
-     if not, signal not-authorized
+  1. execute authentication methods (unordered) as an (or ...) and require a true result.
+     if not, signal not-authorized.
+  1.a given methods marked authentication and around, they wrap averything
+  2. around wraps everything _post_ authentication
   3. compute the response media type from the most specific encoding method specializer
      and the requested character encoding and cache it in the response stream
   ;; 4--7 cannot happen here as, eg when the encoding method is to emit a string, it should set
@@ -986,6 +987,9 @@
                         content-clause)))
     #+(or)(when mime-type-clause
       (setf main-clause `(progn ,mime-type-clause ,main-clause)))
+    ;; run 'plain' around methods within the authenticated context
+    (when around
+      (setf main-clause `(call-method ,(first around) (,@(rest around) (make-method ,main-clause)))))
     ;; arrange the authentication clause to combine the implicit methods and any explicit around method with
     ;; the main clause
     (if authentication-clause
@@ -996,14 +1000,10 @@
       (when authentication-around
         (setf main-clause `(progn (call-method ,authentication-around ())
                                   ,main-clause))))
-    (let* ((form (if around
-                   `(call-method ,(first around) (,@(rest around) (make-method ,main-clause)))
-                   main-clause)))
-      ;; ensure the headers are sent
-      (setf form `(progn
-                    ,form
-                    (http:send-headers (http:response))))
-      )))
+    ;; ensure the headers are sent
+    `(progn
+       ,main-clause
+       (http:send-headers (http:response)))))
 
 #|
       ;; if there was an encode clause, use the comuted form.
@@ -1035,6 +1035,8 @@
          (definition-clauses (loop for clause in clauses
                                    for key = (first clause)
                                    collect (ecase key
+                                             (:around
+                                              `(:method ,@clause))
                                              ((:documentation declare :method-class  :method)
                                               clause)
                                              (:generic-function-class
@@ -1263,15 +1265,22 @@ obsolete mechanism which was in terms of the encode methods
 ;;;
 ;;; resource patterns modeled explicitly
 
+(defun parse-resource-name-pattern (name)
+  (loop for element in (split-string name #(#\/))
+    when (plusp (length element))
+    collect (if (char= *keyword-marker-character* (char element 0))
+                (if (char= #\* (char element (1- (length element))))
+                    (list (cons-symbol :keyword (subseq element 1 (1- (length element)))))
+                    (cons-symbol :keyword (subseq element 1)))
+                element)))
+;;; (parse-resource-name-pattern "/:account/:repository")
+;;; (parse-resource-name-pattern "/:account/:repository/:detail*")
+
 (defmethod initialize-instance ((instance http:resource-pattern) &rest initargs &key
                                 class
                                 (name (class-resource-path class)))
   (declare (dynamic-extent initargs))
-  (let ((path (loop for element in (split-string name #(#\/))
-                    when (plusp (length element))
-                    collect (if (char= *keyword-marker-character* (char element 0))
-                              (cons-symbol :keyword (subseq element 1))
-                              element))))
+  (let ((path (parse-resource-name-pattern name)))
     (flet ((test-path (test-path)
              (loop (let ((pattern-element (pop path))
                          (test-element (pop test-path)))
@@ -1358,7 +1367,7 @@ obsolete mechanism which was in terms of the encode methods
     (values :complete nil))
   (:method ((pattern null) (path cons))
     (values :partial nil))
-  (:method ((pattern list) (parsed-path list))
+  (:method ((pattern cons) (parsed-path cons))
     (etypecase (first pattern)
       (string (when (equal (first pattern) (first parsed-path))
                 (match-pattern (rest pattern) (rest parsed-path))))
@@ -1369,7 +1378,9 @@ obsolete mechanism which was in terms of the encode methods
       (http:resource-pattern (loop for pattern in pattern
                                    for (matched-pattern properties) = (multiple-value-list (match-pattern pattern parsed-path))
                                    when matched-pattern
-                                   return (values matched-pattern properties))))))
+                                   return (values matched-pattern properties)))
+      (cons (destructuring-bind (term) (first pattern)
+              (values :complete (list term parsed-path)))))))
 ;;;
 ;;; response
 
