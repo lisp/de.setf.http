@@ -1144,8 +1144,14 @@
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
              (setf (http:response-media-type response)
-                   (http:response-compute-media-type request response media-type :charset (or (mime:mime-type-charset media-type) :utf-8)))
+                   (http:response-compute-media-type request response media-type
+                                                     :charset (or (mime:mime-type-charset media-type) :utf-8)))
              (funcall function resource request response content-type media-type))
+            ;; if the method expects no response, use test/plain as place holder
+            ((member (http:request-method request) '(:patch :put :post :delete))
+             (setf (http:request-accept-type request)
+                   (setf (http:response-media-type response) mime:text/plain))
+             (funcall function resource request response content-type mime:text/plain))
             (t
              (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))))
 
