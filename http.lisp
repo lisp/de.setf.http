@@ -512,17 +512,21 @@
           for pattern in patterns
           for (matched-pattern properties) = (multiple-value-list (match-pattern pattern parsed-path))
           when matched-pattern
-          return (apply #'make-resource (http:resource-pattern-class matched-pattern)
-                        :request request
+          return (apply #'http:make-resource (http:resource-pattern-class matched-pattern) request
                         :path path
                         properties))))
 
-;;; for tracing
-(defparameter *make-resource.args* ())
-(defun make-resource (class &rest args)
-  (declare (dynamic-extent args))
-  ;; (setq *make-resource.args* (copy-list args))
-  (apply #'make-instance class args))
+
+(defun http:make-resource (class request &rest args)
+  (:documentation "Provide an interface operator to permit specialized resource construction.
+   The base method for symbols resolve the class metaobject and delegates to that.
+   The base method for classes delegates to make-instance.")
+  (:method ((class symbol) request &rest args)
+    (declare (dynamic-extent args))
+    (apply #'http:make-resource (find-class class) request args))
+  (:method ((class class) (request t) &rest args &key (request request) &allow-other-keys)
+    (declare (dynamic-extent args))
+    (apply #'make-instance class :request request args)))
 
 
 ;;;

@@ -97,6 +97,7 @@
            :not-found
            :not-acceptable
            :make-request
+           :make-resource
            :make-response
            :moved-permanently
            :multiple-choices
