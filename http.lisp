@@ -524,7 +524,7 @@
   (:method ((class symbol) request &rest args)
     (declare (dynamic-extent args))
     (apply #'http:make-resource (find-class class) request args))
-  (:method ((class class) (request t) &rest args &key (request request) &allow-other-keys)
+  (:method ((class class) (request-arg t) &rest args &key (request request-arg) &allow-other-keys)
     (declare (dynamic-extent args))
     (apply #'make-instance class :request request args)))
 
