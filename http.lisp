@@ -517,7 +517,7 @@
                         properties))))
 
 
-(defun http:make-resource (class request &rest args)
+(defgeneric http:make-resource (class request &rest args)
   (:documentation "Provide an interface operator to permit specialized resource construction.
    The base method for symbols resolve the class metaobject and delegates to that.
    The base method for classes delegates to make-instance.")
