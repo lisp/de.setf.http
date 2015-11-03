@@ -11,3 +11,4 @@ index.html
 *.rdf
 *.srj
 src/test/cases
+*~

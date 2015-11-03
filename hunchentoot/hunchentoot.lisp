@@ -183,6 +183,11 @@
 ;;;
 ;;; response
 
+(defmethod (setf http:response-header) ((value null) (response tbnl-response) (name symbol))
+  "Given a null header value, delete any header which may be present of the given name"
+  (setf (slot-value response 'headers-out)
+        (remove name (slot-value response 'headers-out) :key #'first)))
+
 (defmethod (setf http:response-header) ((value string) (response tbnl-response) (name t))
   (setf (header-out name response) value))
 
