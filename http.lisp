@@ -1158,9 +1158,6 @@
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
-    (when (equal accept-header "*/*")
-      (let ((default (http:function-default-accept-header function)))
-        (when default (setf accept-header default))))
     (let ((media-type (or (and accept-header (resource-function-acceptable-media-type function accept-header))
                           "absent an exceptable type, try the function's default."
                           (let ((default (http:function-default-accept-header function)))
@@ -1437,8 +1434,11 @@ obsolete mechanism which was in terms of the encode methods
 
 (defgeneric http:response-compute-media-type (request response class &key charset)
   (:method ((request t) (response http:response) (type mime:mime-type) &rest args)
+    "make an argument-specific version if arguments, eg charset, is supplied"
     (declare (dynamic-extent args))
-    (apply #'mime:mime-type type :if-does-not-exist 'mime:unsupported-mime-type args)))
+    (if args
+        (apply #'mime:mime-type type args)
+        type)))
 
 (defgeneric (setf http:response-content-disposition) (disposition response)
   )
