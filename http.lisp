@@ -1159,7 +1159,7 @@
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
     (let ((media-type (or (and accept-header (resource-function-acceptable-media-type function accept-header))
-                          "absent an exceptable type, try the function's default."
+                          ;;absent an exceptable type, try the function's default.
                           (let ((default (http:function-default-accept-header function)))
                             (when (or (null accept-header) (and (equal accept-header "*/*")) (not (equal default "*/*")))
                               (resource-function-acceptable-media-type function default))))))
