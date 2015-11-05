@@ -163,10 +163,12 @@
     :documentation "Collects the http method keys present in the function's methods. This limits
      the scope of the generated effective methods.")
    (default-accept-header
-     :initform "*/*" :allocation :class
+     :initform "*/*"
      :type string
-     :reader http:function-default-accept-header
-     :documentation "The accept header value to be used when a request includes no accept header.
+     :accessor http:function-default-accept-header
+     :documentation "The accept header value to be used when a request either includes no accept header
+      or includes just */*.The default value, whichis itself */* is effective only if the function actually
+      implements a method for that effective accept type.
       It should be a string in order that it is matched with the actual encode methods which are defined
       for the function.")
    (accept-types
@@ -1035,6 +1037,7 @@
 (defmacro http:def-resource-function (name lambda-list &rest clauses)
   (let* ((method-combination nil)
          (generic-function-class nil)
+         (default-encode-media-type nil)
          (definition-clauses (loop for clause in clauses
                                    for key = (first clause)
                                    collect (ecase key
@@ -1058,6 +1061,13 @@
                                                         (append lambda-list `((,(gensym "content-type") t) (,(gensym "accept-type") t))))
                                                      ,@body))))
                                              (:encode
+                                              (case (second clause)
+                                                (:default ;; record the decault media type
+                                                    (setf clause (cons (first clause) (cddr clause)))
+                                                    (setf default-encode-media-type
+                                                          (if (consp (second clause))
+                                                              (second (fifth (second clause)))
+                                                              (second clause)))))
                                               (if (consp (second clause))
                                                 ;; literal definition
                                                 `(:method ,@clause)
@@ -1120,9 +1130,13 @@
       ;; there is an issue with tracing these operators:
       ;; the binding process precludes a tracing wrapper, which means that must happen after the functions
       ;; are bound to the acceptor
-      `(defgeneric ,name ,lambda-list
-         (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
-         ,@definition-clauses))))
+      `(let ((definition
+                 (defgeneric ,name ,lambda-list
+                   (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
+                   ,@definition-clauses)))
+         ,@(when default-encode-media-type
+             `((setf (http:function-default-accept-header (function ,name)) ',default-encode-media-type)))
+         (function ,name)))))
 
 
 (defgeneric funcall-resource-function (function resource request response content-type accept-type)
@@ -1144,7 +1158,7 @@
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
     (when (equal accept-header "*/*")
-      (let ((default (http:function-default-accept-header function)))
+      (let ((default (http:function-effective-default-accept-headerhttp:function-default-accept-header function)))
         (when default (setf accept-header default))))
     (let ((media-type (resource-function-acceptable-media-type function accept-header)))
       (cond (media-type
@@ -1153,11 +1167,17 @@
                    (http:response-compute-media-type request response media-type
                                                      :charset (or (mime:mime-type-charset media-type) :utf-8)))
              (funcall function resource request response content-type media-type))
-            ;; if the method expects no response, use test/plain as place holder
             ((member (http:request-method request) '(:patch :put :post :delete))
+             ;; if the method expects no response, use test/plain as place holder
              (setf (http:request-accept-type request)
                    (setf (http:response-media-type response) mime:text/plain))
              (funcall function resource request response content-type mime:text/plain))
+            ((equal accept-header "*/*")
+             ;; iff the header was a wild-caard, try to find the default
+             (let ((effective-default (http:resource-function-acceptable-media-type function request)))
+               (if effective-default
+                   (funcall function resource request response content-type (mime:mime-type effective-default))
+                   (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))
             (t
              (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))))
 
