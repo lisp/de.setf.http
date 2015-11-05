@@ -71,6 +71,7 @@
            :forbidden
            :found
            :function-default-accept-header
+           :function-default-media-type
            :function-method-keys
            :function-package
            :function-patterns

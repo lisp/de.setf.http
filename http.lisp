@@ -1174,13 +1174,16 @@
              (funcall function resource request response content-type mime:text/plain))
             ((equal accept-header "*/*")
              ;; iff the header was a wild-caard, try to find the default
-             (let ((effective-default (http:resource-function-acceptable-media-type function request)))
+             (let ((effective-default (http:resource-function-default-media-type function request)))
                (if effective-default
                    (funcall function resource request response content-type (mime:mime-type effective-default))
                    (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))
             (t
              (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))))
 
+(defgeneric http:resource-function-default-media-type (function request)
+  (:method ((function http:resource-function) (request http:request))
+    (http:function-default-accept-header function)))
 
 (:documentation "media type computation"
  "GIven a resource function which implements some set of response encodings and the weighted accept header
