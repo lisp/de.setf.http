@@ -1037,7 +1037,7 @@
 (defmacro http:def-resource-function (name lambda-list &rest clauses)
   (let* ((method-combination nil)
          (generic-function-class nil)
-         (default-encode-media-type nil)
+         (default-encode-media-types ())
          (definition-clauses (loop for clause in clauses
                                    for key = (first clause)
                                    collect (ecase key
@@ -1064,10 +1064,10 @@
                                               (case (second clause)
                                                 (:default ;; record the decault media type
                                                     (setf clause (cons (first clause) (cddr clause)))
-                                                    (setf default-encode-media-type
-                                                          (if (consp (second clause))
+                                                    (push (if (consp (second clause))
                                                               (second (fifth (second clause)))
-                                                              (second clause)))))
+                                                              (second clause))
+                                                          default-encode-media-types)))
                                               (if (consp (second clause))
                                                 ;; literal definition
                                                 `(:method ,@clause)
@@ -1134,8 +1134,9 @@
                  (defgeneric ,name ,lambda-list
                    (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
                    ,@definition-clauses)))
-         ,@(when default-encode-media-type
-             `((setf (http:function-default-accept-header (function ,name)) ',default-encode-media-type)))
+         ,@(when default-encode-media-types
+             `((setf (http:function-default-accept-header (function ,name))
+                     ,(format nil "~{~a~^,~}" default-encode-media-types))))
          (function ,name)))))
 
 
@@ -1160,7 +1161,11 @@
     (when (equal accept-header "*/*")
       (let ((default (http:function-default-accept-header function)))
         (when default (setf accept-header default))))
-    (let ((media-type (resource-function-acceptable-media-type function accept-header)))
+    (let ((media-type (or (and accept-header (resource-function-acceptable-media-type function accept-header))
+                          "absent an exceptable type, try the function's default."
+                          (let ((default (http:function-default-accept-header function)))
+                            (when (or (null accept-header) (and (equal accept-header "*/*")) (not (equal default "*/*")))
+                              (resource-function-acceptable-media-type function default))))))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
              (setf (http:response-media-type response)
@@ -1172,18 +1177,9 @@
              (setf (http:request-accept-type request)
                    (setf (http:response-media-type response) mime:text/plain))
              (funcall function resource request response content-type mime:text/plain))
-            ((equal accept-header "*/*")
-             ;; iff the header was a wild-caard, try to find the default
-             (let ((effective-default (http:resource-function-default-media-type function request)))
-               (if effective-default
-                   (funcall function resource request response content-type (mime:mime-type effective-default))
-                   (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))
             (t
              (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))))
 
-(defgeneric http:resource-function-default-media-type (function request)
-  (:method ((function http:resource-function) (request http:request))
-    (http:function-default-accept-header function)))
 
 (:documentation "media type computation"
  "GIven a resource function which implements some set of response encodings and the weighted accept header
@@ -1242,10 +1238,6 @@
   (:method ((function http:resource-function) (accept-media-type mime:mime-type))
     "Given a mime type instance, return it."
     accept-media-type)
-  
-  (:method ((function http:resource-function) (accept-specification null))
-    "Absent an except header, use the function's default."
-    (resource-function-acceptable-media-type function (http:function-default-accept-header function)))
 
   (:method ((function http:resource-function) (accept-header string))
     "Given an accept header string, canonicalize it, extract tne media type set, compute the compound type
