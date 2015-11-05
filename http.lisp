@@ -622,8 +622,7 @@
       (setf (request-media-type request)
             (let ((header (http:request-content-type-header request)))
               (when header
-                (or (mime:mime-type header :if-does-not-exist nil)
-                    (http:bad-request "Invalid mime type: ~s" header))))))))
+                (mime:mime-type header  :if-does-not-exist 'mime:unsupported-mime-type )))))))
 
 (defgeneric http:request-method (request)
   (:documentation "Upon first reference, cache the effective http verb. This is sought from among the
@@ -1066,6 +1065,9 @@
                                                       (media-types (remove-if #'keywordp clause)))
                                                   (ecase (second qualifiers)
                                                     (:as
+                                                     (assert (not (typep (second media-types) (type-of (first media-types))))
+                                                             "media type delegation is circular: ~s > ~s"
+                                                             (first media-types) (second media-types))
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
                                                                ;; replace the currently noted type the second one
                                                                (http:log-trace *trace-output* "redirecting ~a: ~a -> ~a" ',name 
@@ -1421,7 +1423,7 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric http:response-compute-media-type (request response class &key charset)
   (:method ((request t) (response http:response) (type mime:mime-type) &rest args)
     (declare (dynamic-extent args))
-    (apply #'mime:mime-type type args)))
+    (apply #'mime:mime-type type :if-does-not-exist 'mime:unsupported-mime-type args)))
 
 (defgeneric (setf http:response-content-disposition) (disposition response)
   )
