@@ -1065,7 +1065,7 @@
                                                       (media-types (remove-if #'keywordp clause)))
                                                   (ecase (second qualifiers)
                                                     (:as
-                                                     (assert (not (typep (second media-types) (type-of (first media-types))))
+                                                     (assert (not (typep (second media-types) (type-of (first media-types)))) ()
                                                              "media type delegation is circular: ~s > ~s"
                                                              (first media-types) (second media-types))
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
