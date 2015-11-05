@@ -1130,10 +1130,10 @@
       ;; there is an issue with tracing these operators:
       ;; the binding process precludes a tracing wrapper, which means that must happen after the functions
       ;; are bound to the acceptor
-      `(let ((definition
-                 (defgeneric ,name ,lambda-list
-                   (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
-                   ,@definition-clauses)))
+      `(progn
+         (defgeneric ,name ,lambda-list
+           (:argument-precedence-order ,(first lambda-list) ,@(subseq lambda-list 3 5) ,@(subseq lambda-list 1 3))
+           ,@definition-clauses)
          ,@(when default-encode-media-types
              `((setf (http:function-default-accept-header (function ,name))
                      ,(format nil "~{~a~^,~}" default-encode-media-types))))
