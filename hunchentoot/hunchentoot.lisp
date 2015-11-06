@@ -338,7 +338,7 @@
              ;; determine response - likely, just to ignore and close
              (usocket:connection-aborted-error (lambda (c) (declare (ignore c)))))
             (handler-bind
-              ;; establish an additional level to permit a eneral handler which maps to http:condition
+              ;; establish an additional level to permit a general handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
                (http:condition (lambda (c)
                                  (signal c)))
@@ -432,7 +432,10 @@
  Returns the response stream."
   
   (let* ((content-stream (http:response-content-stream response))
-         (header-stream (http:stream-header-stream content-stream))
+         (client-header-stream (http:stream-header-stream content-stream))
+         (header-stream (if *header-stream*
+                            (make-broadcast-stream *header-stream* client-header-stream)
+                            client-header-stream))
          (headers-out (headers-out response))
          (content-length (rest (assoc :content-length headers-out)))
          (head-request-p (eq :head (request-method (http:response-request response))))
