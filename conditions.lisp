@@ -66,12 +66,20 @@
 (defmacro def-condition (name classes slots &rest options)
   (let ((code (getf (rest (assoc 'code slots)) :initform)))
     `(progn (defun ,name (&optional format-control &rest args)
-              (etypecase format-control
-                (keyword (apply #'error format-control args))
-                (string (error (make-condition ',name
-                                      :format-control format-control
-                                      :format-arguments args)))
-                (null (error ',name))))
+              (let ((condition
+                     (etypecase format-control
+                       (keyword (apply #'make-condition ',name format-control args))
+                       (string (make-condition ',name
+                                               :format-control format-control
+                                               :format-arguments args))
+                       (null (make-condition ',name)))))
+                (cond ((>= (http:condition-code condition) 300)
+                       (error condition))
+                      (t
+                       ;; do not want to specify content type or length
+                       ;; (http:report-condition-headers condition http:*response*)
+                       (setf (http:response-status-code http:*response*) (http:condition-code condition))
+                       condition))))
             ,@(when code
                 `((defconstant ,name ,code)
                   (setf (condition-code-class ,code) ',name)))
