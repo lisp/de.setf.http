@@ -1161,7 +1161,9 @@
     (let ((media-type (or (and accept-header (resource-function-acceptable-media-type function accept-header))
                           ;;absent an exceptable type, try the function's default.
                           (let ((default (http:function-default-accept-header function)))
-                            (when (or (null accept-header) (and (equal accept-header "*/*")) (not (equal default "*/*")))
+                            (when (or (null accept-header)
+                                      (and (equal accept-header "*/*")
+                                           (not (equal default "*/*"))))
                               (resource-function-acceptable-media-type function default))))))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
