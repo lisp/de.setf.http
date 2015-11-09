@@ -183,12 +183,18 @@
 ;;;
 ;;; response
 
+(defmethod http:response-header ((response tbnl-response) (name symbol))
+  (header-out name response))
+
 (defmethod (setf http:response-header) ((value null) (response tbnl-response) (name symbol))
   "Given a null header value, delete any header which may be present of the given name"
   (setf (slot-value response 'headers-out)
         (remove name (slot-value response 'headers-out) :key #'first)))
 
 (defmethod (setf http:response-header) ((value string) (response tbnl-response) (name t))
+  (setf (header-out name response) value))
+
+(defmethod (setf http:response-header) ((value list) (response tbnl-response) (name t))
   (setf (header-out name response) value))
 
 (defmethod (setf http:response-accept-ranges) ((value string) (response tbnl-response))
@@ -460,7 +466,10 @@
           do (case key
                (:date (setf date t))
                (:server (setf server t)))
-          and do (write-header-line (as-capitalized-string key) value header-stream))
+          and do (if (consp value)
+                     (loop for value in value
+                       do (write-header-line (as-capitalized-string key) value header-stream))
+                     (write-header-line (as-capitalized-string key) value header-stream)))
     (unless date
       (setf date (rfc-1123-date))
       (write-header-line (as-capitalized-string :date) date header-stream)

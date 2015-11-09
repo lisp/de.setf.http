@@ -1411,6 +1411,9 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric (setf http:response-header) (value response header-label)
   )
 
+(defgeneric http:response-header (response header-label)
+  )
+
 (defgeneric (setf http:response-accept-encoding) (accept-codings response)
   (:method ((values list) (response http:response))
     (setf (http:response-accept-encoding response) (format nil "~(~{~a~^,~}~)" values))))
