@@ -190,6 +190,7 @@
            :response-date
            :response-etag
            :response-header
+           :response-headers
            :response-headers-sent-p
            :response-keep-alive-p
            :response-last-modified

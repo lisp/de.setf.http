@@ -252,6 +252,9 @@
 (defmethod (setf http:response-retry-after-header) (time (response tbnl-response))
   (setf (header-out :retry-after response) time))
 
+(defmethod http:response-headers ((response tbnl-response))
+  (headers-out response))
+
 (defmethod http:response-status-code ((response tbnl-response))
   (return-code response))
 

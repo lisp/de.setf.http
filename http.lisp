@@ -1437,6 +1437,9 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric (setf http:response-character-encoding) (character-encoding response)
   )
 
+(defgeneric http:response-headers (response)
+  )
+
 (defgeneric http:response-compute-media-type (request response class &key charset)
   (:method ((request t) (response http:response) (type mime:mime-type) &rest args)
     "make an argument-specific version if arguments, eg charset, is supplied"
