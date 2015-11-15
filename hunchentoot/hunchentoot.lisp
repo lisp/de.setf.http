@@ -4,6 +4,10 @@
 
 (in-package :hunchentoot)
 
+;; facilitate specialization
+(de.setf.utility:modpackage :hunchentoot
+  (:export tbnl-request
+           tbnl-response))
 
 ;;; hunchentoot adaptations and extensions to integrate generic request management
 
