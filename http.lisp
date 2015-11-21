@@ -493,7 +493,7 @@
                                (http:define-dispatch-method dispatch-function name resource-class))
                      else do (http:log-debug *trace-output* "skipping method: ~a ~a ~s"
                                           name (class-name resource-class) (method-qualifiers method)))))
-    (http:log-debug *trace-output* "Dispatch patterns: ~%~s"
+    (http:log-debug *trace-output* "Dispatch patterns: ~s"
                     (http:function-patterns dispatch-function))
     dispatch-function))
 
@@ -1330,10 +1330,10 @@ obsolete mechanism which was in terms of the encode methods
   (:method ((pattern http:resource-pattern))
     (count-if #'keywordp (http:resource-pattern-path pattern))))
           
-
 (defmethod print-object ((instance http:resource-pattern) stream)
-  (print-unreadable-object (instance stream :identity nil :type nil)
+  (print-unreadable-object (instance stream :identity nil :type t)
     (format stream "? ~a~@[ ~a~]" (http:resource-pattern-name instance) (http:resource-pattern-subpatterns instance))))
+
 ;; (make-instance 'http:resource-pattern :name "*/account/*" :class t)
 
 
