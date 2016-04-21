@@ -736,14 +736,14 @@
   (:method ((resource http:resource))
     nil))
 
-(defgeneric http::resource-file-type (resource)
+(defgeneric http:resource-file-type (resource)
   (:method ((path string))
     (let ((dot-position (position #\. path :from-end t)))
       (when dot-position (subseq path (1+ dot-position)))))
   (:method ((path t))
     nil)
-  (:method ((resource resource))
-    (http::resource-file-type (http:resource-path resource))))
+  (:method ((resource http:resource))
+    (http:resource-file-type (http:resource-path resource))))
 
 ;;;
 ;;; def-resource

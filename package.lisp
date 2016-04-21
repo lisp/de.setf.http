@@ -157,6 +157,7 @@
            :requested-range-not-satisfiable
            :reset-content
            :resource
+           :resource-file-type
            :resource-function
            :resource-function-p
            :resource-path
