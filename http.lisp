@@ -580,14 +580,17 @@
 
 (defgeneric http:request-cache-matched-p (request etag time)
   (:method ((request http:request) etag time)
-    (and (find etag (http:request-etags request) :test #'equalp)
-         (loop for request-time in (http:request-if-modified-since request)
-               unless (<= time request-time)
-               return nil)
-         (loop for request-time in (http:request-unmodified-since request)
-               when (<= time request-time)
-               return nil)
-         t)))
+    (let ((if-match (http::request-if-match request)))
+      (and (or (null if-match)
+               (find etag if-match :test #'equalp)
+               (find "*" if-match :test #'equalp))
+           (loop for request-time in (http:request-if-modified-since request)
+             unless (<= time request-time)
+             return nil)
+           (loop for request-time in (http:request-unmodified-since request)
+             when (<= time request-time)
+             return nil)
+           t))))
 
 (defgeneric http:request-content-stream (request)
   )
@@ -609,6 +612,9 @@
   )
 
 (defgeneric http:request-host (request)
+  )
+
+(defgeneric http::request-if-match (request)
   )
 
 (defgeneric http:request-if-modified-since (request)
@@ -729,6 +735,15 @@
    The default method returns false.")
   (:method ((resource http:resource))
     nil))
+
+(defgeneric http::resource-file-type (resource)
+  (:method ((path string))
+    (let ((dot-position (position #\. path :from-end t)))
+      (when dot-position (subseq path (1+ dot-position)))))
+  (:method ((path t))
+    nil)
+  (:method ((resource resource))
+    (http::resource-file-type (http:resource-path resource))))
 
 ;;;
 ;;; def-resource
