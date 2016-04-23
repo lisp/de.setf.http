@@ -611,6 +611,12 @@
 (defgeneric http:request-headers (request)
   )
 
+(defgeneric (setf http:request-property) (value request key)
+  )
+
+(defgeneric http:request-property (request key)
+  )
+
 (defgeneric http:request-host (request)
   )
 

@@ -154,6 +154,7 @@
            :request-timeout
            :request-unmodified-since
            :request-uri-too-long
+           :request-property
            :requested-range-not-satisfiable
            :reset-content
            :resource

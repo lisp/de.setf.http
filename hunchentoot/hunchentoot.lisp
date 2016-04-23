@@ -134,6 +134,15 @@
 (defmethod http:request-headers ((request tbnl-request))
   (headers-in request))
 
+(defmethod http:request-property ((request tbnl-request) key)
+  (aux-request-value request key))
+
+(defmethod (setf http:request-property) (value (request tbnl-request) key)
+  (setf (aux-request-value request key) value))
+
+(defmethod (setf http:request-headers) ((headers list) (request tbnl-request))
+  (setf (headers-in request) headers))
+
 (defmethod http:request-host ((request tbnl-request))
   (acceptor-address (request-acceptor request)))
 
