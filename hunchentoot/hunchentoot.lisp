@@ -198,6 +198,9 @@
     (when date
       (http:parse-rfc1123 date))))
 
+(defmethod http:request-uri ((request request))
+  (request-uri request))
+
 ;;;
 ;;; response
 

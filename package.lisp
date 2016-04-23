@@ -153,6 +153,7 @@
            :request-session-cookie-name
            :request-timeout
            :request-unmodified-since
+           :request-uri
            :request-uri-too-long
            :request-property
            :requested-range-not-satisfiable

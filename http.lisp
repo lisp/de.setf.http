@@ -721,6 +721,9 @@
 (defgeneric http:request-unmodified-since (request)
   )
 
+(defgeneric http:request-uri (request)
+  )
+
 ;;; resource
 
 (defmethod print-object ((object http:resource) stream)
