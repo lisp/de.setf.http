@@ -135,10 +135,10 @@
   (headers-in request))
 
 (defmethod http:request-property ((request tbnl-request) key)
-  (aux-request-value request key))
+  (aux-request-value key request))
 
 (defmethod (setf http:request-property) (value (request tbnl-request) key)
-  (setf (aux-request-value request key) value))
+  (setf (aux-request-value key request) value))
 
 (defmethod (setf http:request-headers) ((headers list) (request tbnl-request))
   (setf (headers-in request) headers))
