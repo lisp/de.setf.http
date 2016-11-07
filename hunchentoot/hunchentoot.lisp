@@ -140,6 +140,7 @@
 (defmethod (setf http:request-property) (value (request tbnl-request) key)
   (setf (aux-request-value key request) value))
 
+#+(or) ;; supposed to be immutable
 (defmethod (setf http:request-headers) ((headers list) (request tbnl-request))
   (setf (headers-in request) headers))
 

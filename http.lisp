@@ -444,7 +444,7 @@
                               (cond (http:*resource*
                                      (,name http:*resource* request response))
                                     (t
-                                     (http:not-found "No resource defiend for path: ~s." resource-path)))))
+                                     (http:not-found "No resource defined for path: ~s." resource-path)))))
                          :qualifiers '()
                          :lambda-list '(resource request response)
                          :specializers (list (find-class 'string) t-class t-class))
