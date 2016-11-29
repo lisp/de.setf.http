@@ -267,16 +267,16 @@
 
 (def-condition http:bad-gateway (http:error)
   ((code :initform 502 :allocation :class)
-   (test :initform "Bad Gateway" :allocation :class)))
+   (text :initform "Bad Gateway" :allocation :class)))
 
 (def-condition http:service-unavailable (http:error)
   ((code :initform 503 :allocation :class)
-   (test :initform "Service Unavailable" :allocation :class)))
+   (text :initform "Service Unavailable" :allocation :class)))
 
 (def-condition http:gateway-timeout (http:error)
   ((code :initform 504 :allocation :class)
-   (test :initform "Gateway Timeout" :allocation :class)))
+   (text :initform "Gateway Timeout" :allocation :class)))
 
 (def-condition http:http-version-not-supported (http:error)
   ((code :initform 505 :allocation :class)
-   (test :initform "HTTP Version Not SUpported" :allocation :class)))
+   (text :initform "HTTP Version Not SUpported" :allocation :class)))
