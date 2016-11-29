@@ -222,7 +222,7 @@
     :initform nil
     :accessor response-state)
    (content-stream
-    :initarg :content-stream :initform (error "content-stream is required.")
+    :initarg :content-stream :initform nil ;; some error handlers make one w/o args (error "content-stream is required.")
     :reader get-response-content-stream :writer (setf http:response-content-stream)
     :documentation "The response stream is instantiated on-demand to emit the
     response body. It supports both chunking and character encoding with the

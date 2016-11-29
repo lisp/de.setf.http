@@ -41,6 +41,7 @@
            :authenticate-request-session
            :authenticate-request-token
            :authorize-request
+           :bad-gateway
            :bad-request
            :bind-resource
            :class-resource-keywords
@@ -76,9 +77,11 @@
            :function-patterns
            :function-resource-class
            :function-resource-function-class
+           :gateway-timeout
            :gone
            :handle-condition
            :http
+           :http-version-not-supported
            :input-stream
            :length-required
            :log
@@ -101,6 +104,7 @@
            :make-response
            :moved-permanently
            :multiple-choices
+           :not-modified
            :ok
            :output-stream
            :parse-rfc1123
@@ -211,6 +215,7 @@
            :send-condition
            :send-entity-body
            :send-headers
+           :service-unavailable
            :start
            :stream
            :stream-header-stream
