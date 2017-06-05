@@ -109,7 +109,7 @@
     (read-from-string qvalue)
     (http:bad-request "Invalid qvalue: '~a'" qvalue)))
 
-#+(or) ; delegate most of the work to the mimw type implementation
+#+(or) ; delegate most of the work to the mime type implementation
 (defun compute-accept-ordered-types (header)
   (let* ((accept-ranges (split-string header #\,))
          (types (loop for range in accept-ranges
@@ -199,7 +199,7 @@
   (:method ((input-stream stream) (content vector) &key length)
     (unless (and length (= length (length content)))
       (assert (adjustable-array-p content) ()
-              "Destinaton sequence must either of the specified length or be adjustable for chunked content: ~a."
+              "Destination sequence must either of the specified length or be adjustable for chunked content: ~a."
               (type-of content))
       (setf length most-positive-fixnum))
 
@@ -222,19 +222,22 @@
   (:method ((input-stream stream) (content string) &key length)
     (unless (and length (= length (length content)))
       (assert (adjustable-array-p content) ()
-              "Destinaton sequence must either of the specified length or be adjustable for chunked content: ~a."
+              "Destination sequence must either of the specified length or be adjustable for chunked content: ~a."
               (type-of content))
       (setf length most-positive-fixnum))
 
     (let* ((count 0))
       (declare (type fixnum count length))
       (multiple-value-bind (reader reader-arg) (stream-reader input-stream)
-          (loop for char = (funcall reader reader-arg)
-                while char
-                when (>= count (length content))
-                do (setf content (adjust-array content (list (+ count 1024))))
-                do (setf (char content count) char)
-                until (>= (incf count) length)))
+        (loop (multiple-value-bind (char size)
+                                   (funcall reader reader-arg)
+                (declare (type fixnum size))
+                (unless char (return))
+                (when (>= count (length content))
+                  (setf content (adjust-array content (list (+ count 1024)))))
+                (setf (char content count) char)
+                (when (>= (incf count size) length)
+                  (return)))))
       (when (listen input-stream)
         (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
       (when (and (adjustable-array-p content)

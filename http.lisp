@@ -460,8 +460,9 @@
     implementation and define respective dispatch methods which augment the call
     arguments with singletons for the path, the media type and the accept media
     types, and invokes the respective implementation method. 
+    no longer true:
     In addition, introduce a method to accept and intern the resource path and,
-    should that dail because the path did not match the resource class for any
+    should that fail because the path did not match the resource class for any
     defined method, to signal a not-found exception.
 
     In order to construct the dispatch logic, add one method for each resource class
@@ -1561,7 +1562,7 @@ obsolete mechanism which was in terms of the encode methods
     state, to be communicated to the client as part of the response.")
 
   (:method :before ((condition t) response)
-    (setf (http:response-content-length response) 0)
+    ;; no length (setf (http:response-content-length response) 1024)
     ;; ensure text plain for error response
     (setf (http:response-media-type response) mime:text/plain))
 
@@ -1594,6 +1595,7 @@ obsolete mechanism which was in terms of the encode methods
     for request processing once the headers have been sent to report
     error detainls as the response body.")
   (:method ((condition http:condition) (response t))
+    ;; (format *trace-output*  "~%~a~%~a~%" (get-response-content-stream response) condition)
     (format (get-response-content-stream response) "~%~a~%" condition)))
 
 
@@ -1614,7 +1616,11 @@ obsolete mechanism which was in terms of the encode methods
     ;; if the headers are already gone, just append to the content and terminate the processing
     (when (http:clear-headers response)
       (http:report-condition-headers condition response)
-      (http:send-headers response))
+      (http:send-headers response)
+      #+(or)(let ((header-stream (http:stream-header-stream (http:send-headers response))))
+        (print :after-send-headers2)
+        (dotimes (x 4096) (write-char #\+ header-stream))
+        (finish-output header-stream)))
     ;; emit any body
     (http:report-condition-body condition response)
     (finish-output (get-response-content-stream response))))

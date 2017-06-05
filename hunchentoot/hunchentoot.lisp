@@ -363,6 +363,13 @@
                                (http:send-condition *reply* c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                               ;;(describe *reply*)
+                               ;;(describe (http:response-content-stream *reply*))
+                               ;;(dotimes (x 100) (write-char #\. (http:response-content-stream *reply*)))
+                               ;;(finish-output (http:response-content-stream *reply*))
+                               ;;(dotimes (x 100) (write-byte (char-code #\,) acceptor-stream))
+                               ;;(finish-output acceptor-stream)
+                               ;; (format *trace-output*  "sent~%~a~%" c)
                                (return-from process-connection
                                  (values nil c nil))))
              ;; a connection error is ignored completely to permit higher-level handlers to
@@ -532,7 +539,8 @@
                                   (format nil "timeout=~D" (acceptor-read-timeout (http:response-acceptor response)))
                                   header-stream)))
             (t
-             (write-header-line (as-capitalized-string :connection) "Close" header-stream)))
+             (write-header-line (as-capitalized-string :connection) "Close" header-stream)
+             ))
       (setf (http:response-close-stream-p response) keep-alive-p))
     
     ;; now the cookies
@@ -540,7 +548,6 @@
           do (write-header-line "Set-Cookie" (stringify-cookie cookie) header-stream))
     ;; now the terminating EOL
     (format header-stream "~C~C" #\Return #\Linefeed)
-    
     ;; Read post data to clear stream - Force binary mode to avoid OCTETS-TO-STRING overhead.
     ;; this is transcribed from the original hunchentoot implementation, but seems bogus
     ;; one could check for eof, but that would preclude pipelined interaction
