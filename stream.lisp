@@ -117,13 +117,28 @@
                    (if char
                        (values char (funcall sizer char))
                        (values nil 0))))
+               (constant-size-decoder (get-byte source)
+                 (let ((char (funcall decoder get-byte source)))
+                   (if char
+                       (values char sizer)
+                       (values nil 0))))
                (sized-encoder (char put-byte destination)
                  (values (funcall encoder char put-byte destination)
-                         (funcall sizer char))))
+                         (funcall sizer char)))
+               (constant-size-encoder (char put-byte destination)
+                 (values (funcall encoder char put-byte destination)
+                         sizer)))
+          (unless sizer (setf sizer 1))
           (unless (slot-boundp stream 'decoder)
-            (setf-stream-decoder #'sized-decoder stream))
+            (setf-stream-decoder (etypecase sizer
+                                   (integer #'constant-size-decoder)
+                                   ((or symbol function) #'sized-decoder))
+                                 stream))
           (unless (slot-boundp stream 'encoder)
-            (setf-stream-encoder #'sized-encoder stream))))
+            (setf-stream-encoder (etypecase sizer
+                                   (integer #'constant-size-encoder)
+                                   ((or symbol function) #'sized-encoder))
+                                 stream))))
       media-type)))
 
 
