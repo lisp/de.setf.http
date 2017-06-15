@@ -340,7 +340,7 @@
     (http:define-dispatch-method (http:acceptor-dispatch-function acceptor) handler-name resource-class))
   
   (:method ((function http:dispatch-function) (handler-name symbol) (resource-class class))
-    "Generate a dispatch method for the respoective resource class which will invoke the function which includes
+    "Generate a dispatch method for the respective resource class which will invoke the function which includes
      the method for that class. Indirect through funcall-resource-function, which derives the composite accept
      type from the accept header"
     (let ((t-class (find-class t)))
@@ -1087,7 +1087,7 @@
                                                      ,@body))))
                                              (:encode
                                               (case (second clause)
-                                                (:default ;; record the decault media type
+                                                (:default ;; record the default media type
                                                     (setf clause (cons (first clause) (cddr clause)))
                                                     (push (if (consp (second clause))
                                                               (second (fifth (second clause)))
