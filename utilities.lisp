@@ -326,11 +326,11 @@
      Always close the stream upon completion."
     ;; nb. for sub-processes, this does not suffice as more needs to be done to dispose of the process
     (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
-      (close content-stream))))
+      (close content-stream)))
 
-(defmethod http:encode-response ((condition http:condition) (response t) (content-type t))
-  "Given a condition as the result, just signal it."
-  (error condition))
+  (:method ((condition http:condition) (response t) (content-type t))
+    "Given a condition as the result, just signal it."
+    (error condition)))
 
 
 (defgeneric http:decode-request (resource request content-type)

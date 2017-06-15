@@ -1104,20 +1104,24 @@
                                                              "media type delegation is circular: ~s > ~s"
                                                              (first media-types) (second media-types))
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
-                                                               ;; replace the currently noted type the second one
-                                                               (http:log-trace *trace-output* "redirecting ~a: ~a -> ~a" ',name 
-                                                                               ,(first media-types) ,(second media-types))
-                                                               (setf (http:response-media-type response) ,(second media-types))
-                                                               (,name resource request response content-type ,(second media-types))))
+                                                        ;; replace the currently noted type the second one
+                                                        (http:log-trace *trace-output* "redirecting ~a: ~a -> ~a" ',name 
+                                                                        ,(first media-types) ,(second media-types))
+                                                        (setf (http:response-media-type response) ,(second media-types))
+                                                        (,name resource request response content-type ,(second media-types))
+                                                        ;; have the generated method rrturn nil, to terminate encoding
+                                                        nil))
                                                     ((nil)
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
-                                                               ;; encode as per the derived response content type, which will be an instance of the
-                                                               ;; specializer class, but include the character set encoding
-                                                               (let ((content (call-next-method))
-                                                                     (effective-content-type (http:response-media-type response)))
-                                                                 (http:log-trace *trace-output* "content-type: ~a: content ~s"
-                                                                            effective-content-type content)
-                                                                 (http:encode-response content response effective-content-type))))))))
+                                                        ;; encode as per the derived response content type, which will be an instance of the
+                                                        ;; specializer class, but include the character set encoding
+                                                        (let ((content (call-next-method))
+                                                              (effective-content-type (http:response-media-type response)))
+                                                          (http:log-trace *trace-output* "content-type: ~a: content ~s"
+                                                                          effective-content-type content)
+                                                          (http:encode-response content response effective-content-type)
+                                                          ;; have the generated method rrturn nil, to terminate encoding
+                                                          nil)))))))
                                              (:decode clause
                                                       (if (consp (second clause))
                                                         ;; literal definition
