@@ -302,35 +302,7 @@
              end)))))
 
 
-(defgeneric http:encode-response (content response content-type)
-  (:documentation "Implements the default behavior for resource function
-    encoding methods when they are declared without a body. the default
-    methods delegate to send-entity-body.")
 
-  (:method ((content null) (response t) (content-type t)))
-
-  (:method ((content string) (response t) (content-type t))
-    (http:send-entity-body response content))
-
-  (:method ((content vector) (response t) (content-type t))
-    (http:send-entity-body response content))
-
-  (:method ((content t) (response t) (content-type mime:text/plain))
-    ;; this should send out the entity body chunked
-    (format (http:response-content-stream response) "~a" content))
-
-  (:method ((content-stream stream) (response t) (content-type t))
-    "the default method given a stream result is to just copy the stream. that is,
-     given any standard media type, presume the result generator handles the
-     respective serialization entirely and the stream content is correct as-is.
-     Always close the stream upon completion."
-    ;; nb. for sub-processes, this does not suffice as more needs to be done to dispose of the process
-    (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
-      (close content-stream)))
-
-  (:method ((condition http:condition) (response t) (content-type t))
-    "Given a condition as the result, just signal it."
-    (error condition)))
 
 
 (defgeneric http:decode-request (resource request content-type)
