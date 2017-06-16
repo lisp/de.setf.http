@@ -308,8 +308,14 @@
 (defgeneric http:decode-request (resource request content-type)
   (:documentation "Implements the default behavior for resource function
     encoding methods when they are declared without a body. the default
-    methods delegate to send-entity-body."))
-
+    methods delegate to send-entity-body.")
+  (:method ((resource t) (request t) (content-type t))
+    "The default method signals an unsupported content type error"
+    (http:unsupported-media-type :text (format nil "resource (~a) type/method combination not supported: ~a/~a"
+                                               (_slot-value resource 'path)
+                                               (_slot-value request 'method)
+                                               (type-of content-type)))))
+                                               
 
 ;;; times
 
