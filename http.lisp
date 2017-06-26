@@ -1001,13 +1001,17 @@
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
-                                                   '(http:not-implemented))))
+                                                   '(http:not-implemented "media type (~s) not implemented for method (~s)"
+                                                                          (http:request-accept-type http:*request*)
+                                                                          (http:request-method http:*request*)))))
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
                                                                               '(:options ,@(loop for (key nil) on primary-by-method by #'cddr collect key))))))
                               ;; otherwise, it is not implemented
-                              (t (http:not-implemented))))
+                              (t (http:not-implemented "media type (~s) not implemented for method (~s)"
+                                                       (http:request-accept-type http:*request*)
+                                                       (http:request-method http:*request*)))))
          ;; wrap the decoding an content generation steps with a mechanism to encode the result.
          ;; if the content is null, no output should be generated
          ;; if no method was applicable, generate logic to either derive an alternative concrete media type
@@ -1187,13 +1191,15 @@
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
     "call the function with its computed acceptable response content type"
-    (let ((media-type (or (and accept-header (resource-function-acceptable-media-type function accept-header))
+    (let ((media-type (if accept-header
+                          (or (resource-function-acceptable-media-type function accept-header)
+                              (let ((default (http:function-default-accept-header function)))
+                                 (when (and (equal accept-header "*/*") (not (equal default "*/*")))
+                                   (resource-function-acceptable-media-type function default)))
+                              (http::not-acceptable "Media type (~s) not implemented." accept-header))
                           ;;absent an exceptable type, try the function's default.
-                          (let ((default (http:function-default-accept-header function)))
-                            (when (or (null accept-header)
-                                      (and (equal accept-header "*/*")
-                                           (not (equal default "*/*"))))
-                              (resource-function-acceptable-media-type function default))))))
+                          (resource-function-acceptable-media-type function
+                                                                   (http:function-default-accept-header function)))))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
              (setf (http:response-media-type response)
@@ -1206,7 +1212,7 @@
                    (setf (http:response-media-type response) mime:text/plain))
              (funcall function resource request response content-type mime:text/plain))
             (t
-             (http::not-acceptable "No media type available to respond to: '~a'" accept-header))))))
+             (http::not-acceptable "Media type (~s) not implemented." accept-header))))))
 
 
 (:documentation "media type computation"
