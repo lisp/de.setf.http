@@ -132,8 +132,8 @@
   (header-in key request))
 
 (defmethod (setf http:request-header) (value (request tbnl-request) key)
-  (setf (headers-in request)
-        (acons key value (headers-in request))))
+  (with-slots (headers-in) request
+    (setf headers-in (acons key value (headers-in request)))))
 
 (defmethod http:request-headers ((request tbnl-request))
   (headers-in request))
