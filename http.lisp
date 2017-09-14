@@ -1614,6 +1614,7 @@ obsolete mechanism which was in terms of the encode methods
     occur when an error occures during response processing, yet the headers have not
     yet been written.")
   (:method ((response http:response))
+    (setf (response-state response) nil)
     (stream-clear-header-output (get-response-content-stream response))))
 
 

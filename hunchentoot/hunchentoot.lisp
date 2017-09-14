@@ -371,6 +371,7 @@
                                (http:send-condition *reply* c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                               (http:log *lisp-errors-log-level* acceptor "process-connection: http error in http response: [~a] ~a" (type-of c) c)
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
                                ;;(dotimes (x 100) (write-char #\. (http:response-content-stream *reply*)))
@@ -394,10 +395,10 @@
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error
-                        (http:log *lisp-errors-log-level* acceptor "unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (http:log *lisp-errors-log-level* acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "~%~a" (get-backtrace))
                         ;; re-signal to the acceptor's general handler
-                        (http:internal-error "unhandled error in http response: [~a] ~a" (type-of c) c))))
+                        (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
             
               (loop
                 (let ((*close-hunchentoot-stream* t))
