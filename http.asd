@@ -16,6 +16,7 @@
                :chunga                  ; direct for the cgi version
                :trivial-gray-streams    ; likewise
                #+sbcl :sb-cltl2
+               :com.b9.puri.puri-ppcre  ; for user agent strings
                )
   :description
   "a modulor CLOS framework to implement HTTP with concrete implementations
