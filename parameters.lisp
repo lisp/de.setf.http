@@ -39,3 +39,8 @@
  and the http method combination.")
 
 
+(defparameter http:*user-agent-properties*
+  `((,(cl-ppcre:create-scanner "^mozilla/.*")
+     :interactive t))
+  "an a-list of ppcre patterns to match user agent strings which indicate interactive agents
+ and mapping to the respective properties.")

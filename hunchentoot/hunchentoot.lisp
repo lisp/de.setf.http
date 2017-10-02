@@ -396,6 +396,7 @@
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error
                         (http:log *lisp-errors-log-level* acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (format *error-output* "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "~%~a" (get-backtrace))
                         ;; re-signal to the acceptor's general handler
                         (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))

@@ -612,6 +612,17 @@
 (defgeneric http:request-headers (request)
   )
 
+(defgeneric http:request-is-interactive (request)
+  (:method ((request http:request))
+    (http:request-is-interactive (http:request-user-agent request)))
+  (:method ((user-agent null))
+    nil)
+  (:method ((user-agent string))
+    (loop for (pattern . properties) in http:*user-agent-properties*
+      (when (cl-ppcre:scan pattern user-agent)
+        return (getf properties :interactive)))))
+
+
 (defgeneric (setf http:request-property) (value request key)
   )
 
@@ -724,6 +735,16 @@
 
 (defgeneric http:request-uri (request)
   )
+
+(defgeneric http:request-uri-host-name (request)
+  (:method ((request http:request))
+    (let ((uri (http:request-uri request)))
+      (when uri
+        (puri:uri-host (puri:uri (http:request-uri request)))))))
+
+(defgeneric http:request-user-agent (request)
+  (:method ((request http:request))
+    (http:request-header request :user-agent)))
 
 ;;; resource
 

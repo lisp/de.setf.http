@@ -23,6 +23,7 @@
            :*resource*
            :*response*
            :*session*
+           :*user-agent-properties*
            :+method-keys+
            :accepted
            :acceptor
@@ -138,6 +139,7 @@
            :request-headers
            :request-host
            :request-if-modified-since
+           :request-is-interactive
            :request-keep-alive-p
            :request-media-type
            :request-method
@@ -158,7 +160,9 @@
            :request-timeout
            :request-unmodified-since
            :request-uri
+           :request-uri-host-name
            :request-uri-too-long
+           :request-user-agent
            :request-property
            :requested-range-not-satisfiable
            :reset-content
