@@ -1243,16 +1243,12 @@
 
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
   (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
-    "call the function with its computed acceptable response content type"
-    (let ((media-type (if accept-header
-                          (or (resource-function-acceptable-media-type function accept-header)
-                              (let ((default (http:function-default-accept-header function)))
-                                 (when (and (equal accept-header "*/*") (not (equal default "*/*")))
-                                   (resource-function-acceptable-media-type function default)))
-                              (http::not-acceptable "Media type (~s) not implemented." accept-header))
-                          ;;absent an exceptable type, try the function's default.
-                          (resource-function-acceptable-media-type function
-                                                                   (http:function-default-accept-header function)))))
+    "Call the function with its acceptable response content type.
+    Absent an accept header, try to derive one from other request attributes:
+    - path type
+    - query parameters
+    - a default from the function itself"
+    (let ((media-type (http:effective-response-media-type function resource request (or accept-header ""))))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
              (setf (http:response-media-type response)
@@ -1260,7 +1256,7 @@
                                                      :charset (or (mime:mime-type-charset media-type) :utf-8)))
              (funcall function resource request response content-type media-type))
             ((member (http:request-method request) '(:patch :put :post :delete))
-             ;; if the method expects no response, use test/plain as place holder
+             ;; if the method expects no response, use text/plain as place holder
              (setf (http:request-accept-type request)
                    (setf (http:response-media-type response) mime:text/plain))
              (funcall function resource request response content-type mime:text/plain))
@@ -1317,6 +1313,36 @@
       when (some #'(lambda (defined) (typep accept-type defined)) defined-types)
       collect accept-type)))
 
+(defgeneric http:effective-response-media-type (function resource request accept-header)
+  (:documentation "the order is
+   - examine the accept header
+   - if it is a specific type, return it
+   - if it is non specific, first try the url accept value
+   - if that is not present try the path type media type
+   - if that does not yield a type, allow any other explicit accept than */*
+   - finally, try the function's default
+   - otherwise signal non-accaptable")
+  (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
+    (or (resource-function-acceptable-media-type function accept-header)
+        (when (or (equal accept-header "") (search "*/*" accept-header :test #'char=))
+          (http:effective-response-media-type function resource request nil))
+        (http::not-acceptable "Media type (~s) not implemented." accept-header)))
+  (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header null))
+    (or (http:effective-response-media-type function resource (http:request-query-argument request "accept") nil)
+        (http:effective-response-media-type function resource nil nil)))
+  (:method ((function http:resource-function) (resource http:resource) (url-accept string) (accept-header null))
+    (resource-function-acceptable-media-type function url-accept))
+  (:method ((function http:resource-function) (resource http:resource) (url-accept null) (accept-header null))
+    (or (http:resource-file-type-media-type resource)
+        (http:effective-response-media-type function nil nil nil)))
+  (:method ((function http:resource-function) (resource null) (url-accept null) (accept-header null))
+    (let ((default (http:function-default-accept-header function)))
+      (unless (equal default "*/*")
+        (resource-function-acceptable-media-type function default)))))
+
+(defgeneric http:resource-file-type-media-type (resource)
+  (:method ((resource http:resource))
+    nil))
 
 (defgeneric resource-function-acceptable-media-type (function candidate-types)
   (:documentation "Combine the media types from the request accept header with those defined for the function

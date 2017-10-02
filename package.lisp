@@ -66,6 +66,7 @@
            :def-resource
            :define-dispatch-method
            :dispatch-function
+           :effective-response-media-type
            :encode-response
            :encode-rfc1123
            :error
@@ -168,6 +169,7 @@
            :reset-content
            :resource
            :resource-file-type
+           :resource-file-type-media-type
            :resource-function
            :resource-function-p
            :resource-path
