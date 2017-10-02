@@ -767,7 +767,7 @@
   (:method ((resource http:resource))
     nil))
 
-(defgeneric http:resource-file-type (resource)
+(defgeneric http:resource-path-type (resource)
   (:method ((path string))
     (let ((dot-position (position #\. path :from-end t)))
       (when dot-position (subseq path (1+ dot-position)))))
@@ -775,6 +775,42 @@
     nil)
   (:method ((resource http:resource))
     (http:resource-file-type (http:resource-path resource))))
+
+(defun http:resource-file-type (resource)
+  ;; backwards compatible
+  (http:resource-path-type resource))
+
+(defgeneric http:resource-path-filename (resource)
+  (:method ((path string))
+    (first (last (split-string path "/"))))
+  (:method ((path t))
+    nil)
+  (:method ((resource http:resource))
+    (http:resource-path-filename (http:resource-path resource))))
+
+(defgeneric http:resource-path-name-and-type (resource)
+  (:method ((path string))
+    )
+  (:method ((path t))
+    nil)
+  (:method ((resource t))
+    (apply #'values (split-string (http:resource-path-filename resource) "."))))
+
+(defgeneric http:resource-path-name (resource)
+  (:method ((path string))
+    (nth-value 0 (http:resource-path-name-and-type path)))
+  (:method ((path t))
+    nil)
+  (:method ((resource http:resource))
+    (http:resource-path-name (http:resource-path resource))))
+
+(defgeneric http:resource-path-type (resource)
+  (:method ((path string))
+    (nth-value 1 (http:resource-path-name-and-type path)))
+  (:method ((path t))
+    nil)
+  (:method ((resource http:resource))
+    (http:resource-path-type (http:resource-path resource))))
 
 ;;;
 ;;; def-resource

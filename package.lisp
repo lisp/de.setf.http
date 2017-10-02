@@ -171,6 +171,10 @@
            :resource-function
            :resource-function-p
            :resource-path
+           :resource-path-filename
+           :resource-path-name
+           :resource-path-name-and-type
+           :resource-path-type
            :resource-pattern
            :resource-pattern-class
            :resource-pattern-name

@@ -40,7 +40,7 @@
 
 
 (defparameter http:*user-agent-properties*
-  `((,(cl-ppcre:create-scanner "^mozilla/.*")
+  `((,(cl-ppcre:create-scanner "^mozilla/.*" :case-insensitive-mode t)
      :interactive t))
   "an a-list of ppcre patterns to match user agent strings which indicate interactive agents
  and mapping to the respective properties.")
