@@ -789,10 +789,6 @@
     (http:resource-path-filename (http:resource-path resource))))
 
 (defgeneric http:resource-path-name-and-type (resource)
-  (:method ((path string))
-    )
-  (:method ((path t))
-    nil)
   (:method ((resource t))
     (apply #'values (split-string (http:resource-path-filename resource) "."))))
 
