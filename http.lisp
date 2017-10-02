@@ -619,8 +619,8 @@
     nil)
   (:method ((user-agent string))
     (loop for (pattern . properties) in http:*user-agent-properties*
-      (when (cl-ppcre:scan pattern user-agent)
-        return (getf properties :interactive)))))
+      when (cl-ppcre:scan pattern user-agent)
+      do (return (getf properties :interactive)))))
 
 
 (defgeneric (setf http:request-property) (value request key)
