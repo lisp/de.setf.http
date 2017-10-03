@@ -1327,7 +1327,8 @@
         #+(or)(when (or (equal accept-header "") (search "*/*" accept-header :test #'char=))
           (http:effective-response-media-type function resource request nil))
         (http::not-acceptable "Media type (~s) not implemented." accept-header)))
-
+  (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:*/*))
+    accept-media-type)
 
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:text/html))
     (or (http:effective-response-media-type function resource request nil)
