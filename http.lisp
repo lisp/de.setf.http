@@ -1323,10 +1323,18 @@
    - finally, try the function's default
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
-    (or (resource-function-acceptable-media-type function accept-header)
-        (when (or (equal accept-header "") (search "*/*" accept-header :test #'char=))
+    (or (http:effective-response-media-type function resource request (resource-function-acceptable-media-type function accept-header))
+        #+(or)(when (or (equal accept-header "") (search "*/*" accept-header :test #'char=))
           (http:effective-response-media-type function resource request nil))
         (http::not-acceptable "Media type (~s) not implemented." accept-header)))
+
+
+  (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:text/html))
+    (or (http:effective-response-media-type function resource request nil)
+        accept-media-type))
+  (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:application/xhtml+xml))
+    (or (http:effective-response-media-type function resource request nil)
+        accept-media-type))
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header null))
     (or (http:effective-response-media-type function resource (http:request-query-argument request "accept") nil)
         (http:effective-response-media-type function resource nil nil)))
