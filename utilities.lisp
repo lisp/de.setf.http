@@ -50,6 +50,8 @@
 (defgeneric http:log (level destination format-control &rest arguments)
   (:documentation
     "Emit a log message to the destination.")
+  (:method (level (destination null) format-control &rest arguments)
+    (apply #'http:log level *trace-output* format-control arguments))
 
   (:method (level (destination stream) format-control &rest arguments)
     (declare (dynamic-extent arguments))
@@ -131,8 +133,8 @@
          (types (loop for range in accept-ranges
                   for type = (mime:mime-type range :if-does-not-exist nil)
                   if type
-                  collect type
-                  else do (http:log-warn (http:acceptor) "The mime type '~a' is not defined." range))))
+                  collect type)))
+                  ;;else do (http:log-warn (http:acceptor) "The mime type '~a' is not defined." range))))
     (if types
       (sort types #'> :key #'mime::mime-type-quality)
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))

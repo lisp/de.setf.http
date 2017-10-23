@@ -789,8 +789,12 @@
     (http:resource-path-filename (http:resource-path resource))))
 
 (defgeneric http:resource-path-name-and-type (resource)
-  (:method ((resource t))
-    (apply #'values (split-string (http:resource-path-filename resource) "."))))
+  (:method ((resource http:resource))
+    (apply #'values (split-string (http:resource-path-filename resource) ".")))
+  (:method ((path t))
+    nil)
+  (:method ((path string))
+    (apply #'values (split-string path "."))))
 
 (defgeneric http:resource-path-name (resource)
   (:method ((path string))
@@ -1323,9 +1327,10 @@
    - finally, try the function's default
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
-    (or (http:effective-response-media-type function resource request (resource-function-acceptable-media-type function accept-header))
-        #+(or)(when (or (equal accept-header "") (search "*/*" accept-header :test #'char=))
-          (http:effective-response-media-type function resource request nil))
+    (or (let ((type (resource-function-acceptable-media-type function accept-header)))
+          (cond (type (http:effective-response-media-type function resource request type))
+                ((null (http:request-accept-header request))
+                 (http:effective-response-media-type function resource request nil))))
         (http::not-acceptable "Media type (~s) not implemented." accept-header)))
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:*/*))
     accept-media-type)
