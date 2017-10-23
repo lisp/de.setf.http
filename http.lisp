@@ -146,7 +146,11 @@
     :initarg :path
     :reader http:resource-path
     :documentation "the path components of the resource identifer which
-     contribute to its classification."))
+    contribute to its classification.")
+   (mime:mime-type
+    :initarg :media-type :initform nil
+    :reader http:resource-mime-type
+    :documentation "indicates a default media type to apply for requests which lack one"))
   (:documentation "The abstract class of request resources.
    Each request derives a concrete resource subclass and intantiates it with the
    respective properties as matched from the request uri. (see http:bind-resource)
@@ -1314,8 +1318,19 @@
   (:method ((function http:resource-function) (accept-types list))
     (loop with defined-types = (resource-function-media-types function)
       for accept-type in accept-types
-      when (some #'(lambda (defined) (typep accept-type defined)) defined-types)
-      collect accept-type)))
+      for accept-type-type = (type-of accept-type)
+      for accept-type-name = (symbol-name accept-type-type)
+      for matched-type = (some #'(lambda (defined)
+                                   (cond ((typep accept-type defined)
+                                          accept-type)
+                                         ;; never return full wild type
+                                         ((and (not (equal "*/*" accept-type-name))
+                                               (find #\* accept-type-name)
+                                               (subtypep defined accept-type-type))
+                                          (mime:mime-type defined))))
+                               defined-types)
+      when matched-type
+      collect matched-type)))
 
 (defgeneric http:effective-response-media-type (function resource request accept-header)
   (:documentation "the order is
@@ -1327,9 +1342,13 @@
    - finally, try the function's default
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
-    (or (let ((type (resource-function-acceptable-media-type function accept-header)))
+    (or (let ((type (or (resource-function-acceptable-media-type function accept-header)
+                        (http:resource-media-type resource))))
+          ;; either some accept type is a sub-type of an implemented type
+          ;; or check for wildcard types
           (cond (type (http:effective-response-media-type function resource request type))
-                ((null (http:request-accept-header request))
+                ((or (null (http:request-accept-header request))
+                     (equal (http:request-accept-header request) "*/*"))
                  (http:effective-response-media-type function resource request nil))))
         (http::not-acceptable "Media type (~s) not implemented." accept-header)))
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:*/*))
@@ -1341,6 +1360,7 @@
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:application/xhtml+xml))
     (or (http:effective-response-media-type function resource request nil)
         accept-media-type))
+
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header null))
     (or (http:effective-response-media-type function resource (http:request-query-argument request "accept") nil)
         (http:effective-response-media-type function resource nil nil)))

@@ -172,6 +172,7 @@
            :resource-file-type-media-type
            :resource-function
            :resource-function-p
+           :resource-mime-type
            :resource-path
            :resource-path-filename
            :resource-path-name
