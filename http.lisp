@@ -1343,7 +1343,7 @@
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
     (or (let ((type (or (resource-function-acceptable-media-type function accept-header)
-                        (http:resource-media-type resource))))
+                        (http:resource-mime-type resource))))
           ;; either some accept type is a sub-type of an implemented type
           ;; or check for wildcard types
           (cond (type (http:effective-response-media-type function resource request type))
