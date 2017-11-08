@@ -539,26 +539,27 @@
 ;;;
 ;;;  request
 
-#+(or) ;; not done as the location is too late given the initarg. also, do not try to recover a _method argument.
+;;; left as a stub as the location is too late given the initarg. also, do not try to recover a _method argument.
 (defgeneric http:request-method (request)
   (:documentation "Upon first reference, cache the effective http verb. This is sought from among the
    various protocl-level and request-specific hiding places with the fall bask to the actual request
    header.")
   (:method ((request http:request))
-    (or (get-request-method request)
-        (setf-request-method (flet ((as-method-key (string)
-                                      (or (find-symbol (string-upcase string) *http-method-package*)
-                                          (http:not-implemented :method string))))
-                               (let ((header-method (http:request-header request :x-http-method-override)))
-                                 (if header-method
-                                   (as-method-key header-method)
-                                   (if (and (eq (http:request-method request) :post)
-                                            (typep (http:request-media-type request) 'mime:application/x-www-form-urlencoded))
-                                     (let ((post-method (http:request-post-argument request :_method)))
-                                       (if post-method
-                                         (as-method-key post-method)
-                                         (http:request-original-method request)))))))
-                             request))))
+    (get-request-method request)))
+#+(or)
+(setf-request-method (flet ((as-method-key (string)
+                              (or (find-symbol (string-upcase string) *http-method-package*)
+                                  (http:not-implemented :method string))))
+                       (let ((header-method (http:request-header request :x-http-method-override)))
+                         (if header-method
+                             (as-method-key header-method)
+                             (if (and (eq (http:request-method request) :post)
+                                      (typep (http:request-media-type request) 'mime:application/x-www-form-urlencoded))
+                                 (let ((post-method (http:request-post-argument request :_method)))
+                                   (if post-method
+                                       (as-method-key post-method)
+                                       (http:request-original-method request)))))))
+                     request)
 
 (defmethod print-object ((object http:request) stream)
   (print-unreadable-object (object stream :type t :identity t)
