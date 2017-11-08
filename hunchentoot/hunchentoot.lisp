@@ -56,8 +56,13 @@
   'tbnl-response)
 
 (defmethod initialize-instance ((instance tbnl-request) &rest initargs
-                                &key socket)
+                                &key method socket headers-in)
   (declare (dynamic-extent initargs))
+  (let ((override (rest (assoc :x-http-method-override headers-in))))
+    (when (stringp override)
+      (setf method
+            (or (find-symbol (string-upcase override) http.i::*http-method-package*)
+                (http:not-implemented :method override)))))
   (let ((remote-addr nil) (remote-port nil) (local-addr nil) (local-port nil))
     (when socket
       (multiple-value-setq (remote-addr remote-port) (get-peer-address-and-port socket))
@@ -67,6 +72,7 @@
            :local-port local-port
            :remote-addr remote-addr
            :remote-port remote-port
+           :method method
            initargs)))
 
 (defmethod http:acceptor-response-class ((acceptor acceptor))
@@ -229,9 +235,6 @@
 
 (defmethod (setf http:response-accept-ranges) ((value string) (response tbnl-response))
   (setf (header-out :accept-ranges response) value))
-
-(defmethod (setf http:response-accept-encoding) ((value string) (response tbnl-response))
-  (setf (header-out :accept-encoding response) value))
 
 (defmethod (setf http:response-allow-header) ((allow string) (response tbnl-response))
   (setf (header-out :allow response) allow))

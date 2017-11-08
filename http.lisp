@@ -539,6 +539,27 @@
 ;;;
 ;;;  request
 
+#+(or) ;; not done as the location is too late given the initarg. also, do not try to recover a _method argument.
+(defgeneric http:request-method (request)
+  (:documentation "Upon first reference, cache the effective http verb. This is sought from among the
+   various protocl-level and request-specific hiding places with the fall bask to the actual request
+   header.")
+  (:method ((request http:request))
+    (or (get-request-method request)
+        (setf-request-method (flet ((as-method-key (string)
+                                      (or (find-symbol (string-upcase string) *http-method-package*)
+                                          (http:not-implemented :method string))))
+                               (let ((header-method (http:request-header request :x-http-method-override)))
+                                 (if header-method
+                                   (as-method-key header-method)
+                                   (if (and (eq (http:request-method request) :post)
+                                            (typep (http:request-media-type request) 'mime:application/x-www-form-urlencoded))
+                                     (let ((post-method (http:request-post-argument request :_method)))
+                                       (if post-method
+                                         (as-method-key post-method)
+                                         (http:request-original-method request)))))))
+                             request))))
+
 (defmethod print-object ((object http:request) stream)
   (print-unreadable-object (object stream :type t :identity t)
     (format stream "~a ~a"
@@ -562,6 +583,7 @@
 (defgeneric http:request-accept-content-encoding (request)
   (:method :around ((request http:request))
     (compute-accept-encoding-ordered-codings (call-next-method))))
+
 
 (defgeneric http:request-accept-header (request)
   )
@@ -653,26 +675,6 @@
             (let ((header (http:request-content-type-header request)))
               (when header
                 (mime:mime-type header  :if-does-not-exist 'mime:unsupported-mime-type )))))))
-
-(defgeneric http:request-method (request)
-  (:documentation "Upon first reference, cache the effective http verb. This is sought from among the
-   various protocl-level and request-specific hiding places with the fall bask to the actual request
-   header.")
-  (:method ((request http:request))
-    (or (get-request-method request)
-        (setf-request-method (flet ((as-method-key (string)
-                                      (or (find-symbol (string-upcase string) *http-method-package*)
-                                          (http:not-implemented :method string))))
-                               (let ((header-method (http:request-header request :x-http-method-override)))
-                                 (if header-method
-                                   (as-method-key header-method)
-                                   (if (and (eq (http:request-method request) :post)
-                                            (typep (http:request-media-type request) 'mime:application/x-www-form-urlencoded))
-                                     (let ((post-method (http:request-post-argument request :_method)))
-                                       (if post-method
-                                         (as-method-key post-method)
-                                         (http:request-original-method request)))))))
-                             request))))
 
 (defgeneric http:request-negotiated-character-encoding (request)
   )
@@ -1062,17 +1064,19 @@
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
-                                                   '(http:not-implemented "media type (~s) not implemented for method (~s)"
+                                                   '(http:not-implemented "media type (~s) not implemented for method (~s . ~s)"
                                                                           (http:request-accept-type http:*request*)
-                                                                          (http:request-method http:*request*)))))
+                                                                          (http:request-method http:*request*)
+                                                                          (http:request-uri http:*request*)))))
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
                                                                               '(:options ,@(loop for (key nil) on primary-by-method by #'cddr collect key))))))
                               ;; otherwise, it is not implemented
-                              (t (http:not-implemented "media type (~s) not implemented for method (~s)"
+                              (t (http:not-implemented "media type (~s) not implemented for method (~s . ~s)"
                                                        (http:request-accept-type http:*request*)
-                                                       (http:request-method http:*request*)))))
+                                                       (http:request-method http:*request*)
+                                                       (http:request-uri http:*request*)))))
          ;; wrap the decoding an content generation steps with a mechanism to encode the result.
          ;; if the content is null, no output should be generated
          ;; if no method was applicable, generate logic to either derive an alternative concrete media type
@@ -1343,7 +1347,9 @@
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
     (or (let ((type (or (resource-function-acceptable-media-type function accept-header)
-                        (http:resource-mime-type resource))))
+                        (and (or (null (http:request-accept-header request))
+                                 (equal (http:request-accept-header request) "*/*"))
+                             (http:resource-mime-type resource)))))
           ;; either some accept type is a sub-type of an implemented type
           ;; or check for wildcard types
           (cond (type (http:effective-response-media-type function resource request type))
@@ -1563,10 +1569,6 @@ obsolete mechanism which was in terms of the encode methods
 
 (defgeneric http:response-header (response header-label)
   )
-
-(defgeneric (setf http:response-accept-encoding) (accept-codings response)
-  (:method ((values list) (response http:response))
-    (setf (http:response-accept-encoding response) (format nil "~(~{~a~^,~}~)" values))))
 
 (defgeneric (setf http:response-accept-ranges) (ranges response)
   (:method ((value null) (response http:response))
