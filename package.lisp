@@ -19,6 +19,7 @@
   (:export :*content-initial-length*
            :*content-length-limit*
            :*log-level*
+           :*log-levels*
            :*request*
            :*resource*
            :*response*

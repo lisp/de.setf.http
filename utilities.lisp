@@ -22,7 +22,7 @@
        (every #'http-verb-p object)))
 
 (defun log-level-qualifies? (level)
-  (find level (member http:*log-level* *log-levels*)))
+  (find level (member http:*log-level* http:*log-levels*)))
 
 (defun call-if-log-level-qualifies (level operator)
   "Given a log LEVEL and an OPERATOR, call the operator iff the log level is satisfied."
