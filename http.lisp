@@ -1209,8 +1209,9 @@
                                               (if (rest clause)
                                                 `(:method ,@clause)
                                                 `(:method :log ((resource t) (request t) (response t) (content-type t) (accept-type t))
-                                                          (http:log-debug *trace-output* "~s: ~s ~s ~s ~s ~s"
-                                                                          ',name resource request response content-type accept-type))))
+                                                   (http:log-debug *trace-output* "~s: ~s ~s ~s ~s ~s"
+                                                                   ',name resource request response content-type accept-type)
+                                                   (http:log-trace *trace-output* "~s: ~s" ',name (http:request-headers request)))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
