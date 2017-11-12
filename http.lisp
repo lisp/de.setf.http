@@ -801,7 +801,7 @@
   (:method ((path t))
     nil)
   (:method ((path string))
-    (apply #'values (split-string path "."))))
+    (apply #'values (split-string (http:resource-path-filename path) "."))))
 
 (defgeneric http:resource-path-name (resource)
   (:method ((path string))
@@ -996,7 +996,10 @@
 
 (defgeneric the-unsupported-function (resource request response content-type accept-type)
   (:method ((resource t) (request http:request) (response t) (content-type t) (accept-type t))
-    (http:unsupported-media-type "Media type not supported: ~s." (http:request-media-type request))))
+    (http:unsupported-media-type "Media type (~a) not supported for: ~a."
+                                 (http:request-media-type request)
+                                 resource)))
+
 (defparameter *the-unsupported-method* (first (c2mop:generic-function-methods #'the-unsupported-function)))
 
 (defun compute-effective-resource-function-method (function authentication authorization authentication-around
