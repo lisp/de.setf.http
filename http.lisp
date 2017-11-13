@@ -1385,6 +1385,12 @@
       (unless (equal default "*/*")
         (resource-function-acceptable-media-type function default)))))
 
+(defmethod http:effective-response-media-type :around (function resource request accept-header)
+  (let ((result (call-next-method)))
+    (http:log-notice *trace-output* "ermt: ~a ~a ~a ~a ->  ~a"
+                     function resource request accept-header
+                     result)))
+
 (defgeneric http:resource-file-type-media-type (resource)
   (:method ((resource http:resource))
     nil))
