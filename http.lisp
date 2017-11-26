@@ -148,7 +148,7 @@
     :documentation "the path components of the resource identifer which
     contribute to its classification.")
    (mime:mime-type
-    :initarg :media-type :initform nil
+    :initarg :media-type :initarg :mime-type :initform nil
     :reader http:resource-mime-type
     :documentation "indicates a default media type to apply for requests which lack one"))
   (:documentation "The abstract class of request resources.
@@ -289,6 +289,13 @@
 ;;;
 ;;; operators
 
+(defun split-path-string (path-string)
+  (let* ((path (split-string path-string #(#\/)))
+         (leaf (first (last path))))
+    (if (and leaf (find #\. leaf))
+        (append (butlast path) (split-string leaf "."))
+        path)))
+            
 
 ;;;
 ;;; acceptor
@@ -515,7 +522,7 @@
     (http:bind-resource (http:function-patterns function) path request))
 
   (:method ((patterns list) (path string) request)
-    (loop with parsed-path = (split-string path #(#\/))
+    (loop with parsed-path = (split-path-string path)
           for pattern in patterns
           for (matched-pattern properties) = (multiple-value-list (match-pattern pattern parsed-path))
           when matched-pattern
@@ -1459,7 +1466,7 @@ obsolete mechanism which was in terms of the encode methods
 ;;; resource patterns modeled explicitly
 
 (defun parse-resource-name-pattern (name)
-  (loop for element in (split-string name #(#\/))
+  (loop for element in (split-path-string name)
     when (plusp (length element))
     collect (if (char= *keyword-marker-character* (char element 0))
                 (if (char= #\* (char element (1- (length element))))
@@ -1468,6 +1475,7 @@ obsolete mechanism which was in terms of the encode methods
                 element)))
 ;;; (parse-resource-name-pattern "/:account/:repository")
 ;;; (parse-resource-name-pattern "/:account/:repository/:detail*")
+;;; (parse-resource-name-pattern "/:account/:repository/:file.:type")
 
 (defmethod initialize-instance ((instance http:resource-pattern) &rest initargs &key
                                 class
@@ -1539,7 +1547,7 @@ obsolete mechanism which was in terms of the encode methods
     instance and the property list.")
 
   (:method ((pattern t) (path string))
-    (match-pattern pattern (split-string path #(#\/))))
+    (match-pattern pattern (split-path-string path)))
 
   (:method ((pattern http:resource-pattern) (path list))
     (flet ((try-subpattern ()
