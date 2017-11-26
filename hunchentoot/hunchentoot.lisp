@@ -174,6 +174,14 @@
 (defmethod http:request-keep-alive-p ((request tbnl-request))
   (keep-alive-p request))
 
+(defmethod http:request-origin ((request tbnl-request))
+  (let ((referer (http:request-referer request)))
+    (if referer
+        (let ((uri (puri:uri referer)))
+          (format nil "~a://~a[:~d]"
+                  (puri:uri-scheme uri) (puri:uri-host uri) (puri:uri-port uri)))
+        "*")))
+
 (defmethod http:request-original-method ((request tbnl-request))
   (request-method request))
 
@@ -203,6 +211,9 @@
 
 (defmethod http:request-remote-ip-address ((request request))
   (remote-addr request))
+
+(defmethod http:request-referer ((request request))
+  (header-in :referer request))
 
 (defmethod http:request-session-id ((request request))
   (cookie-in (session-cookie-name (request-acceptor request))

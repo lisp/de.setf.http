@@ -709,6 +709,9 @@
                                                 supported-encodings)))
         (setf-request-negotiated-content-encoding coding request)))))
 
+(defgeneric http:request-origin (request)
+  (:documentation "Return the request scheme and host"))
+
 (defgeneric http:request-original-method (request)
   )
 
@@ -735,6 +738,9 @@
 (defgeneric http:request-argument-list (request)
   (:documentation "Return the consolidated query and post arguments, in that order, as
     an a-list of string pairs, of the form (name . value)"))
+
+(defgeneric http:request-referer (request)
+  )
 
 (defgeneric http:request-remote-ip-address (request)
   (:documentation

@@ -147,6 +147,7 @@
            :request-method
            :request-negotiated-character-encoding
            :request-negotiated-content-encoding
+           :request-origin
            :request-original-method
            :request-path
            :request-post-argument
@@ -155,6 +156,7 @@
            :request-query-argument
            :request-query-arguments
            :request-query-argument-list
+           :request-referer
            :request-remote-ip-address
            :request-response
            :request-session-id
