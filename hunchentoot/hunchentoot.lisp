@@ -275,6 +275,9 @@
 (defmethod (setf http:response-content-type-header) ((content-type string) (response tbnl-response))
   (setf (header-out :content-type response) content-type))
 
+(defmethod http:response-content-type-header ((response tbnl-response))
+  (header-out :content-type response))
+
 (defmethod (setf http:response-date) ((http-date string) (response tbnl-response))
   (setf (header-out :date response) http-date))
 

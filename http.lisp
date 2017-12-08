@@ -1652,6 +1652,9 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
   )
 
+(defgeneric http:response-content-type-header (response)
+  )
+
 (defgeneric (setf http:response-etag) (tag response)
   )
 
