@@ -1090,10 +1090,10 @@
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
                                                                               '(:options ,@(loop for (key nil) on primary-by-method by #'cddr collect key))))))
                               ;; otherwise, it is not implemented
-                              (t (http:not-implemented "media type (~s) not implemented for method (~s . ~s)"
-                                                       (http:request-accept-type http:*request*)
+                              (t (http:not-implemented "method (~s) not among those implemented for resource (~s . ~s)"
                                                        (http:request-method http:*request*)
-                                                       (http:request-uri http:*request*)))))
+                                                       (http:request-uri http:*request*)
+                                                       ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
          ;; wrap the decoding an content generation steps with a mechanism to encode the result.
          ;; if the content is null, no output should be generated
          ;; if no method was applicable, generate logic to either derive an alternative concrete media type
@@ -1378,7 +1378,7 @@
         (http::not-acceptable "Media type (~s) not implemented." accept-header)))
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:*/*))
     accept-media-type)
-
+  ;; allow the function to override interactive browser requests
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:text/html))
     (or (http:effective-response-media-type function resource request nil)
         accept-media-type))
