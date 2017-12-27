@@ -1770,15 +1770,14 @@ obsolete mechanism which was in terms of the encode methods
     ;; when the headers are still pending, stage an error report as the new headers
     ;; and write the condition report as the content.
     ;; if the headers are already gone, just append to the content and terminate the processing
-    (when (http:clear-headers response)
-      (http:report-condition-headers condition response)
-      (http:send-headers response)
-      #+(or)(let ((header-stream (http:stream-header-stream (http:send-headers response))))
-        (print :after-send-headers2)
-        (dotimes (x 4096) (write-char #\+ header-stream))
-        (finish-output header-stream)))
-    ;; emit any body
-    (http:report-condition-body condition response)
+    (handler-case
+        (progn (when (http:clear-headers response)
+                 (http:report-condition-headers condition response)
+                 (http:send-headers response))
+          ;; emit any body
+          (http:report-condition-body condition response))
+      (error (c) (ignore-errors (format (get-response-content-stream response)
+                                        "Error while reporting error: ~a" c))))
     (finish-output (get-response-content-stream response))))
 
                                
