@@ -11,6 +11,7 @@
 (asdf:defsystem :de.setf.http.hunchentoot
   :depends-on (:de.setf.http
                :hunchentoot
+               :drakma
                )
   :description
   "Integrates hunchenoot as the concrete implementation for de.setf.http"

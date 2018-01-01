@@ -600,3 +600,140 @@
     ;; one could check for eof, but that would preclude pipelined interaction
     ;; (raw-post-data :force-binary t)
     content-stream))
+
+;;; support for asynchronous operations
+
+(defgeneric call-with-open-response-stream (operator location &rest args)
+  (:method (operator (location pathname) &rest args)
+    (declare (dynamic-extent args)
+             (dynamic-extent operator))
+    (let ((stream nil) (abort t))
+      (unwind-protect (progn (setf stream (apply #'open location args))
+                        (funcall operator stream)
+                        (setf abort nil))
+        (when stream (close stream :abort abort)))))
+  (:method (operator (location puri:uri) &rest args)
+    (declare (dynamic-extent args)
+             (dynamic-extent operator))
+    (apply #'drakma:http-request location :content operator args))
+  (:method (operator (location string) &rest args)
+    (declare (dynamic-extent args)
+             (dynamic-extent operator))
+    (if (and (> (length location) 7) (string-equal "http://" location :end2 7))
+        (apply #'call-with-open-response-stream operator (puri:uri location) args)
+        (apply #'call-with-open-response-stream operator (pathname location) args))))
+  
+
+(defmacro with-open-response-stream ((stream-var location &rest args) &body body)
+  (let ((op (gensym "CWORS-")))
+  `(flet ((,op (,stream-var) ,@body))
+     (declare (dynamic-extent #',op))
+     (call-with-open-response-stream #',op location ,@args))))
+
+
+(defgeneric process-asynchronous-connection (acceptor source destination)
+  (:documentation "Given acceptor, an http:acceptor, and conenction which is split
+ between a source and a destination, establish the processing context, in terms of
+ simplex streams
+ - a non-chunked input stream
+ - an output stream, opened to the destination chunked according to protocol
+   for request and response content
+ *request* : the reified request instance
+ *reply* : the reified response instance
+ 
+ Perform respond-to-request w/ error handling as for a synchronous request.
+ Methods are specialized for combinations of source and destination streams and abstract locations")
+
+  (:method ((acceptor http:acceptor) (source pathname) destination)
+    (with-open-file (source-stream source :direction :input)
+      (process-asynchronous-connection acceptor source-stream destination)))
+
+  (:method ((acceptor http:acceptor) (*hunchentoot-stream* stream) &key output)
+    "process a single asynchronous request using the base stream as-is"
+    (unwind-protect
+        ;; establish http condition handlers and an error handler which mapps to internal-error
+        (handler-bind
+            ((http:condition (lambda (c)
+                               ;; declared conditions are handled according to their report implementation
+                               (http:send-condition *reply* c)
+                               ;; log the condition as request completion
+                               (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                               (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (return-from process-asynchronous-connection
+                                 (values nil c nil))))
+             ;; if some other error reaches here, log and ignore it.
+             (error (lambda (c)
+                      (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
+                      (return-from process-asynchronous-connection
+                        (values nil c nil)))))
+          (handler-bind
+              ;; establish an additional level to permit a general handler which maps to http:condition
+              (;; at this level decline to handle http:condition, to cause it to pass one level up
+               (http:condition (lambda (c)
+                                 (signal c)))
+               ;; while any other error is handled as per acceptor, where the default implementation
+               ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
+               ;; as well as declining to handle in which the condition is re-signaled as an internal error
+               (error (lambda (c)
+                        (http:handle-condition acceptor c)
+                        ;; if it remains unhandled, then resignal as an internal error
+                        (http:log *lisp-errors-log-level* acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (format *error-output* "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (format *error-output* "~%~a" (get-backtrace))
+                        ;; re-signal to the acceptor's general handler
+                        (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
+            
+              (multiple-value-bind (headers-in method url-string protocol)
+                                   (get-request-data *hunchentoot-stream*)
+                ;; check if there was a request at all
+                (if method
+                    (let ((asynchronous-end-point (or output
+                                                      (http:request-header headers "Asynchronous-Location")
+                                                      (http:request-header headers "Asynchronous-End-Point")))
+                          (asynchronous-method (or (http:request-header headers "Asynchronous-Method") :post)))
+                      (with-open-response-stream (request-stream asynchronous-end-point
+                                                                 :method asynchronous-method
+                                                                 :content-type content-type)
+                        ;; bind per-request special variables, then process the
+                        ;; request - note that *ACCEPTOR* was bound by an aound method
+                        (let* ((output-stream (make-instance 'http:output-stream :real-stream request-stream))
+                               (*reply* (http:make-response acceptor
+                                                            :server-protocol protocol
+                                                            ;; create the output stream which supports character output for the headers
+                                                            ;; with the initial character encoding set to ascii
+                                                            :content-stream output-stream))
+                               (input-stream (make-instance 'http:input-stream :real-stream *hunchentoot-stream*))
+                               (*request* (http:make-request acceptor
+                                                             :content-stream *error-output*
+                                                             :headers-in headers-in
+                                                             :content-stream input-stream
+                                                             :method method
+                                                             :uri url-string
+                                                             :server-protocol protocol))
+                               (http:*request* *request*)
+                               (http:*response* *reply*)
+                               (*tmp-files* nil)
+                         (*session* nil)
+                         (transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
+                          ;; instantiation must follow this order as any errors are recorded as side-effects on the response
+                          ;; return code, which must be checked...
+                          (setf (http:response-request *reply*) *request*)
+                          (setf (http:request-response *request*) *reply*)
+                          (when transfer-encodings
+                            ;; ignore it
+                            )
+                          (if (eql +http-ok+ (return-code *reply*))
+                              ;; if initialization succeeded, process
+                              ;; at this point thread counts as active wrt eventual soft shutdown (see stop)
+                              (catch 'request-processed
+                                (http:respond-to-request acceptor *request* *reply*))
+                              ;; otherwise, report the error
+                              (http:error :code (return-code *reply*)))
+                          (finish-output output-stream)
+                          ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
+                          ;; access log message
+                          (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                          (finish-output output-stream))))
+                    (log-warn "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
+                              headers-in method url-string protocol))))))))
+

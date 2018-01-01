@@ -1081,7 +1081,7 @@
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
-                                                   '(http:not-implemented "media type (~s) not implemented for method (~s . ~s)"
+                                                   '(http:not-acceptable "media type (~s) not acceptable for method (~s . ~s)"
                                                                           (http:request-accept-type http:*request*)
                                                                           (http:request-method http:*request*)
                                                                           (http:request-uri http:*request*)))))
