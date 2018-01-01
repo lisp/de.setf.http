@@ -628,10 +628,10 @@
   (let ((op (gensym "CWORS-")))
   `(flet ((,op (,stream-var) ,@body))
      (declare (dynamic-extent #',op))
-     (call-with-open-response-stream #',op location ,@args))))
+     (call-with-open-response-stream #',op ,location ,@args))))
 
 
-(defgeneric process-asynchronous-connection (acceptor source destination)
+(defgeneric process-asynchronous-connection (acceptor source &key output)
   (:documentation "Given acceptor, an http:acceptor, and conenction which is split
  between a source and a destination, establish the processing context, in terms of
  simplex streams
@@ -644,9 +644,9 @@
  Perform respond-to-request w/ error handling as for a synchronous request.
  Methods are specialized for combinations of source and destination streams and abstract locations")
 
-  (:method ((acceptor http:acceptor) (source pathname) destination)
+  (:method ((acceptor http:acceptor) (source pathname) &rest args)
     (with-open-file (source-stream source :direction :input)
-      (process-asynchronous-connection acceptor source-stream destination)))
+      (apply #'process-asynchronous-connection acceptor source-stream args)))
 
   (:method ((acceptor http:acceptor) (*hunchentoot-stream* stream) &key output)
     "process a single asynchronous request using the base stream as-is"
