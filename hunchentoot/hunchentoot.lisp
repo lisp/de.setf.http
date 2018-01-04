@@ -688,9 +688,10 @@
                 ;; check if there was a request at all
                 (if method
                     (let ((asynchronous-end-point (or output
-                                                      (http:request-header headers "Asynchronous-Location")
-                                                      (http:request-header headers "Asynchronous-End-Point")))
-                          (asynchronous-method (or (http:request-header headers "Asynchronous-Method") :post)))
+                                                      (http:request-header headers-in "Asynchronous-Location")
+                                                      (http:request-header headers-in "Asynchronous-End-Point")))
+                          (asynchronous-method (or (http:request-header headers-in "Asynchronous-Method") :post))
+                          (asynchronous-content-type (http:request-header headers-in "Asynchronous-Content-Type")))
                       (with-open-response-stream (request-stream asynchronous-end-point
                                                                  :method asynchronous-method
                                                                  :content-type content-type)
@@ -734,6 +735,6 @@
                           ;; access log message
                           (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                           (finish-output output-stream))))
-                    (log-warn "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
+                    (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
                               headers-in method url-string protocol))))))))
 
