@@ -544,7 +544,7 @@
 
 
 ;;;
-;;;  request
+;;; request
 
 ;;; left as a stub as the location is too late given the initarg. also, do not try to recover a _method argument.
 (defgeneric http:request-method (request)
@@ -628,6 +628,9 @@
            t))))
 
 (defgeneric http:request-content-stream (request)
+  )
+
+(defgeneric (setf http:request-content-stream) (stream request)
   )
 
 (defgeneric http:request-content-length (request)
@@ -765,6 +768,17 @@
 (defgeneric http:request-user-agent (request)
   (:method ((request http:request))
     (http:request-header request :user-agent)))
+
+
+(defgeneric http:write-request-header (request stream)
+  (:method ((request http:request) stream)
+    (format stream "~(~a~) ~A HTTP/1.1~C~C"
+            (http:request-method request)
+            (http:request-uri request)
+            #\Return #\Linefeed)
+    (loop for (key . value) in (http:request-headers request)
+      do (hunchentoot::write-header-line (chunga:as-capitalized-string key) value stream))
+    (format stream "~C~C" #\Return #\Linefeed)))
 
 ;;; resource
 
@@ -1648,6 +1662,9 @@ obsolete mechanism which was in terms of the encode methods
     (unless (http:response-headers-sent-p response)
       (http:send-headers response))
     (get-response-content-stream response)))
+
+(defgeneric (setf http:response-content-stream) (stream response)
+  )
 
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
   )

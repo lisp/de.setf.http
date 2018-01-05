@@ -131,6 +131,9 @@
 (defmethod http:request-content-stream ((request tbnl-request))
   (content-stream request))
 
+(defmethod (setf http:request-content-stream) (stream (request tbnl-request))
+  (setf (slot-value request 'tnbl::content-stream ) stream))
+
 (defmethod http:request-content-type-header ((request tbnl-request))
   (header-in :content-type request))
 
@@ -397,15 +400,17 @@
                                ;;(finish-output acceptor-stream)
                                ;; (format *trace-output*  "sent~%~a~%" c)
                                (return-from process-connection
-                                 (values nil c nil))))
-             ;; a connection error is ignored completely to permit higher-level handlers to
-             ;; determine response - likely, just to ignore and close
-             (usocket:connection-aborted-error (lambda (c) (declare (ignore c)))))
+                                 (values nil c nil)))))
             (handler-bind
               ;; establish an additional level to permit a general handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
                (http:condition (lambda (c)
                                  (signal c)))
+               ;; a connection error is ignored completely to permit higher-level handlers to
+               ;; determine response - likely, just to ignore and close
+               (usocket:connection-aborted-error (lambda (c) (declare (ignore c))))
+               #+sbcl  ;; caused by a broken pipe
+               (SB-INT:SIMPLE-STREAM-ERROR (lambda (c) (declare (ignore c))))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
