@@ -239,6 +239,7 @@
            :unauthorized
            :unsupported-media-type
            :use-proxy
+           :write-request-header
            :internal-error
            :not-implemented
            ))

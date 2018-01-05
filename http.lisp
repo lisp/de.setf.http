@@ -770,15 +770,7 @@
     (http:request-header request :user-agent)))
 
 
-(defgeneric http:write-request-header (request stream)
-  (:method ((request http:request) stream)
-    (format stream "~(~a~) ~A HTTP/1.1~C~C"
-            (http:request-method request)
-            (http:request-uri request)
-            #\Return #\Linefeed)
-    (loop for (key . value) in (http:request-headers request)
-      do (hunchentoot::write-header-line (chunga:as-capitalized-string key) value stream))
-    (format stream "~C~C" #\Return #\Linefeed)))
+(defgeneric http:write-request-header (request stream) )
 
 ;;; resource
 

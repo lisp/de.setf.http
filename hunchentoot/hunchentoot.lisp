@@ -230,6 +230,16 @@
 (defmethod http:request-uri ((request request))
   (request-uri request))
 
+(defmethod http:write-request-header ((request request) stream)
+  (format stream "~(~a~) ~A HTTP/1.1~C~C"
+          (request-method request)
+          (request-uri request)
+          #\Return #\Linefeed)
+  (loop for (key . value) in (request-headers request)
+    do (write-header-line (chunga:as-capitalized-string key) value stream))
+  (format stream "~C~C" #\Return #\Linefeed))
+
+
 ;;;
 ;;; response
 
