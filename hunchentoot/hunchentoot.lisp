@@ -132,7 +132,7 @@
   (content-stream request))
 
 (defmethod (setf http:request-content-stream) (stream (request tbnl-request))
-  (setf (slot-value request 'tnbl::content-stream ) stream))
+  (setf (slot-value request 'content-stream ) stream))
 
 (defmethod http:request-content-type-header ((request tbnl-request))
   (header-in :content-type request))
