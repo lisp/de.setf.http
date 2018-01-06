@@ -235,7 +235,7 @@
           (request-method request)
           (request-uri request)
           #\Return #\Linefeed)
-  (loop for (key . value) in (request-headers request)
+  (loop for (key . value) in (headers-in request)
     do (write-header-line (chunga:as-capitalized-string key) value stream))
   (format stream "~C~C" #\Return #\Linefeed))
 
@@ -709,7 +709,7 @@
                           (asynchronous-content-type (http:request-header headers-in "Asynchronous-Content-Type")))
                       (with-open-response-stream (request-stream asynchronous-end-point
                                                                  :method asynchronous-method
-                                                                 :content-type content-type)
+                                                                 :content-type asynchronous-content-type)
                         ;; bind per-request special variables, then process the
                         ;; request - note that *ACCEPTOR* was bound by an aound method
                         (let* ((output-stream (make-instance 'http:output-stream :real-stream request-stream))
