@@ -58,7 +58,7 @@
     :initform (make-string-output-stream)
     :accessor http:stream-header-stream
     :documentation "A string stream to buffer headers until the content is actually sent
-     in order that (some) error can suppres the initial headers and instead emit an
+     in order that (some) errors can suppress the initial headers and instead emit an
      error code. Once the headers are emitted, the slot is cleared to indicate that
      no change is possible.")
    (byte-writer

@@ -231,7 +231,7 @@
   (request-uri request))
 
 (defmethod http:write-request-header ((request request) stream)
-  (format stream "~(~a~) ~A HTTP/1.1~C~C"
+  (format stream "~:@(~a~) ~A HTTP/1.1~C~C"
           (request-method request)
           (request-uri request)
           #\Return #\Linefeed)

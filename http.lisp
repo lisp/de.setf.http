@@ -1835,8 +1835,8 @@ obsolete mechanism which was in terms of the encode methods
           (when (http:response-transfer-encoding-header response)
             (setf (chunga:chunked-stream-output-chunking-p stream) t))
           ;; TODO : iff content encoding is specified, wrap the response stream with
-          ;; one which pipes through a zip process. need to take a possible ssl 
-          ;; wrapper into account.
+          ;; one which pipes through a zip process.
+          ;; an ssl wrapper has been handled in the tbnl:process-connection preparation
           )))))
 
 
