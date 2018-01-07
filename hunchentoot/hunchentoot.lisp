@@ -548,7 +548,6 @@
                          ;; length is unknown at this point...
                          (null content-length)
                          (not (eql status-code 204)))))
-    
     ;; emit the response and entity headers
     ;; start with status line
     (format header-stream "HTTP/1.1 ~D ~A~C~C" status-code (reason-phrase status-code) #\Return #\Linefeed)
