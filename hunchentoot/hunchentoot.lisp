@@ -621,8 +621,15 @@
   (:method (operator (location pathname) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
+    (setf args (spocq.i::plist-difference args '(:content-type :method)))
     (let ((stream nil) (abort t))
-      (unwind-protect (progn (setf stream (apply #'open location args))
+      (ensure-directories-exist location)
+      (unwind-protect (progn (setf stream (apply #'open location
+                                                 :direction :output
+                                                 :if-exists :error
+                                                 :if-does-not-exist :create
+                                                 :element-type :default
+                                                 args))
                         (funcall operator stream)
                         (setf abort nil))
         (when stream (close stream :abort abort)))))
@@ -659,7 +666,8 @@
  Methods are specialized for combinations of source and destination streams and abstract locations")
 
   (:method ((acceptor http:acceptor) (source pathname) &rest args)
-    (with-open-file (source-stream source :direction :input)
+    (with-open-file (source-stream source :direction :input 
+                                   :element-type :default)
       (apply #'process-asynchronous-connection acceptor source-stream args)))
 
   (:method ((acceptor http:acceptor) (*hunchentoot-stream* stream) &key output)
@@ -706,12 +714,13 @@
                                                       (http:request-header headers-in "Asynchronous-End-Point")))
                           (asynchronous-method (or (http:request-header headers-in "Asynchronous-Method") :post))
                           (asynchronous-content-type (http:request-header headers-in "Asynchronous-Content-Type")))
-                      (with-open-response-stream (request-stream asynchronous-end-point
+                      (with-open-response-stream (response-stream asynchronous-end-point
                                                                  :method asynchronous-method
                                                                  :content-type asynchronous-content-type)
                         ;; bind per-request special variables, then process the
                         ;; request - note that *ACCEPTOR* was bound by an aound method
-                        (let* ((output-stream (make-instance 'http:output-stream :real-stream request-stream))
+                        (let* ((*acceptor* acceptor)
+                               (output-stream (make-instance 'http:output-stream :real-stream response-stream))
                                (*reply* (http:make-response acceptor
                                                             :server-protocol protocol
                                                             ;; create the output stream which supports character output for the headers
@@ -719,7 +728,6 @@
                                                             :content-stream output-stream))
                                (input-stream (make-instance 'http:input-stream :real-stream *hunchentoot-stream*))
                                (*request* (http:make-request acceptor
-                                                             :content-stream *error-output*
                                                              :headers-in headers-in
                                                              :content-stream input-stream
                                                              :method method
