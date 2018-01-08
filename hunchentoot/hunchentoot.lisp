@@ -621,7 +621,12 @@
   (:method (operator (location pathname) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (setf args (spocq.i::plist-difference args '(:content-type :method)))
+    (flet ((plist-difference (plist keys)
+             (loop for (key value) on plist by #'cddr
+               unless (member key keys)
+               collect key and
+               collect value)))
+      (setf args (plist-difference args '(:content-type :method))))
     (let ((stream nil) (abort t))
       (ensure-directories-exist location)
       (unwind-protect (progn (setf stream (apply #'open location
