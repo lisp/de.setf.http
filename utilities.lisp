@@ -129,15 +129,18 @@
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
 
 (defun compute-accept-ordered-types (header)
-  (let* ((accept-ranges (split-string header #\,))
-         (types (loop for range in accept-ranges
-                  for type = (mime:mime-type range :if-does-not-exist nil)
-                  if type
-                  collect type)))
-                  ;;else do (http:log-warn (http:acceptor) "The mime type '~a' is not defined." range))))
-    (if types
-      (sort types #'> :key #'mime::mime-type-quality)
-      (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
+  (handler-case
+      (let* ((accept-ranges (split-string header #\,))
+             (types (loop for range in accept-ranges
+                      for type = (mime:mime-type range :if-does-not-exist nil)
+                      if type
+                      collect type)))
+        ;;else do (http:log-warn (http:acceptor) "The mime type '~a' is not defined." range))))
+        (if types
+            (sort types #'> :key #'mime::mime-type-quality)
+            (http:not-acceptable "Unacceptable accept ranges: '~a'" header)))
+    (error (c)
+           (http:bad-request "Invalid accept header: ~a" c))))
 
 (defun compute-accept-encoding-ordered-codings (header)
   ;; translate the string into a sorted, qualified a-list
