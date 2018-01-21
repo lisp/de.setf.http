@@ -178,12 +178,7 @@
   (keep-alive-p request))
 
 (defmethod http:request-origin ((request tbnl-request))
-  (let ((referer (http:request-referer request)))
-    (if referer
-        (let ((uri (puri:uri referer)))
-          (format nil "~a://~a[:~d]"
-                  (puri:uri-scheme uri) (puri:uri-host uri) (puri:uri-port uri)))
-        "*")))
+  (header-in :origin request))
 
 (defmethod http:request-original-method ((request tbnl-request))
   (request-method request))
@@ -648,6 +643,37 @@
     (if (and (> (length location) 7) (string-equal "http://" location :end2 7))
         (apply #'call-with-open-response-stream operator (puri:uri location) args)
         (apply #'call-with-open-response-stream operator (pathname location) args))))
+
+(defgeneric call-with-open-request-stream (operator location &rest args)
+  (:method (operator (location pathname) &rest args)
+    (declare (dynamic-extent args)
+             (dynamic-extent operator))
+    (flet ((plist-difference (plist keys)
+             (loop for (key value) on plist by #'cddr
+               unless (member key keys)
+               collect key and
+               collect value)))
+      (setf args (plist-difference args '(:accept :method))))
+    (let ((stream nil) (abort t))
+      (ensure-directories-exist location)
+      (unwind-protect (progn (setf stream (apply #'open location
+                                                 :direction :input
+                                                 :if-does-not-exist :error
+                                                 :element-type :default
+                                                 args))
+                        (funcall operator stream)
+                        (setf abort nil))
+        (when stream (close stream :abort abort)))))
+  (:method (operator (location puri:uri) &rest args &key (method :get))
+    (declare (dynamic-extent args)
+             (dynamic-extent operator))
+    (apply #'drakma:http-request location :content operator :method method args))
+  (:method (operator (location string) &rest args)
+    (declare (dynamic-extent args)
+             (dynamic-extent operator))
+    (if (and (> (length location) 7) (string-equal "http://" location :end2 7))
+        (apply #'call-with-open-request-stream operator (puri:uri location) args)
+        (apply #'call-with-open-request-stream operator (pathname location) args))))
   
 
 (defmacro with-open-response-stream ((stream-var location &rest args) &body body)
@@ -658,7 +684,7 @@
 
 
 (defgeneric process-asynchronous-connection (acceptor source &key output)
-  (:documentation "Given acceptor, an http:acceptor, and conenction which is split
+  (:documentation "Given acceptor, an http:acceptor, and connenction which is split
  between a source and a destination, establish the processing context, in terms of
  simplex streams
  - a non-chunked input stream
