@@ -413,9 +413,9 @@
                                  (signal c)))
                ;; a connection error is ignored completely to permit higher-level handlers to
                ;; determine response - likely, just to ignore and close
-               (usocket:connection-aborted-error (lambda (c) (declare (ignore c))))
+               (usocket:connection-aborted-error (lambda (c) (declare (ignore c)) (return-from process-connection nil)))
                #+sbcl  ;; caused by a broken pipe
-               (SB-INT:SIMPLE-STREAM-ERROR (lambda (c) (declare (ignore c))))
+               (SB-INT:SIMPLE-STREAM-ERROR (lambda (c) (declare (ignore c)) (return-from process-connection nil)))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
