@@ -411,11 +411,15 @@
               (;; at this level decline to handle http:condition, to cause it to pass one level up
                (http:condition (lambda (c)
                                  (signal c)))
-               ;; a connection error is ignored completely to permit higher-level handlers to
-               ;; determine response - likely, just to ignore and close
-               (usocket:connection-aborted-error (lambda (c) (declare (ignore c)) (return-from process-connection nil)))
+               ;; a connection error is suppressed by returning from the connection handler.
+               ;; this does not try to continue as any stream's socket
+               (usocket:connection-aborted-error (lambda (c) 
+                                                   (http:log *lisp-errors-log-level* acceptor "process-connection: [~a] ~a" (type-of c) c)
+                                                   (return-from process-connection nil)))
                #+sbcl  ;; caused by a broken pipe
-               (SB-INT:SIMPLE-STREAM-ERROR (lambda (c) (declare (ignore c)) (return-from process-connection nil)))
+               (sb-int:simple-stream-error (lambda (c)
+                                             (http:log *lisp-errors-log-level* acceptor "process-connection: [~a] ~a" (type-of c) c)
+                                             (return-from process-connection nil)))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
