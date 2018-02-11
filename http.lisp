@@ -913,6 +913,7 @@
         form))))
 
 (defparameter *define-method-combination.verbose* nil)
+(defparameter *log-id* nil)
 
 (define-method-combination http:http (&key)
                            (;; must be distinct as the methods can have the same signature
@@ -975,7 +976,9 @@
                                                              (error redirection)))))))
                          form)))))
       (when log
-        (setf form `(progn (call-method ,(first log) ()) ,form)))
+        (setf form `(let ((*log-id* (gensym))) (call-method ,(first log) ())
+                      (multiple-value-prog1 ,form
+                        (call-method ,(first log) ())))))
       form)))
 
 
@@ -1232,9 +1235,9 @@
                                               (if (rest clause)
                                                 `(:method ,@clause)
                                                 `(:method :log ((resource t) (request t) (response t) (content-type t) (accept-type t))
-                                                   (http:log-debug *trace-output* "~s: ~s ~s ~s ~s ~s"
-                                                                   ',name resource request response content-type accept-type)
-                                                   (http:log-trace *trace-output* "~s: ~s" ',name (http:request-headers request)))))
+                                                   (http:log-debug *trace-output* "~s ~s: ~s ~s ~s ~s ~s"
+                                                                   ',name *log-id* resource request response content-type accept-type)
+                                                   (http:log-trace *trace-output* "~s: headers: ~s" ',name (http:request-headers request)))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
