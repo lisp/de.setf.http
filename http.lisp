@@ -913,7 +913,8 @@
         form))))
 
 (defparameter *define-method-combination.verbose* nil)
-(defparameter *log-id* nil)
+(defparameter *log-id* nil "provide a marker to match entry/exit")
+(defparameter *log-state* nil "provide an indicator whether entry or exit")
 
 (define-method-combination http:http (&key)
                            (;; must be distinct as the methods can have the same signature
@@ -976,7 +977,7 @@
                                                              (error redirection)))))))
                          form)))))
       (when log
-        (setf form `(let ((*log-id* (gensym))) (call-method ,(first log) ())
+        (setf form `(let ((*log-id* (gensym)) (*log-state* t)) (call-method ,(first log) ())
                       (multiple-value-prog1 ,form
                         (call-method ,(first log) ())))))
       form)))
@@ -1235,8 +1236,8 @@
                                               (if (rest clause)
                                                 `(:method ,@clause)
                                                 `(:method :log ((resource t) (request t) (response t) (content-type t) (accept-type t))
-                                                   (http:log-debug *trace-output* "~s ~s: ~s ~s ~s ~s ~s"
-                                                                   ',name *log-id* resource request response content-type accept-type)
+                                                   (http:log-debug *trace-output* "~s ~s~:[>~;<~]: ~s ~s ~s ~s ~s"
+                                                                   ',name *log-id* (shiftf *log-state* nil) resource request response content-type accept-type)
                                                    (http:log-trace *trace-output* "~s: headers: ~s" ',name (http:request-headers request)))))
                                              (:auth
                                               (if (third clause)
