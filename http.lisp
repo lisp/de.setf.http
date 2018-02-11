@@ -733,7 +733,8 @@
   )
 
 (defgeneric http:request-query-argument (request key)
-  )
+  (:method ((headers list) key)
+    (rest (assoc key headers :test #'string-equal))))
 
 (defgeneric http:request-query-arguments (request key)
   )
