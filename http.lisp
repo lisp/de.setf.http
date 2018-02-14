@@ -1236,7 +1236,7 @@
                                               (if (rest clause)
                                                 `(:method ,@clause)
                                                 `(:method :log ((resource t) (request t) (response t) (content-type t) (accept-type t))
-                                                   (http:log-debug *trace-output* "~s ~s~:[>~;<~]: ~s ~s ~s ~s ~s"
+                                                   (http:log-debug *trace-output* "~s ~s~:[<~;>~]: ~s ~s ~s ~s ~s"
                                                                    ',name *log-id* (shiftf *log-state* nil) resource request response content-type accept-type)
                                                    (http:log-trace *trace-output* "~s: headers: ~s" ',name (http:request-headers request)))))
                                              (:auth
