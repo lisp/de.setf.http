@@ -178,7 +178,9 @@
   (:method ((input-stream stream) (output-stream stream) &key length)
     (unless length
       (setf length most-positive-fixnum))
-    (cond ((and (plusp length) (listen input-stream))
+
+    (cond ((plusp length)
+           ;; do not listen. that does a read-char-no-hang which leaves a state which read-byte does not handle (listen input-stream))
            (let* ((count 0))
              (declare (type fixnum count length))
              (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
@@ -192,6 +194,48 @@
              count))
           (t
            0)))
+  #+(or)
+  (:method ((input-stream stream) (output-stream stream) &key length)
+    (unless length
+      (setf length most-positive-fixnum))
+    (cond ((and (plusp length) (listen input-stream))
+           ;;(setf (fill-pointer *test-buffer*) 0)
+           (let* ((count 0))
+             (declare (type fixnum count length))
+             (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
+               (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
+                 (print (list reader reader-arg writer writer-arg))
+                 (loop for byte = (print (read-byte input-stream nil nil)) ; (print (funcall reader reader-arg))
+                   while byte
+                   ;;do (vector-push-extend (code-char byte) *test-buffer*)
+                   ;;   (print *test-buffer* *trace-output*)
+                   ;;   (finish-output *trace-output*)
+                   do (write-byte byte output-stream) ; (funcall writer writer-arg byte)
+                   until (>= (incf count) length))))
+             (when (listen input-stream)
+               (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+             count))
+          (t
+           0)))
+  #+(or)
+  (:method ((input-stream stream) (output-stream stream) &key length)
+    (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8)))
+          (position 0))
+      (loop while (or (null length) (< position length))
+        do (let ((n (SB-SIMPLE-STREAMS:READ-VECTOR buffer input-stream
+                                 :end (when length
+                                        (min (length buffer)
+                                             (- length position))))))
+             (when (zerop n)
+               (if length
+                   (error "~@<Could not read enough bytes from the input to fulfill ~                                     
+                           the :END ~S requirement in ~S.~:@>" 'copy-stream length)
+                   (return)))
+             (incf position n)
+             (SB-SIMPLE-STREAMS::%write-sequence buffer output-stream :end n)))
+      position))
+  ;; does not handle multivalent streams
+  ;; (alexandria:copy-stream input-stream output-stream :end length :element-type '(unsigned-byte 8)))
   
   (:method ((input-stream stream) (output pathname) &rest args)
     (declare (dynamic-extent args))
