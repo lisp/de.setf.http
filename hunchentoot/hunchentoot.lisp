@@ -690,7 +690,7 @@
   (:method (operator (location string) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (if (and (> (length location) 7) (string-equal "http://" location :end2 7))
+    (if (is-http-uri location)
         (apply #'call-with-open-request-stream operator (puri:uri location) args)
         (apply #'call-with-open-request-stream operator (pathname location) args))))
   

@@ -345,6 +345,22 @@
 (defgeneric http:acceptor-response-class (acceptor)
   )
 
+(defgeneric http::make-request-response (context &rest initargs)
+  (:method ((context http:acceptor) &rest initargs)
+    (declare (dynamic-extent initargs))
+    (apply #'http:make-response (http::acceptor-request-response-class context)
+           :acceptor context
+           initargs))
+  (:method ((class-name symbol) &rest initargs)
+    (declare (dynamic-extent initargs))
+    (apply #'http:make-response (find-class class-name) initargs))
+  (:method ((class standard-class) &rest initargs)
+    (declare (dynamic-extent initargs))
+    (apply #'make-instance class initargs)))
+
+(defgeneric http::acceptor-request-response-class (acceptor)
+  (:method ((acceptor t))
+    'http::request-response))
 
 (defgeneric http:define-dispatch-method (dispatch-function handler-name resource-type)
   (:argument-precedence-order resource-type dispatch-function handler-name)
