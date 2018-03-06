@@ -702,6 +702,13 @@
      (declare (dynamic-extent #',op))
      (call-with-open-response-stream #',op ,location ,@args))))
 
+(defmacro with-open-request-stream ((stream-var location &rest args) &body body)
+  (let ((op (gensym "CWORS-")))
+  `(flet ((,op (,stream-var)
+            ,@body))
+     (declare (dynamic-extent #',op))
+     (call-with-open-request-stream #',op ,location ,@args))))
+
 
 (defgeneric process-asynchronous-connection (acceptor source &key output)
   (:documentation "Given acceptor, an http:acceptor, and connenction which is split
