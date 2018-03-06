@@ -616,6 +616,16 @@
 
 ;;; support for asynchronous operations
 
+(defun is-http-uri (object)
+  (let ((scanner (load-time-value (cl-ppcre:create-scanner `(:sequence :start-anchor
+                                       (:alternation "http" "https")
+                                       "://"
+                                       (:register
+                                        (:greedy-repetition 0 nil (:inverted-char-class #\/)))
+                                       (:GREEDY-REPETITION 0 NIL :EVERYTHING)
+                                       :end-anchor)))))
+    (and (stringp object) (cl-ppcre:scan scanner object))))
+
 (defgeneric call-with-open-response-stream (operator location &rest args)
   (:method (operator (location pathname) &rest args)
     (declare (dynamic-extent args)
@@ -640,11 +650,14 @@
   (:method (operator (location puri:uri) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (apply #'drakma:http-request location :content operator args))
+    (let ((response (apply #'drakma:http-request location :content operator :protocol :HTTP/1.1
+                           :want-stream t args)))
+      (when (and (streamp response) (open-stream-p response))
+        (close response))))
   (:method (operator (location string) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (if (and (> (length location) 7) (string-equal "http://" location :end2 7))
+    (if (is-http-uri location)
         (apply #'call-with-open-response-stream operator (puri:uri location) args)
         (apply #'call-with-open-response-stream operator (pathname location) args))))
 
@@ -671,7 +684,9 @@
   (:method (operator (location puri:uri) &rest args &key (method :get))
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (apply #'drakma:http-request location :content operator :method method args))
+    (apply #'drakma:http-request location :content operator :method method
+           :protocol :HTTP/1.1
+           args))
   (:method (operator (location string) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
@@ -682,7 +697,8 @@
 
 (defmacro with-open-response-stream ((stream-var location &rest args) &body body)
   (let ((op (gensym "CWORS-")))
-  `(flet ((,op (,stream-var) ,@body))
+  `(flet ((,op (,stream-var)
+            ,@body))
      (declare (dynamic-extent #',op))
      (call-with-open-response-stream #',op ,location ,@args))))
 
@@ -705,14 +721,14 @@
                                    :element-type :default)
       (apply #'process-asynchronous-connection acceptor source-stream args)))
 
-  (:method ((acceptor http:acceptor) (*hunchentoot-stream* stream) &key output)
+  (:method ((acceptor http:acceptor) (*hunchentoot-stream* stream) &key output &aux request reply)
     "process a single asynchronous request using the base stream as-is"
     (unwind-protect
         ;; establish http condition handlers and an error handler which mapps to internal-error
         (handler-bind
             ((http:condition (lambda (c)
                                ;; declared conditions are handled according to their report implementation
-                               (http:send-condition *reply* c)
+                               (http:send-condition reply c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                                (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
@@ -747,20 +763,25 @@
                     (let ((asynchronous-end-point (or output
                                                       (http:request-header headers-in "Asynchronous-Location")
                                                       (http:request-header headers-in "Asynchronous-End-Point")))
-                          (asynchronous-method (or (http:request-header headers-in "Asynchronous-Method") :post))
+                          (asynchronous-method (intern (string (or (http:request-header headers-in "Asynchronous-Method") :post)) :keyword))
                           (asynchronous-content-type (http:request-header headers-in "Asynchronous-Content-Type")))
-                      (with-open-response-stream (response-stream asynchronous-end-point
+                      ;; although this serves as the internal response stream, it must appears to the
+                      ;; remote location as a request
+                      (with-open-request-stream (response-stream asynchronous-end-point
                                                                  :method asynchronous-method
                                                                  :content-type asynchronous-content-type)
                         ;; bind per-request special variables, then process the
                         ;; request - note that *ACCEPTOR* was bound by an aound method
                         (let* ((*acceptor* acceptor)
                                (output-stream (make-instance 'http:output-stream :real-stream response-stream))
-                               (*reply* (http:make-response acceptor
-                                                            :server-protocol protocol
-                                                            ;; create the output stream which supports character output for the headers
-                                                            ;; with the initial character encoding set to ascii
-                                                            :content-stream output-stream))
+                               (*reply* (http::make-request-response acceptor
+                                                                     :method asynchronous-method
+                                                                     :uri url-string
+                                                                     :server-protocol protocol
+                                                                     :content-type asynchronous-content-type
+                                                                     ;; create the output stream which supports character output for the headers
+                                                                     ;; with the initial character encoding set to ascii
+                                                                     :content-stream output-stream))
                                (input-stream (make-instance 'http:input-stream :real-stream *hunchentoot-stream*))
                                (*request* (http:make-request acceptor
                                                              :headers-in headers-in
@@ -771,10 +792,12 @@
                                (http:*request* *request*)
                                (http:*response* *reply*)
                                (*tmp-files* nil)
-                         (*session* nil)
-                         (transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
+                               (*session* nil)
+                               (transfer-encodings (cdr (assoc* :transfer-encoding headers-in))))
                           ;; instantiation must follow this order as any errors are recorded as side-effects on the response
                           ;; return code, which must be checked...
+                          (setf request *request*)
+                          (setf reply *reply*)
                           (setf (http:response-request *reply*) *request*)
                           (setf (http:request-response *request*) *reply*)
                           (when transfer-encodings

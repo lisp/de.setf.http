@@ -204,8 +204,7 @@
              (declare (type fixnum count length))
              (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
                (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
-                 (print (list reader reader-arg writer writer-arg))
-                 (loop for byte = (print (read-byte input-stream nil nil)) ; (print (funcall reader reader-arg))
+                 (loop for byte = (read-byte input-stream nil nil) ; (print (funcall reader reader-arg))
                    while byte
                    ;;do (vector-push-extend (code-char byte) *test-buffer*)
                    ;;   (print *test-buffer* *trace-output*)
@@ -240,6 +239,16 @@
   (:method ((input-stream stream) (output pathname) &rest args)
     (declare (dynamic-extent args))
     (handler-case (with-open-file (output-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
+                                                 :element-type 'unsigned-byte)
+                    (apply #'http:copy-stream input-stream output-stream args))
+      (error (c)
+        ;; if the copy fails, ensure that the file is removed
+        (when (probe-file output) (delete-file output))
+        (error c))))
+
+  (:method ((input pathname) (output-stream stream) &rest args)
+    (declare (dynamic-extent args))
+    (handler-case (with-open-file (input-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
                                                  :element-type 'unsigned-byte)
                     (apply #'http:copy-stream input-stream output-stream args))
       (error (c)

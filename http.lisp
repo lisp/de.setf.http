@@ -249,6 +249,11 @@
      The base implementation must provide access to headers and the content
      stream"))
 
+(defclass http::request-response (http:request http:response)
+  ()
+  (:documentation
+   "Implement header procesing for http responses which must appear to the remote end as a response."))
+
 
 ;;;
 ;;; class protocols
@@ -784,7 +789,9 @@
     (let ((request (http:resource-request resource)))
       (when request
         (or (http:request-query-argument request name)
-            (http:request-post-argument request name))))))
+            (case (http:request-media-type request)
+              (application/x-www-form-urlencoded
+               (http:request-post-argument request name))))))))
 
 (defgeneric http:anonymous-resource-p (resource)
   (:documentation "Return true iff the resource permits some form of access without authentication.
