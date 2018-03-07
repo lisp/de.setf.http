@@ -248,13 +248,8 @@
 
   (:method ((input pathname) (output-stream stream) &rest args)
     (declare (dynamic-extent args))
-    (handler-case (with-open-file (input-stream output :direction :output :if-exists :supersede :if-does-not-exist :create
-                                                 :element-type 'unsigned-byte)
-                    (apply #'http:copy-stream input-stream output-stream args))
-      (error (c)
-        ;; if the copy fails, ensure that the file is removed
-        (when (probe-file output) (delete-file output))
-        (error c))))
+    (handler-case (with-open-file (input-stream input :direction :input :element-type 'unsigned-byte)
+                    (apply #'http:copy-stream input-stream output-stream args))))
 
   ;; read into a binary buffer
   (:method ((input-stream stream) (content vector) &key length)
