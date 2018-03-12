@@ -398,9 +398,10 @@
           (handler-bind
             (;; declared conditions are handled according to their report implementation
              (http:condition (lambda (c)
-                               (http:send-condition *reply* c)
-                               ;; log the condition as request completion
-                               (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                               (when *reply*  ;; can happen while reply is being parsed
+                                 (http:send-condition *reply* c)
+                                 ;; log the condition as request completion
+                                 (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
                                (http:log *lisp-errors-log-level* acceptor "process-connection: http error in http response: [~a] ~a" (type-of c) c)
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
@@ -714,6 +715,28 @@
      (declare (dynamic-extent #',op))
      (call-with-open-request-stream #',op ,location ,@args))))
 
+(defun get-request-data-no-continue (stream)
+  "Reads incoming headers as get-request-data, but ignore continue indications."
+  (with-character-stream-semantics
+   (let ((first-line (read-initial-request-line stream)))
+     (when first-line
+       (unless (every #'printable-ascii-char-p first-line)
+         (send-bad-request-response stream "Non-ASCII character in request line")
+         (return-from get-request-data-no-continue nil))
+       (destructuring-bind (&optional method url-string protocol)
+           (split "\\s+" first-line :limit 3)
+         (unless url-string
+           (send-bad-request-response stream)
+           (return-from get-request-data-no-continue nil))
+         (when *header-stream*
+           (format *header-stream* "~A~%" first-line))
+         (let ((headers (and protocol (read-http-headers stream *header-stream*))))
+           (unless protocol (setq protocol "HTTP/0.9"))
+           (values headers
+                   (as-keyword method)
+                   url-string
+                   (as-keyword (trim-whitespace protocol)))))))))
+
 (defgeneric process-asynchronous-connection (acceptor source destination &key if-exists transfer-encoding)
   (:documentation "Given acceptor, an http:acceptor, and connenction which is split
  between a source and a destination, establish the processing context, in terms of
@@ -748,9 +771,10 @@
         (handler-bind
             ((http:condition (lambda (c)
                                ;; declared conditions are handled according to their report implementation
-                               (http:send-condition reply c)
-                               ;; log the condition as request completion
-                               (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                               (when reply  ;; error can occurr before the reply is read
+                                 (http:send-condition reply c)
+                                 ;; log the condition as request completion
+                                 (acceptor-log-access acceptor :return-code (http:response-status-code reply)))
                                (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
@@ -777,7 +801,7 @@
                         (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
             
               (multiple-value-bind (headers-in method url-string protocol)
-                                   (get-request-data *hunchentoot-stream*)
+                                   (get-request-data-no-continue *hunchentoot-stream*)
                 ;; check if there was a request at all
                 (if method
                     ;; bind per-request special variables, then process the
@@ -833,6 +857,7 @@
                       ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                       ;; access log message
                       (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
+                      (dydra:log-notice "process asynchronous request: complete: ~s" (http:response-status-code *reply*))
                       (finish-output output-stream)
                       (values *request* *reply*))
                     (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"

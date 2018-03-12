@@ -1608,6 +1608,11 @@ obsolete mechanism which was in terms of the encode methods
 ;;;
 ;;; response
 
+(defmethod print-object ((object http:response) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "~a"
+            (http:response-status-code object))))
+
 (defgeneric (setf http:response-header) (value response header-label)
   )
 
