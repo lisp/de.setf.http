@@ -857,7 +857,6 @@
                       ;;(reset-connection-stream *acceptor* (http:response-content-stream *reply*))
                       ;; access log message
                       (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
-                      (dydra:log-notice "process asynchronous request: complete: ~s" (http:response-status-code *reply*))
                       (finish-output output-stream)
                       (values *request* *reply*))
                     (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
