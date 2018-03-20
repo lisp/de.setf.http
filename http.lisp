@@ -1379,18 +1379,18 @@
 (defgeneric http:effective-response-media-type (function resource request accept-header)
   (:documentation "the order is
    - examine the accept header
-   - if it is a specific type, return it
    - if it is non specific, first try the url accept value
    - if that is not present try the path type media type
+   - if it is a specific type, return it
    - if that does not yield a type, allow any other explicit accept than */*
    - finally, try the function's default
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
-    (or (let ((type (or (resource-function-acceptable-media-type function accept-header)
-                        (when (or (null (http:request-accept-header request))
+    (or (let ((type (or (when (or (null (http:request-accept-header request))
                                   (equal (http:request-accept-header request) "*/*"))
                           (or (http:resource-file-type-media-type resource)
-                              (http:resource-mime-type resource))))))
+                              (http:resource-mime-type resource)))
+                        (resource-function-acceptable-media-type function accept-header))))
           ;; either some accept type is a sub-type of an implemented type
           ;; or check for wildcard types
           (cond (type (http:effective-response-media-type function resource request type))
