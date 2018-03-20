@@ -1285,17 +1285,22 @@
   ;; (setf (http:request-accept-type request) nil)
   ;; (setf (http:response-media-type response) nil)
   ;; (funcall function resource request response content-type nil)
-    (funcall-resource-function function resource request response content-type
-                               (http:function-default-accept-header function)))
+    (let ((media-type (or (http:effective-response-media-type function resource request nil)
+                          (http:function-default-accept-header function))))
+      (setf (http:request-accept-type request) media-type)
+      (setf (http:response-media-type response)
+            (http:response-compute-media-type request response media-type
+                                              :charset (or (mime:mime-type-charset media-type) :utf-8)))
+      (funcall function resource request response content-type media-type)))
 
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
-  (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header t))
+  (:method ((function http:resource-function) (resource t) (request http:request) (response t) (content-type t) (accept-header string))
     "Call the function with its acceptable response content type.
     Absent an accept header, try to derive one from other request attributes:
     - path type
     - query parameters
     - a default from the function itself"
-    (let ((media-type (http:effective-response-media-type function resource request (or accept-header ""))))
+    (let ((media-type (http:effective-response-media-type function resource request accept-header)))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
              (setf (http:response-media-type response)

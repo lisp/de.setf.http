@@ -720,14 +720,12 @@
   (with-character-stream-semantics
    (let ((first-line (read-initial-request-line stream)))
      (when first-line
-       (unless (every #'printable-ascii-char-p first-line)
-         (send-bad-request-response stream "Non-ASCII character in request line")
-         (return-from get-request-data-no-continue nil))
+       (assert (every #'printable-ascii-char-p first-line) ()
+               "Non-ASCII character in request line ~A" stream)
        (destructuring-bind (&optional method url-string protocol)
            (split "\\s+" first-line :limit 3)
-         (unless url-string
-           (send-bad-request-response stream)
-           (return-from get-request-data-no-continue nil))
+         (assert url-string ()
+           "No url in request line ~A" first-line)
          (when *header-stream*
            (format *header-stream* "~A~%" first-line))
          (let ((headers (and protocol (read-http-headers stream *header-stream*))))
