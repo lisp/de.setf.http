@@ -1680,7 +1680,8 @@ obsolete mechanism which was in terms of the encode methods
   )
 
 (defgeneric (setf http:response-content-type-header) (content-type-header response)
-  )
+  (:method ((type mime:mime-type) (response http:response))
+    (setf (http:response-content-type-header response) (mime:mime-type-namestring type))))
 
 (defgeneric http:response-content-type-header (response)
   )
