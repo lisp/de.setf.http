@@ -30,7 +30,7 @@
 
 (defparameter http:*log-levels* '(:trace :debug :info :notice :warn :error :critical :fatal))
 
-(defparameter http:*log-level* :debug ;; :warn
+(defparameter http:*log-level* :debug
   "The current log level. Used by the log-* operators to filter log entries.")
 
 (defparameter http:+method-keys+ '(:get :put :head :patch :post :delete :options :trace :connect)

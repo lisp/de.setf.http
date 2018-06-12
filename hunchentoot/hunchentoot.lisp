@@ -687,7 +687,7 @@
                         (funcall operator stream)
                         (setf abort nil))
         (when stream (close stream :abort abort)))))
-  (:method (operator (location puri:uri) &rest args &key (method :get))
+  (:method (operator (location puri:uri) &rest args &key (method :get) &allow-other-keys)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
     (apply #'drakma:http-request location :content operator :method method
