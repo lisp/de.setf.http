@@ -229,29 +229,35 @@
 
 
 (defmethod stream-reader ((stream http:input-stream))
-  ;; allow for combintation encoder/not chunking/not
+  ;; allow for combination encoder/not chunking/not
   (if (slot-boundp stream 'decoder)
     ;; decoded input
     (with-slots (decoder) stream
-      (flet ((chunked-stream-character-reader (stream)
-               ;; chunked encoded output
-               (funcall decoder #'always-chunked-stream-read-byte stream))
-             (unchunked-stream-character-reader (stream)
-               ;; no chunking decode direct from the wrapped stream
-               (funcall decoder #'read-byte stream)))
-        (if (chunked-stream-input-chunking-p stream)
-          (values #'chunked-stream-character-reader stream)
-          (values #'unchunked-stream-character-reader (chunked-stream-stream stream)))))
+      (let ((binary-reader (stream-binary-reader (chunked-stream-stream stream))))
+        (flet ((chunked-stream-character-reader (stream)
+                 ;; chunked encoded output
+                 (funcall decoder #'always-chunked-stream-read-byte stream))
+               (unchunked-stream-character-reader (stream)
+                 ;; no chunking decode direct from the wrapped stream
+                 (funcall decoder binary-reader stream)))
+          (if (chunked-stream-input-chunking-p stream)
+              (values #'chunked-stream-character-reader stream)
+              (values #'unchunked-stream-character-reader (chunked-stream-stream stream))
+              ))))
     ;; binary input
     (stream-binary-reader stream)))
 
 (defmethod stream-binary-reader ((stream stream))
   ;; just return a read-byte wrapper which transforms eof into nil
-  (values #'(lambda (stream)
-              (let ((byte (read-byte stream nil nil)))
-                (when (integerp byte)
-                  byte)))
-            stream))
+  (flet ((binary-stream-reader (stream)
+           (let ((byte (read-byte stream nil nil)))
+             (when (integerp byte)
+               byte))))
+    (values #'binary-stream-reader
+            stream)))
+
+(defmethod stream-binary-reader ((stream de.setf.utility.implementation::vector-input-stream))
+  (stream-reader stream))
 
 
 (defmethod stream-peek-char ((stream http:input-stream))

@@ -372,7 +372,7 @@
 
 
 (defmethod process-connection ((acceptor http:acceptor) (socket t))
-  "GIven acceptor, an http:acceptor, and socket, a connection socket,
+  "Given acceptor, an http:acceptor, and socket, a connection socket,
  for each request, establish the processing context, in terms of
  *hunchentoot-stream* a possibly chunking duplex stream wrpper for the socket
    for request and response content

@@ -377,10 +377,13 @@
 
   (:method ((acceptor http:acceptor) request response)
     "The generic resource acceptor invokes its generated dispatch function."
-    (funcall (http:acceptor-dispatch-function acceptor)
-             (http:request-path request)
-             request
-             response))
+    (let ((dispatcher (http:acceptor-dispatch-function acceptor)))
+      (assert dispatcher ()
+              "no dispatch function present: " acceptor)
+      (funcall dispatcher
+               (http:request-path request)
+               request
+               response)))
   (:method :after ((acceptor http:acceptor) (request t) (response t))
     (setf (response-state response) :complete)))
 
