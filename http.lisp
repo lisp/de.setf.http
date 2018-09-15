@@ -1701,8 +1701,7 @@ obsolete mechanism which was in terms of the encode methods
     (let* ((response-stream (get-response-content-stream response))
            (header-stream (http:stream-header-stream response-stream)))
       (or (not (open-stream-p header-stream))
-          (null (stream-file-position header-stream))
-          (plusp (stream-file-position header-stream))))))
+          (not (eql 0 (stream-file-position header-stream)))))))
 
 (defgeneric http:response-keep-alive-p (response)
   (:method ((response http:response))
