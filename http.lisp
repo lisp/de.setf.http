@@ -1675,6 +1675,7 @@ obsolete mechanism which was in terms of the encode methods
    the response head has been sent before the body")
   (:method ((response http:response))
     ;; ensure the headers are staged
+    #+(or)
     (unless (http:response-headers-sent-p response)
       (http:send-headers response))
     (get-response-content-stream response)))
@@ -1816,8 +1817,7 @@ obsolete mechanism which was in terms of the encode methods
                                
 (defgeneric http:send-entity-body (response body)
   (:documentation
-    "Send a monolithic response body.
-    Ensure that the headers have been sent, by using the guarded accessor.")
+    "Send a monolithic response body.")
 
   (:method ((response http:response) (body vector))
     ;; try to disable chunking; for binary sequences length is the byte count
@@ -1829,6 +1829,19 @@ obsolete mechanism which was in terms of the encode methods
     (setf (http:response-content-length response)
           (mime:size-string body (mime:mime-type-charset (http:response-media-type response))))
     (write-string body (http:response-content-stream response)))
+
+  (:method ((content t) (response t))
+    ;; this should send out the entity body chunked
+    (format (http:response-content-stream response) "~a" content))
+
+  (:method ((content-stream stream) (response t) (content-type t))
+    "the default method given a stream result is to just copy the stream. that is,
+     given any standard media type, presume the result generator handles the
+     respective serialization entirely and the stream content is correct as-is.
+     Always close the stream upon completion."
+    ;; nb. for sub-processes, this does not suffice as more needs to be done to dispose of the process
+    (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
+      (close content-stream)))
 
   (:method (response (content null))))
       
@@ -1874,7 +1887,13 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric http:encode-response (content response content-type)
   (:documentation "Implements the default behavior for resource function
     encoding methods when they are declared without a body. the default
-    methods delegate to send-entity-body.")
+    methods delegate to send-entity-body.
+    (do not) Invoke send-headers prior to invoking the encoding step in order to buffer headers
+    ")
+
+  #+(or)
+  (:method :before ((content t) (response http:response) (content-type t)) 
+    (send-headers response))
 
   (:method ((content null) (response t) (content-type t)))
 
@@ -1883,19 +1902,6 @@ obsolete mechanism which was in terms of the encode methods
 
   (:method ((content vector) (response t) (content-type t))
     (http:send-entity-body response content))
-
-  (:method ((content t) (response t) (content-type mime:text/plain))
-    ;; this should send out the entity body chunked
-    (format (http:response-content-stream response) "~a" content))
-
-  (:method ((content-stream stream) (response t) (content-type t))
-    "the default method given a stream result is to just copy the stream. that is,
-     given any standard media type, presume the result generator handles the
-     respective serialization entirely and the stream content is correct as-is.
-     Always close the stream upon completion."
-    ;; nb. for sub-processes, this does not suffice as more needs to be done to dispose of the process
-    (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
-      (close content-stream)))
 
   (:method ((condition http:condition) (response t) (content-type t))
     "Given a condition as the result, just signal it."

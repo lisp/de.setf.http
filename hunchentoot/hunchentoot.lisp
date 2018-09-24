@@ -536,7 +536,7 @@
   "Buffer headers to the response stream.
  Returns the response stream."
   
-  (let* ((content-stream (http:response-content-stream response))
+  (let* ((content-stream (http::get-response-content-stream response))
          (client-header-stream (http:stream-header-stream content-stream))
          (header-stream (if *header-stream*
                             (make-broadcast-stream *header-stream* client-header-stream)

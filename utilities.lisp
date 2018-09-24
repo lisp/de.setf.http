@@ -169,6 +169,9 @@
   "return an instance of the initial class in the union precedence list"
   (symbol-value (class-name (first (c2mop:class-direct-superclasses (class-of mime-type))))))
 
+(defmethod send-response-header-type ((type (eql :timemap)) (task data-task) (stream http:output-stream))
+  (write-timemap-headers task stream))
+
 ;;; codecs
 
 #+(or)

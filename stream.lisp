@@ -11,14 +11,31 @@
 
  structure - with the analogous read mechanism, this implementation adopts the simpler form
 
-   (write object (chunkin+encoding (stream socket)))
+   (write object (chunking+encoding (stream socket)))
 
  whereby, there is no reason to not ultimately integrate the chunking+encoding mechanism directly
- in the socket stream, should the overhaed be prohibitive, but that is likely worthwhile only
+ in the socket stream, should the overhead be prohibitive, but that is likely worthwhile only
  if one bothers to work directly with the network buffers.
 
- much of the implementation is adapted from the de.setf.amqp streams.")
+ much of the implementation is adapted from the de.setf.amqp streams.
 
+ header output is delayed until the first content byte is written.
+ at that point an output stream encodes those headers which have been recorded in the request instance and
+ buffers them in a string stream.
+ this allows for any initial headers to be replaced with those which indicate a condition which is signaled
+ while content is being prepared, but before the body output has commenced.
+ it also makes the value directly available for broadcast streams when transcribing.
+ up to this point, the buffer stream can be reset and alternative headers introduced.
+ after that point - that is, once body content has been written that is no longer possible
+ and the response will not reflect the error.
+
+ the dependency is such that, at the point when the http:output-stream instance is written, it delegates to
+ an expected dynamic binding for http:*request*, which in turn encodes its headers to the stream then bound
+ as its content stream - which may not be the triggering http:output-stream, but instead something which
+ wraps it.
+ in addition, stream-finish-header-output is invoked by writing the final chunk the response stream to
+ ensure that they are written when there is no content written
+")
 
 (defclass http:stream (stream)
   ((media-type
@@ -63,21 +80,33 @@
      no change is possible.")
    (byte-writer
     :type function
+    :reader stream-byte-writer
     :documentation "Binds a function which is then used to write a byte to the stream.
     When set as chunked, appends to and flushed the chunk buffer. Otherwise write through to
-    the reference stream.")
+    the reference stream.
+    The initial value flushes headers to the reference stream and computes the effective
+    value given the chunking setting.")
    (byte-writer-arg
     :type t
+    :reader stream-byte-writer-arg
     :documentation "The auxiliary argument for the binary writer function respective the
-    current chubkung setting: for chunked the stream itself, for non/chunked the reference
-    stream.")))
+    current chunking setting: for chunked the stream itself, for non/chunked the reference
+    stream.")
+   (char-writer
+    :type function
+    :reader stream-char-reader
+    :documentation "")
+   (char-writer-arg
+    :type t
+    :reader stream-char-reader-arg
+    :documentation "")))
 
 
 (defmethod initialize-instance :after ((instance http:stream) &key)
   (update-stream-codecs instance))
 
 (defmethod initialize-instance :after ((instance http:output-stream) &key)
-  (update-stream-writers instance))
+  (initialize-stream-writers instance))
 
 (defmethod stream-direction ((stream http:output-stream))
   :output)
@@ -147,6 +176,32 @@
   (update-stream-writers stream))
 
 
+(defgeneric initialize-stream-writers (stream)
+  (:documentation
+   "Set up initial writer functions which first ensure that the headers have been generated and
+flushed to the base output stream, then install the writers respective the content type, then
+invoke the respective content writer on the arguments from the triggering call.")
+  (:method ((stream http:output-stream))
+    (with-slots (byte-writer byte-writer-arg char-writer char-writer-arg) stream
+      (flet ((initial-byte-writer (byte-stream byte)
+               (unless (eq byte-stream stream)
+                 (warn "initialize-stream-writers: initial byte stream mismatch: ~s != ~s:"
+                       byte-stream stream))
+               (stream-finish-header-output stream)
+               (update-stream-writers stream)
+               (funcall byte-writer byte-writer-arg byte))
+             (initial-char-writer (char-stream char)
+               (unless (eq char-stream stream)
+                 (warn "initialize-stream-writers: initial char stream mismatch: ~s != ~s:"
+                       char-stream stream))
+               (stream-finish-header-output stream)
+               (update-stream-writers stream)
+               (funcall char-writer char-writer-arg char)))
+        (setf byte-writer #'initial-byte-writer
+              byte-writer-arg stream)
+        (setf char-writer #'initial-char-writer
+              char-writer-arg stream)))))
+
 (defgeneric update-stream-writers (stream) 
   (:documentation "Set the stream operators for binary writing to reflect the chunking setting.
 
@@ -155,9 +210,9 @@
    writes through to the reference stream.")
   
   (:method ((stream http:output-stream))
-    "replace the current writer functions with operators which ensure that the headers have been written and
- then re-instate the original functions and invoke them on the given arguments."
-    (with-slots (byte-writer byte-writer-arg) stream
+    "replace the current writer functions with operators which chunk-or-not for binary output
+ and encode through the binary operators for character output."
+    (with-slots (byte-writer byte-writer-arg char-writer char-writer-arg) stream
       (if (chunked-stream-output-chunking-p stream)
         (flet ((always-chunked-stream-write-byte (stream byte)
                  "Write the byte presuming the sream is chunked.
@@ -173,7 +228,16 @@
         (flet ((reference-stream-write-byte (reference-stream byte)
                  (write-byte byte reference-stream)))
           (setf byte-writer #'reference-stream-write-byte
-                byte-writer-arg (chunked-stream-stream stream)))))))
+                byte-writer-arg (chunked-stream-stream stream))))
+      ;; reset the character writer in order to capture the new binary operator
+      (let ((byte-writer byte-writer)
+            (byte-writer-arg byte-writer-arg)
+            (encoder (stream-encoder stream)))
+        (flet ((char-write-byte (stream char)
+                 (declare (ignore stream))
+                 (funcall encoder char byte-writer byte-writer-arg)))
+          (setf char-writer #'char-write-byte
+                char-writer-arg stream))))))
 
 ;;;
 ;;; general manipulation
@@ -370,28 +434,11 @@
 
 ;;; output
 
-;; headers
-;; an output stream provides buffering for response headers in order that it is possibe
-;; for them to indicate a condition which is signaled when content is being prepared, but before the
-;; body output has commenced. the buffer is a string output stream, to which headers are
-;; staged from the request instance at the point when the stream is first retrieved from the request.
-;; this buffer retains pending output until the first operation which would write content
-;; to the binary response stream, at which point the stream string is retrieved and interposed, and
-;; the stream is closed. up to this point, the buffer stream can be reset and alternative headers
-;; inroduced. after that point - that is, once body content has been written that is no longer possible
-;; and the response will not reflect the error.
-;;
-;; as all output operations retrieve the binary-writer/arg values via stream-binary-writer, the
-;; logic to force header output is placed there.
-;;
-;; in addition, stream-finish-header-output is invoked by finish-output for the response stream to
-;; ensure that they are written when there is no content written
-
 (defgeneric stream-clear-header-output (stream)
   (:documentation "Reset the header buffer stream to accept new specifications
    by retrieving its string. Return the string to indicate success, but return
    nil if the stream has been closed, as the closed state indicates that the
-   headers have already been sent.")
+   headers have already been sent. If just reset, leave it open.")
   (:method ((stream http:output-stream))
     (let ((header-stream (http:stream-header-stream stream)))
       (when (open-stream-p header-stream)
@@ -401,15 +448,17 @@
 (defgeneric stream-finish-header-output (stream)
   (:documentation "Ensure that headers have been written to the reference stream.")
   (:method ((stream http:output-stream))
-    (let* ((header-stream (http:stream-header-stream stream))
-           (header-string (get-output-stream-string header-stream))
-           (reference-stream (chunked-stream-stream stream)))
+    (let* ((header-stream (http:stream-header-stream stream)))
       (when (open-stream-p header-stream)
-        (loop for char across header-string
-              for char-code = (char-code char)
-              do (write-byte char-code reference-stream))
-        (close header-stream)
-        header-string))))
+        (when (eql 0 (stream-file-position header-stream))
+          (http:send-headers http:*response*))
+        (let* ((header-string (get-output-stream-string header-stream))
+               (reference-stream (chunked-stream-stream stream)))
+          (loop for char across header-string
+            for char-code = (char-code char)
+            do (write-byte char-code reference-stream))
+          (close header-stream)
+          header-string)))))
 
 
 (defgeneric stream-header-output-finished-p (stream)
@@ -425,6 +474,7 @@
 
 
 (defmethod chunga::flush-buffer :before ((stream http:output-stream))
+  "Ensure that, in the event that no output occurred, the headers are still written"
   (ensure-header-output-finished stream))
         
 
@@ -449,15 +499,15 @@
          (write-byte byte (chunked-stream-stream stream)))))
 
 
-(defmethod stream-binary-writer ((stream chunga:chunked-output-stream))
-  "Return the currently configured writer/arg combination after ensuring
- that any headers have been flushed"
-  (with-slots (byte-writer byte-writer-arg) stream
-    (ensure-header-output-finished stream)
-    (values byte-writer byte-writer-arg)))
+(defmethod stream-binary-writer ((stream http:output-stream))
+  "Return the currently configured writer/arg combination.
+ In the initial state, this ensures that any headers have been flushed"
+  (values (stream-byte-writer stream)
+          (stream-byte-writer-arg stream)))
 
 
 (defmethod stream-binary-writer ((stream stream))
+  "Make a writer available for the cases where the output is broadcast to a second stream"
   (values (if (find-method #'stream-write-byte () (list (class-of stream) (find-class t)) nil)
             #'stream-write-byte
             #'(lambda (stream byte)
@@ -467,27 +517,30 @@
 
 (defmethod stream-writer ((stream http:output-stream))
   "Return the character encoding writer which combines the current character encoder and binary writer/arg"
-  (let ((encoder (stream-encoder stream)))
-    (multiple-value-bind (writer arg) (stream-binary-writer stream)
-      (flet ((character-writer (writer.arg character)
-               (funcall encoder character (first writer.arg) (rest writer.arg))))
-        (values #'character-writer (cons writer arg))))))
+  (values (stream-char-writer stream)
+          (stream-char-writer-arg stream)))
 
 
 (defmethod stream-fresh-line ((stream http:output-stream))
   (stream-write-char stream #\newline))
 
 (defmethod stream-finish-output ((stream http:output-stream))
-  (stream-finish-header-output stream)
+  "Ensure that the headers are written - for use before body is sent (see send-entity-body),
+ and force the last chunk."
+  (stream-force-output stream)
   (call-next-method stream)
-  ;; ensure that the last block is flushed - even prior too close
+  ;; ensure that the last block is flushed - even prior to close
   (setf (chunga:chunked-stream-output-chunking-p stream) nil))
 
+(defmethod stream-force-output ((stream http:output-stream))
+  "Ensure that the headers are written - for use before body is sent (see send-entity-body)"
+  (call-next-method))
 
-;;; stream-force-output : inherited
-
-
-;;; stream-clear-output :inherited
+(defmethod stream-clear-output ((stream http:output-stream))
+  "Reset the cached writer functions and call next."
+  (initialize-stream-writers stream)
+  (setf (stream-header-stream strream) (make-string-output-stream))
+  (call-next-method))
 
 
 (defmethod stream-terpri ((stream http:output-stream))
@@ -498,25 +551,25 @@
 
 
 (defmethod stream-write-byte ((stream http:output-stream) byte)
-  (multiple-value-bind (writer arg) (stream-binary-writer stream)
-    (funcall writer arg byte)))
+  ;; built into initial writer (ensure-header-output-finished stream)
+  (funcall (stream-byte-writer stream) (stream-byte-writer-arg stream) byte))
 
 
 (defmethod stream-write-char ((stream http:output-stream) character)
-  (let ((encoder (stream-encoder stream)))
-    (multiple-value-bind (writer arg) (stream-binary-writer stream)
-      (funcall encoder character writer arg))))
+  ;; built into initial writer (ensure-header-output-finished stream)
+  (funcall (stream-encoder stream) character (stream-byte-writer stream) (stream-byte-writer-arg stream)))
 
 
 (defmethod stream-write-string ((stream http:output-stream) (string string) #-mcl &optional start end)
   "Write a string to chunked stream according to its current encoding."
+  (unless start (setf start 0))
+  (unless end (setf end (length string)))
   (let ((encoder (stream-encoder stream)))
-    (multiple-value-bind (writer arg) (stream-binary-writer stream)
-      (unless start (setf start 0))
-      (unless end (setf end (length string)))
+    (let ((byte-writer (stream-byte-writer stream))
+          (byte-writer-arg (stream-byte-writer-arg stream)))
       (do ((i start (1+ i)))
           ((>= i end))
-        (funcall encoder (char string i) writer arg)))
+        (funcall encoder (char string i) byte-writer byte-writer-arg)))
     string))
 
 

@@ -13,9 +13,21 @@
   (import '(:get :put :head :patch :post :delete :options :trace :connect) :http-method-package))
 
 
+(defpackage :de.setf.http.implementation
+  (:nicknames :http.i)
+  (:use :common-lisp
+        :de.setf.utility
+        ;; :de.setf.utility.codecs
+        :chunga                         ; for chunking operator names
+        :trivial-gray-streams           ; for stream operator names
+        #+sbcl :sb-cltl2)
+  (:intern :get-response-content-stream))
+
 (defpackage :de.setf.http
   (:nicknames :http)
   (:use )
+  (:import-from :http.i
+                :get-response-content-stream)
   (:export :*content-initial-length*
            :*content-length-limit*
            :*log-level*
@@ -243,15 +255,6 @@
            :internal-error
            :not-implemented
            ))
-
-(defpackage :de.setf.http.implementation
-  (:nicknames :http.i)
-  (:use :common-lisp
-        :de.setf.utility
-        ;; :de.setf.utility.codecs
-        :chunga                         ; for chunking operator names
-        :trivial-gray-streams           ; for stream operator names
-        #+sbcl :sb-cltl2))
 
 
 
