@@ -1834,7 +1834,7 @@ obsolete mechanism which was in terms of the encode methods
     ;; this should send out the entity body chunked
     (format (http:response-content-stream response) "~a" content))
 
-  (:method ((content-stream stream) (response t) (content-type t))
+  (:method ((content-stream stream) (response t))
     "the default method given a stream result is to just copy the stream. that is,
      given any standard media type, presume the result generator handles the
      respective serialization entirely and the stream content is correct as-is.
@@ -1843,7 +1843,7 @@ obsolete mechanism which was in terms of the encode methods
     (unwind-protect (http:copy-stream content-stream (http:response-content-stream response))
       (close content-stream)))
 
-  (:method (response (content null))))
+  (:method ((content null) (response t))))
       
 
 (defgeneric http:send-headers (response)
