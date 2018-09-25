@@ -171,9 +171,14 @@
       media-type)))
 
 
-(defmethod (setf chunga:chunked-stream-output-chunking-p) :after ((new-value t) (stream http:output-stream))
+(defmethod (setf chunga:chunked-stream-output-chunking-p) ((new-value t) (stream http:output-stream))
   "update the writer configuration to reflect the changed chunking setting"
-  (update-stream-writers stream))
+  (let ((old-value (chunga:chunked-stream-output-chunking-p stream)))
+    ;(print (list :csocp old-value))
+    (call-next-method)
+    ;; negation from chunga in order to permit general boolean?
+    (unless (eq (not new-value) (not old-value))
+      (update-stream-writers stream))))
 
 
 (defgeneric initialize-stream-writers (stream)
@@ -187,6 +192,7 @@ invoke the respective content writer on the arguments from the triggering call."
                (unless (eq byte-stream stream)
                  (warn "initialize-stream-writers: initial byte stream mismatch: ~s != ~s:"
                        byte-stream stream))
+               (warn "initial byte writer")
                (stream-finish-header-output stream)
                (update-stream-writers stream)
                (funcall byte-writer byte-writer-arg byte))
@@ -527,9 +533,12 @@ invoke the respective content writer on the arguments from the triggering call."
 (defmethod stream-finish-output ((stream http:output-stream))
   "Ensure that the headers are written - for use before body is sent (see send-entity-body),
  and force the last chunk."
-  (stream-force-output stream)
+  ;;(stream-force-output stream)
   (call-next-method stream)
   ;; ensure that the last block is flushed - even prior to close
+  #+(or)
+  ;; no, this should be in the response execution logic not each time finished
+  ;; see process-connection
   (setf (chunga:chunked-stream-output-chunking-p stream) nil))
 
 (defmethod stream-force-output ((stream http:output-stream))
