@@ -548,7 +548,7 @@ invoke the respective content writer on the arguments from the triggering call."
 (defmethod stream-clear-output ((stream http:output-stream))
   "Reset the cached writer functions and call next."
   (initialize-stream-writers stream)
-  (setf (stream-header-stream strream) (make-string-output-stream))
+  (setf (stream-header-stream stream) (make-string-output-stream))
   (call-next-method))
 
 
