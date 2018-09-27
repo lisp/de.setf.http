@@ -174,7 +174,6 @@
 (defmethod (setf chunga:chunked-stream-output-chunking-p) ((new-value t) (stream http:output-stream))
   "update the writer configuration to reflect the changed chunking setting"
   (let ((old-value (chunga:chunked-stream-output-chunking-p stream)))
-    ;(print (list :csocp old-value))
     (call-next-method)
     ;; negation from chunga in order to permit general boolean?
     (unless (eq (not new-value) (not old-value))
@@ -548,7 +547,7 @@ invoke the respective content writer on the arguments from the triggering call."
 (defmethod stream-clear-output ((stream http:output-stream))
   "Reset the cached writer functions and call next."
   (initialize-stream-writers stream)
-  (setf (stream-header-stream stream) (make-string-output-stream))
+  (setf (http:stream-header-stream stream) (make-string-output-stream))
   (call-next-method))
 
 
