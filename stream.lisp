@@ -187,25 +187,28 @@ flushed to the base output stream, then install the writers respective the conte
 invoke the respective content writer on the arguments from the triggering call.")
   (:method ((stream http:output-stream))
     (with-slots (byte-writer byte-writer-arg char-writer char-writer-arg) stream
-      (flet ((initial-byte-writer (byte-stream byte)
-               (unless (eq byte-stream stream)
-                 (warn "initialize-stream-writers: initial byte stream mismatch: ~s != ~s:"
-                       byte-stream stream))
-               (warn "initial byte writer")
-               (stream-finish-header-output stream)
-               (update-stream-writers stream)
-               (funcall byte-writer byte-writer-arg byte))
-             (initial-char-writer (char-stream char)
-               (unless (eq char-stream stream)
-                 (warn "initialize-stream-writers: initial char stream mismatch: ~s != ~s:"
-                       char-stream stream))
-               (stream-finish-header-output stream)
-               (update-stream-writers stream)
-               (funcall char-writer char-writer-arg char)))
-        (setf byte-writer #'initial-byte-writer
-              byte-writer-arg stream)
-        (setf char-writer #'initial-char-writer
-              char-writer-arg stream)))))
+      (let ((initial-byte-writer nil))
+        (flet ((initial-byte-writer (byte-stream byte)
+                 (unless (eq byte-stream stream)
+                   (warn "initialize-stream-writers: initial byte stream mismatch: ~s != ~s:"
+                         byte-stream stream))
+                 (when (eq byte-writer initial-byte-writer)
+                   (stream-finish-header-output stream)
+                   (update-stream-writers stream)
+                   (funcall byte-writer byte-writer-arg byte)))
+               (initial-char-writer (char-stream char)
+                 (unless (eq char-stream stream)
+                   (warn "initialize-stream-writers: initial char stream mismatch: ~s != ~s:"
+                         char-stream stream))
+                 (when (eq byte-writer initial-byte-writer)
+                   (stream-finish-header-output stream)
+                   (update-stream-writers stream)
+                   (funcall char-writer char-writer-arg char))))
+          (setf byte-writer #'initial-byte-writer
+                initial-byte-writer #'initial-byte-writer
+                byte-writer-arg stream)
+          (setf char-writer #'initial-char-writer
+                char-writer-arg stream))))))
 
 (defgeneric update-stream-writers (stream) 
   (:documentation "Set the stream operators for binary writing to reflect the chunking setting.
