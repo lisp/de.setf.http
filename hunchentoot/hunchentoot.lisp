@@ -11,6 +11,9 @@
 
 ;;; hunchentoot adaptations and extensions to integrate generic request management
 
+(defgeneric taskmaster-report-tasks (taskmaster)
+  (:method ((taskmaster taskmaster))
+    nil))
 
 (defclass tbnl-request (http:request request)
   ())
@@ -323,6 +326,9 @@
   (setf (header-out :transfer-encoding response) mode))
 (defmethod (setf http:response-transfer-encoding-header) ((mode null) (response tbnl-response))
   (setf (header-out :transfer-encoding response) mode))
+
+(defmethod http:response-vary ((response tbnl-response))
+ (header-out :vary response))
 
 (defmethod (setf http:response-vary) (string (response tbnl-response))
   (setf (header-out :vary response) string))

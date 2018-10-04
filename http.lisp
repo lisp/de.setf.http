@@ -1740,6 +1740,9 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric (setf http:response-vary) (value response)
   )
 
+(defgeneric http:response-vary (response)
+  )
+
 (defgeneric (setf http:response-www-authenticate-header) (authentication-method response)
   )
 

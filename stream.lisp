@@ -94,11 +94,11 @@
     stream.")
    (char-writer
     :type function
-    :reader stream-char-reader
+    :reader stream-char-writer
     :documentation "")
    (char-writer-arg
     :type t
-    :reader stream-char-reader-arg
+    :reader stream-char-writer-arg
     :documentation "")))
 
 
