@@ -18,6 +18,7 @@
                :trivial-gray-streams    ; likewise
                #+sbcl :sb-cltl2
                :com.b9.puri.puri-ppcre  ; for user agent strings
+               :net.common-lisp.cffi    ; for syslog
                )
   :description
   "a modulor CLOS framework to implement HTTP with concrete implementations

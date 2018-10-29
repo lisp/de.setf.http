@@ -25,7 +25,7 @@
   (:encode ((resource t) (request t) (response http:response) (content-type t) (accept-type mime:text/html))
     (let ((content (call-next-method)))
       (http:send-headers response)
-      (http:log :debug *trace-output* +page-content+ content)
+      (http:log-debug +page-content+ content)
       (write-sequence (format nil  +page-content+ content) (http:response-content-stream response)))))
 
 

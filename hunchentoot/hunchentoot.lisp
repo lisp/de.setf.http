@@ -518,15 +518,14 @@
 
 (defmethod http:log (level (destination http:acceptor) format-control &rest arguments)
   (declare (dynamic-extent arguments))
-  (apply #'acceptor-log-message destination level format-control arguments))
+  (with-log-stream (stream (acceptor-message-log-destination acceptor) *message-log-lock*)
+    (apply #'http:log level stream format-control arguments)))
 
 (defmethod acceptor-log-access ((acceptor tbnl-acceptor) &key return-code)
   "Replace the default method for access logging.
  Retain the default format, but do not emeit literal authorization and allow for nginx alternatives
  for the true ip address."
-
-  (tbnl::with-log-stream (stream (acceptor-access-log-destination acceptor) *access-log-lock*)
-    (format stream "~:[-~@[ (~A)~]~;~:*~A~@[ (~A)~]~] ~A [~A] \"~A ~A~@[?~A~] ~
+  (http:log-notice "~:[-~@[ (~A)~]~;~:*~A~@[ (~A)~]~] ~A [~A] \"~A ~A~@[?~A~] ~
                     ~A\" ~D ~:[-~;~:*~D~] \"~:[-~;~:*~A~]\" \"~:[-~;~:*~A~]\"~%"
             (remote-addr*)
             (or (header-in* :x-forwarded-for)
@@ -540,7 +539,7 @@
             return-code
             (content-length*)
             (referer)
-            (user-agent))))
+            (user-agent)))
 
 (defmethod http:send-headers ((response tbnl-response))
   "Buffer headers to the response stream.

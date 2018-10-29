@@ -457,7 +457,7 @@
     (c2mop:ensure-method function
                          `(lambda (resource-path request response)
                             (let ((http:*resource* (http:bind-resource (function ,name) resource-path request)))
-                              (http:log-debug *trace-output* "~a: dispatching ~a -> ~a ~a ~a"
+                              (http:log-debug "~a: dispatching ~a -> ~a ~a ~a"
                                             ',name resource-path http:*resource* request response)
                               (cond (http:*resource*
                                      (,name http:*resource* request response))
@@ -497,22 +497,22 @@
                                      when (http:resource-function-p function)
                                      collect function))
            (root-resource-class (http:function-resource-class dispatch-function)))
-      (http:log-trace *trace-output* "dispatch function: ~s~%resource-functions: ~a"
+      (http:log-trace "dispatch function: ~s~%resource-functions: ~a"
                       dispatch-function
                       (mapcar #'c2mop:generic-function-name resource-functions))
       (loop for resource-function in resource-functions
             for name = (c2mop:generic-function-name resource-function)
-            do (http:log-trace *trace-output* "adding resource-function: ~s" resource-function)
+            do (http:log-trace "adding resource-function: ~s" resource-function)
             do (loop for method in (c2mop:generic-function-methods resource-function)
                      for resource-class = (first (c2mop:method-specializers method))
                      if (and (subtypep resource-class root-resource-class)
                                (http-verb-list-p (method-qualifiers method)))
-                     do (progn (http:log-trace *trace-output* "adding resource dispatch method: ~a ~a ~s"
+                     do (progn (http:log-trace "adding resource dispatch method: ~a ~a ~s"
                                                name (class-name resource-class) (method-qualifiers method))
                                (http:define-dispatch-method dispatch-function name resource-class))
-                     else do (http:log-trace *trace-output* "skipping method: ~a ~a ~s"
+                     else do (http:log-trace "skipping method: ~a ~a ~s"
                                           name (class-name resource-class) (method-qualifiers method)))))
-    (http:log-trace *trace-output* "Dispatch patterns: ~s"
+    (http:log-trace "Dispatch patterns: ~s"
                     (http:function-patterns dispatch-function))
     dispatch-function))
 
@@ -1211,7 +1211,7 @@
                                                              (first media-types) (second media-types))
                                                      `(:method ,@qualifiers ((resource t) (request t) (response t) (content-type t) (accept-type ,(first media-types)))
                                                         ;; replace the currently noted type the second one
-                                                        (http:log-trace *trace-output* "redirecting ~a: ~a -> ~a" ',name 
+                                                        (http:log-trace "redirecting ~a: ~a -> ~a" ',name 
                                                                         ,(first media-types) ,(second media-types))
                                                         (setf (http:response-media-type response) ,(second media-types))
                                                         (,name resource request response content-type ,(second media-types))
@@ -1223,7 +1223,7 @@
                                                         ;; specializer class, but include the character set encoding
                                                         (let ((content (call-next-method))
                                                               (effective-content-type (http:response-media-type response)))
-                                                          (http:log-trace *trace-output* "content-type: ~a: content ~s"
+                                                          (http:log-trace "content-type: ~a: content ~s"
                                                                           effective-content-type content)
                                                           (http:encode-response content response effective-content-type)
                                                           ;; have the generated method rrturn nil, to terminate encoding
@@ -1245,9 +1245,9 @@
                                               (if (rest clause)
                                                 `(:method ,@clause)
                                                 `(:method :log ((resource t) (request t) (response t) (content-type t) (accept-type t))
-                                                   (http:log-debug *trace-output* "~s ~s~:[<~;>~]: ~s ~s ~s ~s ~s"
+                                                   (http:log-debug "~s ~s~:[<~;>~]: ~s ~s ~s ~s ~s"
                                                                    ',name *log-id* (shiftf *log-state* nil) resource request response content-type accept-type)
-                                                   (http:log-trace *trace-output* "~s: headers: ~s" ',name (http:request-headers request)))))
+                                                   (http:log-trace "~s: headers: ~s" ',name (http:request-headers request)))))
                                              (:auth
                                               (if (third clause)
                                                 `(:method ,@clause)
@@ -1426,7 +1426,7 @@
 
 (defmethod http:effective-response-media-type :around (function resource request accept-header)
   (let ((result (call-next-method)))
-    (http:log-trace *trace-output* "ermt: ~a ~a ~a ~a ->  ~a"
+    (http:log-trace "ermt: ~a ~a ~a ~a ->  ~a"
                      function resource request accept-header
                      result)
     result))

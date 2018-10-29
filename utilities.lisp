@@ -21,6 +21,9 @@
   (and (consp object)
        (every #'http-verb-p object)))
 
+(cffi:defcfun ("openlog" %openlog) :void (id :string) (options :int) (facility :int))
+(cffi:defcfun ("syslog" %syslog) :void (priority :int) (c-format :string) (c-message :string))
+
 (defun log-level-qualifies? (level)
   (find level (member http:*log-level* http:*log-levels*)))
 
@@ -32,9 +35,9 @@
 
 (macrolet ((def-log-op (level)
              `(progn
-                (defmacro ,(intern (concatenate 'string (string :log-) (string level)) :http) (destination format-control &rest args)
+                (defmacro ,(intern (concatenate 'string (string :log-) (string level)) :http) (format-control &rest args)
                   `(flet ((call-log ()
-                            (http:log ,,level ,destination ,format-control ,@args)
+                            (http:log ,,level *log-destination* ,format-control ,@args)
                             t))
                      (declare (dynamic-extent (function call-log)))
                      (call-if-log-level-qualifies ,,level (function call-log)))))))
@@ -47,6 +50,34 @@
   (def-log-op :debug)
   (def-log-op :trace))
 
+(defun syslog-level (level)
+    (or (rest (assoc level (load-time-value `((:trace . 7)
+                                              (:debug . 7)
+                                              (:info . 6)
+                                              (:notice . 5)
+                                              (:warn . 4)
+                                              (:error . 3)
+                                              (:critical . 2)
+                                              (:fatal . 1)))))
+        3))
+
+(defun write-syslog (level format-control &rest args)
+  (handler-case (let* ((*print-pretty* nil)
+                       (*print-length* 10)
+                       (message (apply #'format format-control args)))
+                  (#+sbcl sb-sys:without-interrupts #-sbcl progn
+                   (cffi:with-foreign-strings ((%cformat "%s")
+                                               (%message message))
+                     (%syslog (syslog-level level) %cformat %message)))
+                  ;; write anything above :notice to the terminal, if present
+                  (when (and (not (find :notice (member level http:*log-levels*)))
+                             *trace-output*
+                             (interactive-stream-p *trace-output*))
+                    (format *trace-output* "~&;;;~a~%" message)))
+    (error (error)
+           (setq *log-condition* error)
+           nil)))
+
 (defgeneric http:log (level destination format-control &rest arguments)
   (:documentation
     "Emit a log message to the destination.")
@@ -55,8 +86,12 @@
 
   (:method (level (destination stream) format-control &rest arguments)
     (declare (dynamic-extent arguments))
-    (let ((*print-pretty* nil))
+    (let ((*print-pretty* nil)
+          (*print-length* 10))
       (format destination "~&;;; [~a] ~?" level format-control arguments)))
+
+  (:method (level (destination (eql :syslog)) format-control &rest arguments)
+    (apply #'write-syslog level format-control arguments))
   )
 
 ;;; gray stream compatibility
@@ -123,7 +158,7 @@
                         if type
                         collect (cons type quality)
                         else
-                        do (http:log-warn (http:acceptor) "The mime type '~a/~a' is not defined." major minor))))
+                        do (http:log-warn "The mime type '~a/~a' is not defined." major minor))))
     (if types
       (mapcar #'first (sort types #'> :key #'rest))
       (http:not-acceptable "Unacceptable accept ranges: '~a'" header))))
@@ -135,7 +170,7 @@
                       for type = (mime:mime-type range :if-does-not-exist nil)
                       if type
                       collect type)))
-        ;;else do (http:log-warn (http:acceptor) "The mime type '~a' is not defined." range))))
+        ;;else do (http:log-warn "The mime type '~a' is not defined." range))))
         (if types
             (sort types #'> :key #'mime::mime-type-quality)
             (http:not-acceptable "Unacceptable accept ranges: '~a'" header)))

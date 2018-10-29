@@ -28,6 +28,11 @@
 
 (defparameter *http-method-package* (find-package :http-method-package))
 
+(defparameter *log-condition* nil)
+
+(defparameter *log-destination* :syslog
+  "specifies where to write log entries: :syslog or a stream instance")
+
 (defparameter http:*log-levels* '(:trace :debug :info :notice :warn :error :critical :fatal))
 
 (defparameter http:*log-level* :debug
