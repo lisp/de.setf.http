@@ -174,7 +174,18 @@
 #+(or)
 (defmethod stream-listen ((stream SB-SYS:FD-STREAM)) (not (sb-impl::sysread-may-block-p stream)))
 
-(defgeneric http:copy-stream (input-stream output-stream &key length)
+(defgeneric http:copy-stream (input-source output-destination. &key length)
+  (:documentation "Copy the content of the input-source to the output-destination.
+   The bsae combination is (stream x stream), in which case a byt copy is performed and
+   the source is checked for excess input.
+   Combinations, such as (stream x pathname) and (pathname x stream), delegate to the
+   base combination.
+   Combinations with a sequence destination are implemented respective the destination element type.
+   nb. an implementation base on utiltity functions, such as alexandria:copy-stream, which presume the element type
+   in order to buffer results, will fail on multivalent streams which change type.
+   nb. using listen at the outset in order to avoid hanging on missing content, is actually a race situation,
+   as the content can be delayed, as is the case for interative source streams.")
+
   (:method ((input-stream stream) (output-stream stream) &key length)
     (unless length
       (setf length most-positive-fixnum))
@@ -194,47 +205,6 @@
              count))
           (t
            0)))
-  #+(or)
-  (:method ((input-stream stream) (output-stream stream) &key length)
-    (unless length
-      (setf length most-positive-fixnum))
-    (cond ((and (plusp length) (listen input-stream))
-           ;;(setf (fill-pointer *test-buffer*) 0)
-           (let* ((count 0))
-             (declare (type fixnum count length))
-             (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
-               (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
-                 (loop for byte = (read-byte input-stream nil nil) ; (print (funcall reader reader-arg))
-                   while byte
-                   ;;do (vector-push-extend (code-char byte) *test-buffer*)
-                   ;;   (print *test-buffer* *trace-output*)
-                   ;;   (finish-output *trace-output*)
-                   do (write-byte byte output-stream) ; (funcall writer writer-arg byte)
-                   until (>= (incf count) length))))
-             (when (listen input-stream)
-               (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
-             count))
-          (t
-           0)))
-  #+(or)
-  (:method ((input-stream stream) (output-stream stream) &key length)
-    (let ((buffer (make-array 4096 :element-type '(unsigned-byte 8)))
-          (position 0))
-      (loop while (or (null length) (< position length))
-        do (let ((n (SB-SIMPLE-STREAMS:READ-VECTOR buffer input-stream
-                                 :end (when length
-                                        (min (length buffer)
-                                             (- length position))))))
-             (when (zerop n)
-               (if length
-                   (error "~@<Could not read enough bytes from the input to fulfill ~                                     
-                           the :END ~S requirement in ~S.~:@>" 'copy-stream length)
-                   (return)))
-             (incf position n)
-             (SB-SIMPLE-STREAMS::%write-sequence buffer output-stream :end n)))
-      position))
-  ;; does not handle multivalent streams
-  ;; (alexandria:copy-stream input-stream output-stream :end length :element-type '(unsigned-byte 8)))
   
   (:method ((input-stream stream) (output pathname) &rest args)
     (declare (dynamic-extent args))
@@ -258,7 +228,7 @@
               "Destination sequence must either of the specified length or be adjustable for chunked content: ~a."
               (type-of content))
       (setf length most-positive-fixnum))
-    (cond ((and (plusp length) (listen input-stream))
+    (cond ((plusp length)
            (let* ((count 0))
              (declare (type fixnum count length))
              (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
@@ -270,10 +240,13 @@
                  until (>= (incf count) length)))
              (when (listen input-stream)
                (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
-             (when (> count (length content))
-               (setf content (adjust-array content (list count))))
+             (when (and (adjustable-array-p content)
+                        (< count (length content)))
+               (adjust-array content count))
              count))
           (t
+           (when (adjustable-array-p content)
+             (setf content (adjust-array content 0)))
            0)))
 
   ;; read into a string (character buffer)
@@ -283,7 +256,7 @@
               "Destination sequence must either of the specified length or be adjustable for chunked content: ~a."
               (type-of content))
       (setf length most-positive-fixnum))
-    (cond ((and (plusp length) (listen input-stream))
+    (cond ((plusp length)
            (let* ((byte-count 0)
                   (character-count 0))
              (declare (type fixnum byte-count character-count length))
@@ -306,7 +279,8 @@
              (values byte-count content)))
           (t
            (when (adjustable-array-p content)
-             (setf content (adjust-array content 0))))))
+             (setf content (adjust-array content 0)))
+           0)))
 
   #+(or)                                ; unused method which tries to do the unchunking in-line
   (:method ((input-stream stream) (content vector) &key length)
