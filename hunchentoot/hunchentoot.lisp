@@ -756,7 +756,9 @@
  *reply* : the reified response instance
  
  Perform respond-to-request w/ error handling as for a synchronous request.
- Methods are specialized for combinations of source and destination streams and abstract locations")
+ Methods are specialized for combinations of source and destination streams and abstract locations.
+ In order for queries to succeed, the original request must include a content-length header,
+ in order that it be available to decode the cached request stream.")
 
   (:method ((acceptor http:acceptor) (source pathname) (destination t) &rest args)
     (with-open-file (source-stream source :direction :input 
@@ -802,11 +804,11 @@
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error
-                        (http:log *lisp-errors-log-level* acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
-                        (format *error-output* "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (format *error-output* "process-asynchronous-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "~%~a" (get-backtrace))
                         ;; re-signal to the acceptor's general handler
-                        (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
+                        (http:internal-error "process-asynchronous-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
             
               (multiple-value-bind (headers-in method url-string protocol)
                                    (get-request-data-no-continue *hunchentoot-stream*)
@@ -846,7 +848,7 @@
                           (cond ((acceptor-input-chunking-p acceptor)
                                  ;; turn chunking on before we read the request body
                                  (setf (chunked-stream-input-chunking-p input-stream) t))
-                                (t (http:bad-request "Client tried to use chunked encoding, but acceptor is configured to not use it.")))))
+                                (t (http:bad-request "Client tried to use chunked encoding, but acceptor is configured not to use it.")))))
                       (case transfer-encoding
                         (:chunked
                          (setf (chunked-stream-output-chunking-p output-stream) t)
