@@ -408,7 +408,7 @@
                                  (http:send-condition *reply* c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                               (http:log *lisp-errors-log-level* acceptor "process-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (http:log-error "process-connection: http error in http response: [~a] ~a" (type-of c) c)
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
                                ;;(dotimes (x 100) (write-char #\. (http:response-content-stream *reply*)))
@@ -426,11 +426,11 @@
                ;; a connection error is suppressed by returning from the connection handler.
                ;; this does not try to continue as any stream's socket
                (usocket:connection-aborted-error (lambda (c) 
-                                                   (http:log *lisp-errors-log-level* acceptor "process-connection: [~a] ~a" (type-of c) c)
+                                                   (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                                    (return-from process-connection nil)))
                #+sbcl  ;; caused by a broken pipe
                (sb-int:simple-stream-error (lambda (c)
-                                             (http:log *lisp-errors-log-level* acceptor "process-connection: [~a] ~a" (type-of c) c)
+                                             (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
@@ -438,7 +438,7 @@
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error
-                        (http:log *lisp-errors-log-level* acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (http:log-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "~%~a" (get-backtrace))
                         ;; re-signal to the acceptor's general handler
@@ -518,7 +518,7 @@
 
 (defmethod http:log (level (destination http:acceptor) format-control &rest arguments)
   (declare (dynamic-extent arguments))
-  (with-log-stream (stream (acceptor-message-log-destination acceptor) *message-log-lock*)
+  (with-log-stream (stream (acceptor-message-log-destination destination) *message-log-lock*)
     (apply #'http:log level stream format-control arguments)))
 
 (defmethod acceptor-log-access ((acceptor tbnl-acceptor) &key return-code)
@@ -784,12 +784,12 @@
                                  (http:send-condition reply c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code reply)))
-                               (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (http:log-error "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
              ;; if some other error reaches here, log and ignore it.
              (error (lambda (c)
-                      (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
+                      (http:log-error "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
                       (return-from process-asynchronous-connection
                         (values nil c nil)))))
           (handler-bind
@@ -803,7 +803,7 @@
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error
-                        (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (http:log-error "process-asynchronous-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "process-asynchronous-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "~%~a" (get-backtrace))
                         ;; re-signal to the acceptor's general handler
@@ -868,8 +868,8 @@
                       (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                       (finish-output output-stream)
                       (values *request* *reply*))
-                    (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
-                              headers-in method url-string protocol))))))))
+                    (http:log-error "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
+                                    headers-in method url-string protocol))))))))
 
 #+(or) ;;; does not work to emit the reponse as a request
 (defgeneric process-asynchronous-connection (acceptor source destination &key output)
@@ -905,12 +905,12 @@
                                (http:send-condition reply c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
-                               (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (http:log-error "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
              ;; if some other error reaches here, log and ignore it.
              (error (lambda (c)
-                      (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
+                      (http:log-error "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
                       (return-from process-asynchronous-connection
                         (values nil c nil)))))
           (handler-bind
@@ -924,7 +924,7 @@
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error
-                        (http:log *lisp-errors-log-level* acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
+                        (http:log-error acceptor "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c)
                         (format *error-output* "~%~a" (get-backtrace))
                         ;; re-signal to the acceptor's general handler
@@ -987,6 +987,6 @@
                           (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
                           (finish-output output-stream)
                           (values *request* *reply*))))
-                    (http:log *lisp-errors-log-level* acceptor "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
+                    (http:log-error "process-asynchronous-connection: invalid request data: ~s ~s ~s ~s"
                               headers-in method url-string protocol))))))))
 
