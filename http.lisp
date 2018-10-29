@@ -1426,7 +1426,7 @@
 
 (defmethod http:effective-response-media-type :around (function resource request accept-header)
   (let ((result (call-next-method)))
-    (http:log-notice *trace-output* "ermt: ~a ~a ~a ~a ->  ~a"
+    (http:log-trace *trace-output* "ermt: ~a ~a ~a ~a ->  ~a"
                      function resource request accept-header
                      result)
     result))
