@@ -194,16 +194,16 @@ invoke the respective content writer on the arguments from the triggering call."
                          byte-stream stream))
                  (when (eq byte-writer initial-byte-writer)
                    (stream-finish-header-output stream)
-                   (update-stream-writers stream)
-                   (funcall byte-writer byte-writer-arg byte)))
+                   (update-stream-writers stream))
+                 (funcall byte-writer byte-writer-arg byte))
                (initial-char-writer (char-stream char)
                  (unless (eq char-stream stream)
                    (warn "initialize-stream-writers: initial char stream mismatch: ~s != ~s:"
                          char-stream stream))
                  (when (eq byte-writer initial-byte-writer)
                    (stream-finish-header-output stream)
-                   (update-stream-writers stream)
-                   (funcall char-writer char-writer-arg char))))
+                   (update-stream-writers stream))
+                 (funcall char-writer char-writer-arg char)))
           (setf byte-writer #'initial-byte-writer
                 initial-byte-writer #'initial-byte-writer
                 byte-writer-arg stream)
