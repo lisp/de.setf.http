@@ -84,6 +84,7 @@
            :encode-rfc1123
            :error
            :expectation-failed
+           :finish-header-output
            :forbidden
            :found
            :function-default-accept-header
