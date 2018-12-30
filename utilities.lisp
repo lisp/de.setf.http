@@ -64,7 +64,7 @@
 (defun write-syslog (level format-control &rest args)
   (handler-case (let* ((*print-pretty* nil)
                        (*print-length* 10)
-                       (message (apply #'format format-control args)))
+                       (message (apply #'format nil format-control args)))
                   (#+sbcl sb-sys:without-interrupts #-sbcl progn
                    (cffi:with-foreign-strings ((%cformat "%s")
                                                (%message message))
