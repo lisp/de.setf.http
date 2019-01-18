@@ -1910,8 +1910,10 @@ obsolete mechanism which was in terms of the encode methods
     (http:send-entity-body response content))
 
   (:method ((condition http:condition) (response t) (content-type t))
-    "Given a condition as the result, just signal it."
-    (error condition)))
+    "Given a condition as the result, just signal it.
+     Suppress encoding if the signaling does not itsel complete processing"
+    (error condition)
+    t))
 
 ;;;
 ;;; generic authentication/authorization functions
@@ -1975,13 +1977,13 @@ obsolete mechanism which was in terms of the encode methods
 ;;;          -> .eventual.response.implementation. (request)
 ;;; the direct implementation would be to specialize acceptor-dispatch-request with the implemention based
 ;;; on generic functions, but
-;;; - this control pattern is perverse on two accounts. first, it dynamicall binds the acceptor in order to reintroduce it as a
+;;; - this control pattern is perverse on two accounts. first, it dynamically binds the acceptor in order to reintroduce it as a
 ;;; specialized argument to acceptor-dispatch-request. second, it does not include the reply object in the
 ;;; signatures.
 ;;; - status formatting is static, enumerated code
 ;;; - process-request implements a baroque mechanism to send headers control start-output
 ;;;
-;;; this implementation replaces these five levels with a three
+;;; this implementation replaces these five levels with three
 ;;; process-connection (acceptor) : to extract headers, set up streams and establish request and response instances
 ;;; -> respond-to-request (acceptor request response) : to derive the response function, manage headers, manage errors
 ;;;    -> .some.dispatch.function. (path request response) : the path interpreation function
