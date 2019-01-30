@@ -1292,7 +1292,7 @@
   ;; (setf (http:response-media-type response) nil)
   ;; (funcall function resource request response content-type nil)
     (let ((media-type (or (http:effective-response-media-type function resource request nil)
-                          (http:function-default-accept-header function))))
+                          (mime:mime-type (http:function-default-accept-header function)))))
       (setf (http:request-accept-type request) media-type)
       (setf (http:response-media-type response)
             (http:response-compute-media-type request response media-type
