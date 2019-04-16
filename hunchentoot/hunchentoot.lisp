@@ -167,10 +167,9 @@
 (defmethod http:request-host ((request tbnl-request))
   (acceptor-address (request-acceptor request)))
 
-(defmethod http::request-if-match ((request tbnl-request))
-  (loop for (name . value) in (http:request-headers request)
-    when (eq :if-match name)
-    collect value))
+(defmethod http:request-if-match ((request tbnl-request))
+  (let ((if-match (header-in :if-match request)))
+    (when if-match (split "\\s*,\\s*" if-match))))
 
 (defmethod http:request-if-modified-since ((request tbnl-request))
   (let ((date (header-in :if-modified-since request)))

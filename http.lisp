@@ -626,7 +626,7 @@
     - the modification time is not after any modified-since
     - the modification time is after unmodified-since") 
   (:method ((request http:request) etag time)
-    (let ((if-match (http::request-if-match request))
+    (let ((if-match (http:request-if-match request))
           (if-modified-since (http:request-if-modified-since request))
           (if-unmodified-since (http:request-unmodified-since request)))
       (and (or (null if-match)
@@ -679,7 +679,7 @@
 (defgeneric http:request-host (request)
   )
 
-(defgeneric http::request-if-match (request)
+(defgeneric http:request-if-match (request)
   )
 
 (defgeneric http:request-if-modified-since (request)

@@ -153,6 +153,7 @@
            :request-header
            :request-headers
            :request-host
+           :request-if-match
            :request-if-modified-since
            :request-is-interactive
            :request-keep-alive-p
