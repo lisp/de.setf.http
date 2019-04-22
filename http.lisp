@@ -606,6 +606,17 @@
 (defgeneric http:request-accept-charset (request)
   )
 
+(defgeneric http:request-base-iri (request)
+  (:method ((request http:request))
+    (or (http:request-header request :base-iri)
+        (http:request-uri request))))
+
+(defgeneric (setf http:request-base-iri) (uri request)
+  (:method ((iri string) (request http:request))
+     (setf (http:request-header request :base-iri) iri))
+  (:method ((iri null) (request http:request))
+     (setf (http:request-header request :base-iri) iri)))
+
 (defgeneric http:request-body (request)
   (:documentation "Return the request body as a single sequence.
     If content-length was supplied, that determines the sequence length.
@@ -655,6 +666,9 @@
 (defgeneric http:request-header (request key)
   (:method ((headers list) key)
     (rest (assoc key headers :test #'string-equal))))
+
+(defgeneric (setf http:request-header) (value request key)
+  )
 
 (defgeneric http:request-headers (request)
   )

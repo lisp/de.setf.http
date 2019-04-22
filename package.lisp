@@ -141,6 +141,7 @@
            :request-argument-list
            :request-auth-token
            :request-authentication
+           :request-base-iri
            :request-body
            :request-cache-matched-p
            :request-class

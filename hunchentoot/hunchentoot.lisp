@@ -147,6 +147,10 @@
   (with-slots (headers-in) request
     (setf headers-in (acons key value (headers-in request)))))
 
+(defmethod (setf http:request-header) ((value null) (request tbnl-request) key)
+  (with-slots (headers-in) request
+    (setf headers-in (remove (assoc key (headers-in request) :test #'string-equal)))))
+
 (defmethod http:request-headers ((request tbnl-request))
   (headers-in request))
 
