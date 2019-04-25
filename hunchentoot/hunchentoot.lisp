@@ -412,7 +412,8 @@
                                  (http:send-condition *reply* c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                               (http:log-error "process-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (when (typep c 'http:error) :should not be
+                                 (http:log-error "process-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
                                ;;(dotimes (x 100) (write-char #\. (http:response-content-stream *reply*)))
@@ -788,7 +789,8 @@
                                  (http:send-condition reply c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code reply)))
-                               (http:log-error "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (when (typep c 'http:error) ;; should not be
+                                 (http:log-error "process-asynchronous-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
              ;; if some other error reaches here, log and ignore it.
@@ -909,7 +911,8 @@
                                (http:send-condition reply c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
-                               (http:log-error "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (when (typep c 'http:error)
+                                 (http:log-error "process-asynchronous-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
              ;; if some other error reaches here, log and ignore it.
