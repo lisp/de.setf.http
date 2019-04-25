@@ -412,7 +412,7 @@
                                  (http:send-condition *reply* c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                               (when (typep c 'http:error) :should not be
+                               (when (typep c 'http:error) ;; should not be
                                  (http:log-error "process-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
