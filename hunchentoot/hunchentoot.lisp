@@ -412,7 +412,7 @@
                                  (http:send-condition *reply* c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                               (when (typep c 'http:error) ;; should not be
+                               (when (typep c 'http:error) ;; ensure syslog
                                  (http:log-error "process-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
@@ -424,17 +424,21 @@
                                (return-from process-connection
                                  (values nil c nil)))))
             (handler-bind
-              ;; establish an additional level to permit a general handler which maps to http:condition
+              ;; establish an additional level to permit a general error handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
                (http:condition (lambda (c)
                                  (signal c)))
-               ;; a connection error is suppressed by returning from the connection handler.
+               ;; a connection error is reported to the application, but subsequently suppressed by returning from the connection handler.
                ;; this does not try to continue as any stream's socket
-               (usocket:connection-aborted-error (lambda (c) 
+               (usocket:connection-aborted-error (lambda (c)
+                                                   (http:handle-condition acceptor c)
                                                    (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                                    (return-from process-connection nil)))
-               #+sbcl  ;; caused by a broken pipe
+               #+sbcl
+               ;; caused by a broken pipe
+               ;; handled in the same way as socket errors
                (sb-int:simple-stream-error (lambda (c)
+                                             (http:handle-condition acceptor c)
                                              (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
                ;; while any other error is handled as per acceptor, where the default implementation

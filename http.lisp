@@ -391,7 +391,8 @@
 (defgeneric http:handle-condition (acceptor condition)
   (:documentation "Invoked for any 'unknown' condition type which is signaled during a process-connection
     invocation. Can either resignal or decline to handle - as is the case for the default method, in which
-    case the connection processing implementation will resignal as an http:internal-error.")
+    case the connection processing implementation will suppress connection errors or
+    resignal as an http:internal-error.")
   (:method ((acceptor t) (condition t))
     ;; decline to handle
     ))
