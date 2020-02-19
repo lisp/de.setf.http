@@ -844,11 +844,22 @@
 
 (defgeneric http:resource-path-name-and-type (resource)
   (:method ((resource http:resource))
-    (apply #'values (split-string (http:resource-path-filename resource) ".")))
+    (http:resource-path-name-and-type (http:resource-path-filename resource)))
   (:method ((path t))
     nil)
   (:method ((path string))
-    (apply #'values (split-string (http:resource-path-filename path) "."))))
+    (let ((scanner (load-time-value
+                    (cl-ppcre:create-scanner
+                     `(:sequence :start-anchor
+                                 (:greedy-repetition 0 1 (:sequence (:greedy-repetition 0 nil :everything) #\/))
+                                 (:register (:greedy-repetition 0 nil (:inverted-char-class #\.)))
+                                 (:greedy-repetition 0 1 (:sequence #\. (:register (:greedy-repetition 1 nil :everything))))
+                                 )))))
+      (multiple-value-bind (matched name-and-type)
+                           (cl-ppcre:scan-to-strings scanner path)
+        (when matched
+          (values (aref name-and-type 0) (aref name-and-type 1)))))))
+;;; (loop for path in '("" "a" "a.t" ".t" "p/a" "p/a.t" "p/.t" "p/") collect (multiple-value-list (http:resource-path-name-and-type path)))
 
 (defgeneric http:resource-path-name (resource)
   (:method ((path string))
@@ -955,7 +966,7 @@
                             (decode (:decode . *)) ;; should be singleton
                             (encode (:encode . *))
                             (get (:get))        ; nb. cannot be required as the :as definitions
-                            (put (:put))        ; cut processing off to delegate to anther media type
+                            (put (:put))        ; cut processing off to delegate to another media type
                             (head (:head))
                             (patch (:patch))
                             (post (:post))
@@ -1119,10 +1130,9 @@
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
-                                                   '(http:not-acceptable "media type (~s) not acceptable for method (~s . ~s)"
-                                                                          (http:request-accept-type http:*request*)
-                                                                          (http:request-method http:*request*)
-                                                                          (http:request-uri http:*request*)))))
+                                                   `(http::not-acceptable :media-type (http:request-accept-type http:*request*)
+                                                                          :method (http:request-method http:*request*)
+                                                                          :acceptable-types (resource-function-acceptable-media-types ,function)))))
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
@@ -1418,7 +1428,9 @@
                 ((or (null (http:request-accept-header request))
                      (equal (http:request-accept-header request) "*/*"))
                  (http:effective-response-media-type function resource request nil))))
-        (http::not-acceptable "Media type (~s) not implemented." accept-header)))
+        (http::not-acceptable :media-type accept-header
+                              :method (http:request-method request)
+                              :acceptable-types (resource-function-acceptable-media-types function))))
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:*/*))
     accept-media-type)
   ;; allow the function to override interactive browser requests

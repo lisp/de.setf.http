@@ -403,7 +403,8 @@
       ;; use as the base stream either the original socket stream or, if the connector
       ;; supports ssl, a wrapped stream for ssl support
       (let* ((acceptor-stream (initialize-connection-stream acceptor socket-stream))
-             (*hunchentoot-stream* acceptor-stream)) ; provide the dynamic binding
+             (*hunchentoot-stream* acceptor-stream) ; provide the dynamic binding
+             (loop-result nil))
           ;; establish http condition handlers and an error handler which mapps to internal-error
           (handler-bind
             (;; declared conditions are handled according to their report implementation
@@ -453,7 +454,12 @@
                         ;; re-signal to the acceptor's general handler
                         (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
             
-              (loop
+              (setf loop-result
+              (catch 'hunchentoot::handler-done 
+                    ;; something or other in hunchentoot code decided to give up
+                    ;; maybe while constructing the request, maybe when actually done.
+                    ;;
+                  (loop
                 (let ((*close-hunchentoot-stream* t))
                   (when (acceptor-shutdown-p acceptor)
                     (return))
@@ -513,7 +519,13 @@
                     ;; synchronize on the underlying stream
                     (finish-output acceptor-stream)
                     (when *close-hunchentoot-stream*
-                      (return)))))))
+                      (return)))))
+                    socket-stream))
+              (unless (eq socket-stream loop-result)
+                ;; something was thrown
+                (http:log-warn "process-connection: thrown out of handler: ~s" loop-result)
+                ;; cannot. there is no reply bound (http:bad-request "Unspecified issue.")
+                (finish-output acceptor-stream))))
         (close acceptor-stream :abort t)
         (setq socket-stream nil))
       (when socket-stream

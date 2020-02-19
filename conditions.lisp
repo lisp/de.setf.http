@@ -208,7 +208,23 @@
 
 (def-condition http:not-acceptable (http:error)
   ((code :initform 406 :allocation :class)
-   (text :initform "Not Acceptable" :allocation :class)))
+   (text :initform "Not Acceptable" :allocation :class)
+   (media-type :initform nil :initarg :media-type :reader condition-media-type)
+   (method :initform nil :initarg :method :reader condition-method)
+   (acceptable-types :initform nil :initarg :acceptable-types :reader condition-acceptable-types)))
+
+(defmethod http:report-condition ((condition http:not-acceptable) stream)
+  "to appease https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+  (let ((type (condition-media-type condition))
+        (acceptable (condition-acceptable-types condition)))
+    (if (or type acceptable)
+        (format stream "HTTP Status: ~s (~a)~@[media type not implemented: '~a'~]~@[[~a]~]~@[~% acceptable:~{~%  '~a'~}~]~%~%"
+                (http:condition-code condition)
+                (http:condition-text condition)
+                (mime:mime-type-namestring type)
+                (condition-method condition)
+                (mapcar #'mime:mime-type-namestring acceptable))
+        (call-next-method))))
 
 (def-condition http:proxy-authentication-required (http:error)
   ((code :initform 407 :allocation :class)
