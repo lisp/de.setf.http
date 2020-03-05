@@ -813,6 +813,12 @@
               (application/x-www-form-urlencoded
                (http:request-post-argument request name))))))))
 
+(defgeneric http:resource-request-header (resource name)
+  (:method ((resource http:resource) name)
+    (let ((request (http:resource-request resource)))
+      (when request
+        (http:request-header request name)))))
+
 (defgeneric http:anonymous-resource-p (resource)
   (:documentation "Return true iff the resource permits some form of access without authentication.
    The applies to cases where the implementation does not establish an agent or the agent itself

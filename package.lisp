@@ -204,6 +204,7 @@
            :resource-pattern-subpatterns
            :resource-request
            :resource-request-argument
+           :resource-request-header
            :respond-to-option-request
            :respond-to-request
            :response
