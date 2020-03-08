@@ -744,6 +744,7 @@
   )
 
 (defgeneric http:request-path (request)
+  (:documentation "return just the path component of the request url, as a string")
   )
 
 (defgeneric http:request-post-argument (request key)
@@ -783,6 +784,7 @@
   )
 
 (defgeneric http:request-uri (request)
+  (:documentation "Return the absolute uri, that is protocol puls path, as a string")
   )
 
 (defgeneric http:request-uri-host-name (request)
@@ -1392,26 +1394,30 @@
                              :from-end t)
           #'subtypep)))
 
-(defgeneric resource-function-acceptable-media-types (function accept-types)
+(defgeneric resource-function-acceptable-media-types (function &optional accept-types)
   (:documentation "Return the ordered sequence of those of the functions encoding media type specializers
    which are subtypes of the given list of accept types. The order is respective the accept types and any
-   duplicates are removed from the end.")
-  (:method ((function http:resource-function) (accept-types list))
-    (loop with defined-types = (resource-function-media-types function)
-      for accept-type in accept-types
-      for accept-type-type = (type-of accept-type)
-      for accept-type-name = (symbol-name accept-type-type)
-      for matched-type = (some #'(lambda (defined)
-                                   (cond ((typep accept-type defined)
-                                          accept-type)
-                                         ;; never return full wild type
-                                         ((and (not (equal "*/*" accept-type-name))
-                                               (find #\* accept-type-name)
-                                               (subtypep defined accept-type-type))
-                                          (mime:mime-type defined))))
-                               defined-types)
-      when matched-type
-      collect matched-type)))
+   duplicates are removed from the end.
+   If no accept type list is provided, return the defined types.")
+  (:method ((function http:resource-function) &optional (accept-types nil))
+    (let ((defined-types (resource-function-media-types function)))
+      (if accept-types
+          (loop
+            for accept-type in accept-types
+            for accept-type-type = (type-of accept-type)
+            for accept-type-name = (symbol-name accept-type-type)
+            for matched-type = (some #'(lambda (defined)
+                                         (cond ((typep accept-type defined)
+                                                accept-type)
+                                               ;; never return full wild type
+                                               ((and (not (equal "*/*" accept-type-name))
+                                                     (find #\* accept-type-name)
+                                                     (subtypep defined accept-type-type))
+                                                (mime:mime-type defined))))
+                                     defined-types)
+            when matched-type
+            collect matched-type)
+          defined-types))))
 
 (defgeneric http:effective-response-media-type (function resource request accept-header)
   (:documentation "the order is
@@ -1423,16 +1429,15 @@
    - finally, try the function's default
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
-    (or (let ((type (or (when (or (null (http:request-accept-header request))
-                                  (equal (http:request-accept-header request) "*/*"))
-                          (or (http:resource-file-type-media-type resource)
-                              (http:resource-mime-type resource)))
-                        (resource-function-acceptable-media-type function accept-header))))
+    (or (let* ((header (http:request-accept-header request))
+               (type (or (when (or (null header) (equal header "*/*"))
+                           (or (http:resource-file-type-media-type resource)
+                               (http:resource-mime-type resource)))
+                         (resource-function-acceptable-media-type function accept-header))))
           ;; either some accept type is a sub-type of an implemented type
           ;; or check for wildcard types
           (cond (type (http:effective-response-media-type function resource request type))
-                ((or (null (http:request-accept-header request))
-                     (equal (http:request-accept-header request) "*/*"))
+                ((or (null header) (equal header "*/*"))
                  (http:effective-response-media-type function resource request nil))))
         (http::not-acceptable :media-type accept-header
                               :method (http:request-method request)

@@ -230,7 +230,8 @@
       (http:parse-rfc1123 date))))
 
 (defmethod http:request-uri ((request request))
-  (request-uri request))
+  "the tbnl value is just the path"
+  (concatenate 'string "http://" (http:request-host request) (request-uri request)))
 
 (defmethod http:write-request-header ((request request) stream)
   (format stream "~:@(~a~) ~A HTTP/1.1~C~C"
@@ -414,7 +415,10 @@
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
                                (when (typep c 'http:error) ;; ensure syslog
-                                 (http:log-error "process-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
+                                 (http:log-error "process-connection: condition signaled in http response: [~a][~a] ~a "
+                                                 (type-of c)
+                                                 *request*
+                                                 c))
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
                                ;;(dotimes (x 100) (write-char #\. (http:response-content-stream *reply*)))
