@@ -1101,15 +1101,26 @@
                                   ;; require that either the agent is already authenticated - eg from redirection
                                   ;; or that one of the identification methods succeed, and that all of the
                                   ;; permission methods succeed
-                                  `(unless (and (let ((resource (http:resource))
-                                                      (request (http:request)))
-                                                  (or (http:request-agent request)
-                                                    ,@(loop for method in authentication
-                                                            collect `(call-method ,method ()))
-                                                    (http:authenticate-anonymous resource request)))
-                                                ,@(loop for method in authorization
-                                                        collect `(call-method ,method ())))
-                                     (http:unauthorized))))
+                                  ;; as of 2019/2020 cors implementation required unauthenticated options to ask if authentication was ok
+                                  `(cond ((and (let ((resource (http:resource))
+                                                     (request (http:request)))
+                                                 (or (http:request-agent request)
+                                                     ,@(loop for method in authentication
+                                                         collect `(call-method ,method ()))
+                                                     (http:authenticate-anonymous resource request)))
+                                               ,@(loop for method in authorization
+                                                   collect `(call-method ,method ())))
+                                          t)
+                                         ((let* ((resource (http:resource))
+                                                 (request (http:request))
+                                                 (acrh (http:request-header request "Access-Control-Request-Headers")))
+                                            ;; allow preflight without authorization
+                                            (and (eq (http:request-method request) :options)
+                                                 acrh
+                                                 (search "authorization" acrh :test #'char-equal)))
+                                          t)
+                                         (t
+                                          (http:unauthorized)))))
          ;; the most-specific only
          (encode-method (first encode-methods))
          ;; add a clause to cache the concrete media type according to the most
@@ -1818,6 +1829,7 @@ obsolete mechanism which was in terms of the encode methods
     (setf (http:response-www-authenticate-header response) "Basic")
     (setf (http:response-header response :Access-Control-Expose-Headers) "*")
     (setf (http:response-header response :Access-Control-Allow-Headers) "Authorization, Content-Type, X-Requested-With")
+    (setf (http:response-header response :Access-Control-Allow-Methods) "POST, GET, OPTIONS, DELETE, PUT")
     (setf (http:response-header response :Access-Control-Allow-Origin) "*")
     (setf (http:response-header response :Access-Control-Allow-Credentials) "true")
     (call-next-method))
