@@ -1812,7 +1812,14 @@ obsolete mechanism which was in terms of the encode methods
     (call-next-method))
 
   (:method ((condition http:unauthorized) response)
+    "A 401 response needs the cors freedom. Otherwise a browser which needs to
+     authenticate, but has cors constraints will never recive the 401.
+     This may apply to the 403 as well..."
     (setf (http:response-www-authenticate-header response) "Basic")
+    (setf (http:response-header response :Access-Control-Expose-Headers) "*")
+    (setf (http:response-header response :Access-Control-Allow-Headers) "Authorization, Content-Type, X-Requested-With")
+    (setf (http:response-header response :Access-Control-Allow-Origin) "*")
+    (setf (http:response-header response :Access-Control-Allow-Credentials) "true")
     (call-next-method))
 
   (:method ((condition http:internal-error) response)
@@ -1829,7 +1836,9 @@ obsolete mechanism which was in terms of the encode methods
     error detainls as the response body.")
   (:method ((condition http:condition) (response t))
     ;; (format *trace-output*  "~%~a~%~a~%" (get-response-content-stream response) condition)
-    (format (get-response-content-stream response) "~%~a~%" condition)))
+    ;; the headers are followed by cr-lf. just terminate this with the same.
+    ;; the condition does its own eol formatting
+    (format (get-response-content-stream response) "~a~C~C" condition #\Return #\Linefeed)))
 
 
 (defgeneric http:clear-headers (response)
