@@ -1111,8 +1111,7 @@
                                                ,@(loop for method in authorization
                                                    collect `(call-method ,method ())))
                                           t)
-                                         ((let* ((resource (http:resource))
-                                                 (request (http:request))
+                                         ((let* ((request (http:request))
                                                  (acrh (http:request-header request "Access-Control-Request-Headers")))
                                             ;; allow preflight without authorization
                                             (and (eq (http:request-method request) :options)
