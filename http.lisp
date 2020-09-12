@@ -377,6 +377,8 @@
 
   (:method ((acceptor http:acceptor) request response)
     "The generic resource acceptor invokes its generated dispatch function."
+    (http:log-debug "http:respond-to-request: ~a ~a ~a"
+                    acceptor request response)
     (let ((dispatcher (http:acceptor-dispatch-function acceptor)))
       (assert dispatcher ()
               "no dispatch function present: " acceptor)
