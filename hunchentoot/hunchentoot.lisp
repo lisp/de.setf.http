@@ -410,7 +410,7 @@
           (handler-bind
             (;; declared conditions are handled according to their report implementation
              (http:condition (lambda (c)
-                               (when *reply*  ;; can happen while reply is being parsed
+                               (when *reply*  ;; can happen while request is being parsed
                                  (http:send-condition *reply* c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
@@ -468,7 +468,17 @@
                   (when (acceptor-shutdown-p acceptor)
                     (return))
                   (multiple-value-bind (headers-in method url-string protocol)
-                                       (get-request-data *hunchentoot-stream*)
+                                       (handler-case (get-request-data *hunchentoot-stream*)
+                                         (error (c)
+                                           ;; if the request is unreadable, respond and return
+                                           (format acceptor-stream "HTTP/1.1 400 ~A~C~C~C~C~A~C~C"
+                                                   (reason-phrase 400)
+                                                   #\Return #\Linefeed  #\Return #\Linefeed
+                                                   c
+                                                    #\Return #\Linefeed)
+                                           (finish-output acceptor-stream)
+                                           (return-from process-connection
+                                             (values nil c nil))))
                     ;; check if there was a request at all
                     (unless method
                       (return))
