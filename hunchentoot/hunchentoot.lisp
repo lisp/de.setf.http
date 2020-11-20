@@ -122,7 +122,9 @@
           user-name))))
 
 (defmethod http:request-authentication ((request request))
-  (authorization request))
+  (handler-case (authorization request)
+    (error (c)
+      (http:bad-request "Invalid authentication: ~a" c))))
 
 (defmethod http:request-content-length ((request tbnl-request))
   (let ((header (header-in :content-length request)))
