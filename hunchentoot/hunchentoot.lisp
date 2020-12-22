@@ -432,6 +432,10 @@
                (sb-int:simple-stream-error (lambda (c)
                                              (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
+               (bt:timeout (lambda (c)
+                             (declare (ignore c))
+                             (http:log-notice "process-connection: request data timed out")
+                             (http:request-timeout )))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
@@ -449,7 +453,7 @@
                   (when (acceptor-shutdown-p acceptor)
                     (return))
                   (multiple-value-bind (headers-in method url-string protocol)
-                                       (get-request-data *hunchentoot-stream*)
+                                       (get-request-data-with-timeout *hunchentoot-stream*)
                     ;; check if there was a request at all
                     (unless method
                       (return))
@@ -724,25 +728,32 @@
      (declare (dynamic-extent #',op))
      (call-with-open-request-stream #',op ,location ,@args))))
 
+(defparameter *request-data-timeout* 10)
+
 (defun get-request-data-no-continue (stream)
   "Reads incoming headers as get-request-data, but ignore continue indications."
-  (with-character-stream-semantics
-   (let ((first-line (read-initial-request-line stream)))
-     (when first-line
-       (assert (every #'printable-ascii-char-p first-line) ()
-               "Non-ASCII character in request line ~A" stream)
-       (destructuring-bind (&optional method url-string protocol)
-           (split "\\s+" first-line :limit 3)
-         (assert url-string ()
-           "No url in request line ~A" first-line)
-         (when *header-stream*
-           (format *header-stream* "~A~%" first-line))
-         (let ((headers (and protocol (read-http-headers stream *header-stream*))))
-           (unless protocol (setq protocol "HTTP/0.9"))
-           (values headers
-                   (as-keyword method)
-                   url-string
-                   (as-keyword (trim-whitespace protocol)))))))))
+  (bt:with-timeout (*request-data-timeout*)
+    (with-character-stream-semantics
+        (let ((first-line (read-initial-request-line stream)))
+          (when first-line
+            (assert (every #'printable-ascii-char-p first-line) ()
+                    "Non-ASCII character in request line ~A" stream)
+            (destructuring-bind (&optional method url-string protocol)
+                                (split "\\s+" first-line :limit 3)
+              (assert url-string ()
+                      "No url in request line ~A" first-line)
+              (when *header-stream*
+                (format *header-stream* "~A~%" first-line))
+              (let ((headers (and protocol (read-http-headers stream *header-stream*))))
+                (unless protocol (setq protocol "HTTP/0.9"))
+                (values headers
+                        (as-keyword method)
+                        url-string
+                        (as-keyword (trim-whitespace protocol))))))))))
+
+(defun get-request-data-with-timeout (stream)
+  (bt:with-timeout (*request-data-timeout*)
+    (get-request-data stream)))
 
 (defgeneric process-asynchronous-connection (acceptor source destination &key if-exists transfer-encoding)
   (:documentation "Given acceptor, an http:acceptor, and connenction which is split
@@ -800,6 +811,8 @@
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
+               (bt:timeout (lambda (c)
+                             (http:request-timeout )))
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error

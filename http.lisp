@@ -28,7 +28,7 @@
 
 (defclass http:acceptor ()
   ((http:dispatch-function
-    :initform nil :initarg :dispatch-function
+    :initform nil :initarg and-function
     :reader http:acceptor-dispatch-function
     :writer setf-acceptor-dispatch-function
     :documentation
@@ -1291,9 +1291,12 @@
     (let ((media-type (or (http:effective-response-media-type function resource request nil)
                           (http:function-default-accept-header function))))
       (setf (http:request-accept-type request) media-type)
+      (unless (mime:mime-type-charset media-type)
+               (setf (mime:mime-type-charset media-type) :utf-8))
       (setf (http:response-media-type response)
             (http:response-compute-media-type request response media-type
-                                              :charset (or (mime:mime-type-charset media-type) :utf-8)))
+                                              :charset (mime:mime-type-charset media-type)))
+      (log-accept-specification resource request response)
       (funcall function resource request response content-type media-type)))
 
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
@@ -1306,18 +1309,30 @@
     (let ((media-type (http:effective-response-media-type function resource request accept-header)))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
+             (unless (mime:mime-type-charset media-type)
+               (setf (mime:mime-type-charset media-type) :utf-8))
              (setf (http:response-media-type response)
                    (http:response-compute-media-type request response media-type
-                                                     :charset (or (mime:mime-type-charset media-type) :utf-8)))
+                                                     :charset (mime:mime-type-charset media-type)))
+             (log-accept-specification resource request response)
              (funcall function resource request response content-type media-type))
             ((member (http:request-method request) '(:patch :put :post :delete))
              ;; if the method expects no response, use text/plain as place holder
              (setf (http:request-accept-type request)
                    (setf (http:response-media-type response) mime:text/plain))
+             (unless (mime:mime-type-charset media-type)
+               (setf (mime:mime-type-charset media-type) :utf-8))
+             (log-accept-specification resource request response)
              (funcall function resource request response content-type mime:text/plain))
             (t
              (http::not-acceptable "Media type (~s) not implemented." accept-header))))))
 
+(defun log-accept-specification (resource request response)
+  (http:log-debug "accepting ~a: (~a)->(~a)->(~a)"
+                  resource
+                  (http:request-accept-header request)
+                  (http:request-accept-type request)
+                  (http:response-media-type response)))
 
 (:documentation "media type computation"
  "GIven a resource function which implements some set of response encodings and the weighted accept header
