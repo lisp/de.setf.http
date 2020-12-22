@@ -64,7 +64,7 @@
 (defun write-syslog (level format-control &rest args)
   (handler-case (let* ((*print-pretty* nil)
                        (*print-length* 10)
-                       (message (apply #'format format-control args)))
+                       (message (apply #'format nil format-control args)))
                   (#+sbcl sb-sys:without-interrupts #-sbcl progn
                    (cffi:with-foreign-strings ((%cformat "%s")
                                                (%message message))
@@ -377,8 +377,12 @@
 
 (defgeneric http:decode-request (resource request content-type)
   (:documentation "Implements the default behavior for resource function
-    encoding methods when they are declared without a body. the default
-    methods delegate to send-entity-body.")
+    encoding methods when they are declared without a body.
+    The default method signals an unsupported content type error.")
+  #+(or)
+  (:method :around ((resource t) (request t) (content-type t))
+    (map nil 'print (compute-applicable-methods #'http:decode-request (list resource request content-type)))
+    (call-next-method))
   (:method ((resource t) (request t) (content-type t))
     "The default method signals an unsupported content type error"
     (http:unsupported-media-type :text (format nil "resource (~a) type/method combination not supported: ~a/~a"

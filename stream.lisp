@@ -459,6 +459,7 @@ invoke the respective content writer on the arguments from the triggering call."
     (let* ((header-stream (http:stream-header-stream stream)))
       (when (open-stream-p header-stream)
         (when (eql 0 (stream-file-position header-stream))
+          ;; generate the output string
           (http:send-headers http:*response*))
         (let* ((header-string (get-output-stream-string header-stream))
                (reference-stream (chunked-stream-stream stream)))
@@ -468,6 +469,13 @@ invoke the respective content writer on the arguments from the triggering call."
           (close header-stream)
           header-string)))))
 
+(defgeneric http:finish-header-output (stream)
+  (:method ((stream http:output-stream))
+    (stream-finish-header-output stream))
+  (:method ((stream broadcast-stream))
+    (map nil #'http:finish-header-output (broadcast-stream-streams stream)))
+  (:method ((stream stream))
+    nil))
 
 (defgeneric stream-header-output-finished-p (stream)
   (:documentation "Return true iff the buffered header output has been written.")

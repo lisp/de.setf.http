@@ -202,27 +202,43 @@
   ((code :initform 404 :allocation :class)
    (text :initform "Not Found" :allocation :class)))
 
-(def-condition http:method-not-allowed (http:condition)
+(def-condition http:method-not-allowed (http:error)
   ((code :initform 405 :allocation :class)
    (text :initform "Method Not Allowed" :allocation :class)))
 
-(def-condition http:not-acceptable (http:condition)
+(def-condition http:not-acceptable (http:error)
   ((code :initform 406 :allocation :class)
-   (text :initform "Not Acceptable" :allocation :class)))
+   (text :initform "Not Acceptable" :allocation :class)
+   (media-type :initform nil :initarg :media-type :reader condition-media-type)
+   (method :initform nil :initarg :method :reader condition-method)
+   (acceptable-types :initform nil :initarg :acceptable-types :reader condition-acceptable-types)))
 
-(def-condition http:proxy-authentication-required (http:condition)
+(defmethod http:report-condition ((condition http:not-acceptable) stream)
+  "to appease https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/406"
+  (let ((type (condition-media-type condition))
+        (acceptable (condition-acceptable-types condition)))
+    (if (or type acceptable)
+        (format stream "HTTP Status: ~s (~a)~@[media type not implemented: '~a'~]~@[[~a]~]~@[~% acceptable:~{~%  '~a'~}~]~%~%"
+                (http:condition-code condition)
+                (http:condition-text condition)
+                (mime:mime-type-namestring type)
+                (condition-method condition)
+                (mapcar #'mime:mime-type-namestring acceptable))
+        (call-next-method))))
+
+(def-condition http:proxy-authentication-required (http:error)
   ((code :initform 407 :allocation :class)
    (text :initform "Proxy Authentication Required" :allocation :class)))
 
-(def-condition http:request-timeout (http:condition)
+(def-condition http:request-timeout (http:error)
   ((code :initform 408 :allocation :class)
    (text :initform "Request Timeout" :allocation :class)))
 
-(def-condition http:conflict (http:condition)
+(def-condition http:conflict (http:error)
   ((code :initform 409 :allocation :class)
    (text :initform "Conflict" :allocation :class)))
 
-(def-condition http:gone (http:condition)
+(def-condition http:gone (http:error)
   ((code :initform 410 :allocation :class)
    (text :initform "Gone" :allocation :class)))
 

@@ -84,6 +84,7 @@
            :encode-rfc1123
            :error
            :expectation-failed
+           :finish-header-output
            :forbidden
            :found
            :function-default-accept-header
@@ -140,6 +141,7 @@
            :request-argument-list
            :request-auth-token
            :request-authentication
+           :request-base-iri
            :request-body
            :request-cache-matched-p
            :request-class
@@ -152,6 +154,7 @@
            :request-header
            :request-headers
            :request-host
+           :request-if-match
            :request-if-modified-since
            :request-is-interactive
            :request-keep-alive-p
@@ -201,6 +204,7 @@
            :resource-pattern-subpatterns
            :resource-request
            :resource-request-argument
+           :resource-request-header
            :respond-to-option-request
            :respond-to-request
            :response

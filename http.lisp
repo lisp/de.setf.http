@@ -377,6 +377,8 @@
 
   (:method ((acceptor http:acceptor) request response)
     "The generic resource acceptor invokes its generated dispatch function."
+    (http:log-debug "http:respond-to-request: ~a ~a ~a"
+                    acceptor request response)
     (let ((dispatcher (http:acceptor-dispatch-function acceptor)))
       (assert dispatcher ()
               "no dispatch function present: " acceptor)
@@ -391,7 +393,8 @@
 (defgeneric http:handle-condition (acceptor condition)
   (:documentation "Invoked for any 'unknown' condition type which is signaled during a process-connection
     invocation. Can either resignal or decline to handle - as is the case for the default method, in which
-    case the connection processing implementation will resignal as an http:internal-error.")
+    case the connection processing implementation will suppress connection errors or
+    resignal as an http:internal-error.")
   (:method ((acceptor t) (condition t))
     ;; decline to handle
     ))
@@ -606,6 +609,17 @@
 (defgeneric http:request-accept-charset (request)
   )
 
+(defgeneric http:request-base-iri (request)
+  (:method ((request http:request))
+    (or (http:request-header request :base-iri)
+        (http:request-uri request))))
+
+(defgeneric (setf http:request-base-iri) (uri request)
+  (:method ((iri string) (request http:request))
+     (setf (http:request-header request :base-iri) iri))
+  (:method ((iri null) (request http:request))
+     (setf (http:request-header request :base-iri) iri)))
+
 (defgeneric http:request-body (request)
   (:documentation "Return the request body as a single sequence.
     If content-length was supplied, that determines the sequence length.
@@ -621,18 +635,21 @@
       content)))
 
 (defgeneric http:request-cache-matched-p (request etag time)
+  (:documentation "return true if any request
+    - etag specifies the current revision
+    - the modification time is not after any modified-since
+    - the modification time is after unmodified-since") 
   (:method ((request http:request) etag time)
-    (let ((if-match (http::request-if-match request)))
+    (let ((if-match (http:request-if-match request))
+          (if-modified-since (http:request-if-modified-since request))
+          (if-unmodified-since (http:request-unmodified-since request)))
       (and (or (null if-match)
                (find etag if-match :test #'equalp)
                (find "*" if-match :test #'equalp))
-           (loop for request-time in (http:request-if-modified-since request)
-             unless (<= time request-time)
-             return nil)
-           (loop for request-time in (http:request-unmodified-since request)
-             when (<= time request-time)
-             return nil)
-           t))))
+           (or (null if-modified-since)
+               (<= time if-modified-since))
+           (or (null if-unmodified-since)
+               (> time if-unmodified-since))))))
 
 (defgeneric http:request-content-stream (request)
   )
@@ -652,6 +669,9 @@
 (defgeneric http:request-header (request key)
   (:method ((headers list) key)
     (rest (assoc key headers :test #'string-equal))))
+
+(defgeneric (setf http:request-header) (value request key)
+  )
 
 (defgeneric http:request-headers (request)
   )
@@ -676,7 +696,7 @@
 (defgeneric http:request-host (request)
   )
 
-(defgeneric http::request-if-match (request)
+(defgeneric http:request-if-match (request)
   )
 
 (defgeneric http:request-if-modified-since (request)
@@ -726,6 +746,7 @@
   )
 
 (defgeneric http:request-path (request)
+  (:documentation "return just the path component of the request url, as a string")
   )
 
 (defgeneric http:request-post-argument (request key)
@@ -765,6 +786,7 @@
   )
 
 (defgeneric http:request-uri (request)
+  (:documentation "Return the absolute uri, that is protocol puls path, as a string")
   )
 
 (defgeneric http:request-uri-host-name (request)
@@ -794,6 +816,12 @@
             (case (http:request-media-type request)
               (application/x-www-form-urlencoded
                (http:request-post-argument request name))))))))
+
+(defgeneric http:resource-request-header (resource name)
+  (:method ((resource http:resource) name)
+    (let ((request (http:resource-request resource)))
+      (when request
+        (http:request-header request name)))))
 
 (defgeneric http:anonymous-resource-p (resource)
   (:documentation "Return true iff the resource permits some form of access without authentication.
@@ -826,11 +854,22 @@
 
 (defgeneric http:resource-path-name-and-type (resource)
   (:method ((resource http:resource))
-    (apply #'values (split-string (http:resource-path-filename resource) ".")))
+    (http:resource-path-name-and-type (http:resource-path-filename resource)))
   (:method ((path t))
     nil)
   (:method ((path string))
-    (apply #'values (split-string (http:resource-path-filename path) "."))))
+    (let ((scanner (load-time-value
+                    (cl-ppcre:create-scanner
+                     `(:sequence :start-anchor
+                                 (:greedy-repetition 0 1 (:sequence (:greedy-repetition 0 nil :everything) #\/))
+                                 (:register (:greedy-repetition 0 nil (:inverted-char-class #\.)))
+                                 (:greedy-repetition 0 1 (:sequence #\. (:register (:greedy-repetition 1 nil :everything))))
+                                 )))))
+      (multiple-value-bind (matched name-and-type)
+                           (cl-ppcre:scan-to-strings scanner path)
+        (when matched
+          (values (aref name-and-type 0) (aref name-and-type 1)))))))
+;;; (loop for path in '("" "a" "a.t" ".t" "p/a" "p/a.t" "p/.t" "p/") collect (multiple-value-list (http:resource-path-name-and-type path)))
 
 (defgeneric http:resource-path-name (resource)
   (:method ((path string))
@@ -937,7 +976,7 @@
                             (decode (:decode . *)) ;; should be singleton
                             (encode (:encode . *))
                             (get (:get))        ; nb. cannot be required as the :as definitions
-                            (put (:put))        ; cut processing off to delegate to anther media type
+                            (put (:put))        ; cut processing off to delegate to another media type
                             (head (:head))
                             (patch (:patch))
                             (post (:post))
@@ -1064,15 +1103,25 @@
                                   ;; require that either the agent is already authenticated - eg from redirection
                                   ;; or that one of the identification methods succeed, and that all of the
                                   ;; permission methods succeed
-                                  `(unless (and (let ((resource (http:resource))
-                                                      (request (http:request)))
-                                                  (or (http:request-agent request)
-                                                    ,@(loop for method in authentication
-                                                            collect `(call-method ,method ()))
-                                                    (http:authenticate-anonymous resource request)))
-                                                ,@(loop for method in authorization
-                                                        collect `(call-method ,method ())))
-                                     (http:unauthorized))))
+                                  ;; as of 2019/2020 cors implementation required unauthenticated options to ask if authentication was ok
+                                  `(cond ((and (let ((resource (http:resource))
+                                                     (request (http:request)))
+                                                 (or (http:request-agent request)
+                                                     ,@(loop for method in authentication
+                                                         collect `(call-method ,method ()))
+                                                     (http:authenticate-anonymous resource request)))
+                                               ,@(loop for method in authorization
+                                                   collect `(call-method ,method ())))
+                                          t)
+                                         ((let* ((request (http:request))
+                                                 (acrh (http:request-header request "Access-Control-Request-Headers")))
+                                            ;; allow preflight without authorization
+                                            (and (eq (http:request-method request) :options)
+                                                 acrh
+                                                 (search "authorization" acrh :test #'char-equal)))
+                                          t)
+                                         (t
+                                          (http:unauthorized)))))
          ;; the most-specific only
          (encode-method (first encode-methods))
          ;; add a clause to cache the concrete media type according to the most
@@ -1101,10 +1150,9 @@
                                                                             ;;'((make-method nil))
                                                                             (list *the-null-method*)
                                                                             )))
-                                                   '(http:not-acceptable "media type (~s) not acceptable for method (~s . ~s)"
-                                                                          (http:request-accept-type http:*request*)
-                                                                          (http:request-method http:*request*)
-                                                                          (http:request-uri http:*request*)))))
+                                                   `(http::not-acceptable :media-type (http:request-accept-type http:*request*)
+                                                                          :method (http:request-method http:*request*)
+                                                                          :acceptable-types (resource-function-acceptable-media-types ,function)))))
                               ;; add an options clause if none is present
                               ,@(unless (getf primary-by-method :options)
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
@@ -1289,7 +1337,7 @@
   ;; (setf (http:response-media-type response) nil)
   ;; (funcall function resource request response content-type nil)
     (let ((media-type (or (http:effective-response-media-type function resource request nil)
-                          (http:function-default-accept-header function))))
+                          (mime:mime-type (http:function-default-accept-header function)))))
       (setf (http:request-accept-type request) media-type)
       (unless (mime:mime-type-charset media-type)
                (setf (mime:mime-type-charset media-type) :utf-8))
@@ -1373,26 +1421,30 @@
                              :from-end t)
           #'subtypep)))
 
-(defgeneric resource-function-acceptable-media-types (function accept-types)
+(defgeneric resource-function-acceptable-media-types (function &optional accept-types)
   (:documentation "Return the ordered sequence of those of the functions encoding media type specializers
    which are subtypes of the given list of accept types. The order is respective the accept types and any
-   duplicates are removed from the end.")
-  (:method ((function http:resource-function) (accept-types list))
-    (loop with defined-types = (resource-function-media-types function)
-      for accept-type in accept-types
-      for accept-type-type = (type-of accept-type)
-      for accept-type-name = (symbol-name accept-type-type)
-      for matched-type = (some #'(lambda (defined)
-                                   (cond ((typep accept-type defined)
-                                          accept-type)
-                                         ;; never return full wild type
-                                         ((and (not (equal "*/*" accept-type-name))
-                                               (find #\* accept-type-name)
-                                               (subtypep defined accept-type-type))
-                                          (mime:mime-type defined))))
-                               defined-types)
-      when matched-type
-      collect matched-type)))
+   duplicates are removed from the end.
+   If no accept type list is provided, return the defined types.")
+  (:method ((function http:resource-function) &optional (accept-types nil))
+    (let ((defined-types (resource-function-media-types function)))
+      (if accept-types
+          (loop
+            for accept-type in accept-types
+            for accept-type-type = (type-of accept-type)
+            for accept-type-name = (symbol-name accept-type-type)
+            for matched-type = (some #'(lambda (defined)
+                                         (cond ((typep accept-type defined)
+                                                accept-type)
+                                               ;; never return full wild type
+                                               ((and (not (equal "*/*" accept-type-name))
+                                                     (find #\* accept-type-name)
+                                                     (subtypep defined accept-type-type))
+                                                (mime:mime-type defined))))
+                                     defined-types)
+            when matched-type
+            collect matched-type)
+          defined-types))))
 
 (defgeneric http:effective-response-media-type (function resource request accept-header)
   (:documentation "the order is
@@ -1404,18 +1456,19 @@
    - finally, try the function's default
    - otherwise signal non-accaptable")
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-header string))
-    (or (let ((type (or (when (or (null (http:request-accept-header request))
-                                  (equal (http:request-accept-header request) "*/*"))
-                          (or (http:resource-file-type-media-type resource)
-                              (http:resource-mime-type resource)))
-                        (resource-function-acceptable-media-type function accept-header))))
+    (or (let* ((header (http:request-accept-header request))
+               (type (or (when (or (null header) (equal header "*/*"))
+                           (or (http:resource-file-type-media-type resource)
+                               (http:resource-mime-type resource)))
+                         (resource-function-acceptable-media-type function accept-header))))
           ;; either some accept type is a sub-type of an implemented type
           ;; or check for wildcard types
           (cond (type (http:effective-response-media-type function resource request type))
-                ((or (null (http:request-accept-header request))
-                     (equal (http:request-accept-header request) "*/*"))
+                ((or (null header) (equal header "*/*"))
                  (http:effective-response-media-type function resource request nil))))
-        (http::not-acceptable "Media type (~s) not implemented." accept-header)))
+        (http::not-acceptable :media-type accept-header
+                              :method (http:request-method request)
+                              :acceptable-types (resource-function-acceptable-media-types function))))
   (:method ((function http:resource-function) (resource http:resource) (request http:request) (accept-media-type mime:*/*))
     accept-media-type)
   ;; allow the function to override interactive browser requests
@@ -1786,7 +1839,15 @@ obsolete mechanism which was in terms of the encode methods
     (call-next-method))
 
   (:method ((condition http:unauthorized) response)
+    "A 401 response needs the cors freedom. Otherwise a browser which needs to
+     authenticate, but has cors constraints will never recive the 401.
+     This may apply to the 403 as well..."
     (setf (http:response-www-authenticate-header response) "Basic")
+    (setf (http:response-header response :Access-Control-Expose-Headers) "*")
+    (setf (http:response-header response :Access-Control-Allow-Headers) "Authorization, Content-Type, X-Requested-With")
+    (setf (http:response-header response :Access-Control-Allow-Methods) "POST, GET, OPTIONS, DELETE, PUT")
+    (setf (http:response-header response :Access-Control-Allow-Origin) "*")
+    (setf (http:response-header response :Access-Control-Allow-Credentials) "true")
     (call-next-method))
 
   (:method ((condition http:internal-error) response)
@@ -1803,7 +1864,9 @@ obsolete mechanism which was in terms of the encode methods
     error detainls as the response body.")
   (:method ((condition http:condition) (response t))
     ;; (format *trace-output*  "~%~a~%~a~%" (get-response-content-stream response) condition)
-    (format (get-response-content-stream response) "~%~a~%" condition)))
+    ;; the headers are followed by cr-lf. just terminate this with the same.
+    ;; the condition does its own eol formatting
+    (format (get-response-content-stream response) "~a~C~C" condition #\Return #\Linefeed)))
 
 
 (defgeneric http:clear-headers (response)
@@ -1922,8 +1985,10 @@ obsolete mechanism which was in terms of the encode methods
     (http:send-entity-body response content))
 
   (:method ((condition http:condition) (response t) (content-type t))
-    "Given a condition as the result, just signal it."
-    (error condition)))
+    "Given a condition as the result, just signal it.
+     Suppress encoding if the signaling does not itsel complete processing"
+    (error condition)
+    t))
 
 ;;;
 ;;; generic authentication/authorization functions
@@ -1987,13 +2052,13 @@ obsolete mechanism which was in terms of the encode methods
 ;;;          -> .eventual.response.implementation. (request)
 ;;; the direct implementation would be to specialize acceptor-dispatch-request with the implemention based
 ;;; on generic functions, but
-;;; - this control pattern is perverse on two accounts. first, it dynamicall binds the acceptor in order to reintroduce it as a
+;;; - this control pattern is perverse on two accounts. first, it dynamically binds the acceptor in order to reintroduce it as a
 ;;; specialized argument to acceptor-dispatch-request. second, it does not include the reply object in the
 ;;; signatures.
 ;;; - status formatting is static, enumerated code
 ;;; - process-request implements a baroque mechanism to send headers control start-output
 ;;;
-;;; this implementation replaces these five levels with a three
+;;; this implementation replaces these five levels with three
 ;;; process-connection (acceptor) : to extract headers, set up streams and establish request and response instances
 ;;; -> respond-to-request (acceptor request response) : to derive the response function, manage headers, manage errors
 ;;;    -> .some.dispatch.function. (path request response) : the path interpreation function

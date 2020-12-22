@@ -122,7 +122,9 @@
           user-name))))
 
 (defmethod http:request-authentication ((request request))
-  (authorization request))
+  (handler-case (authorization request)
+    (error (c)
+      (http:bad-request "Invalid authentication: ~a" c))))
 
 (defmethod http:request-content-length ((request tbnl-request))
   (let ((header (header-in :content-length request)))
@@ -147,6 +149,11 @@
   (with-slots (headers-in) request
     (setf headers-in (acons key value (headers-in request)))))
 
+(defmethod (setf http:request-header) ((value null) (request tbnl-request) key)
+  (with-slots (headers-in) request
+    (setf headers-in (remove (assoc key (headers-in request) :test #'string-equal)
+                             headers-in))))
+
 (defmethod http:request-headers ((request tbnl-request))
   (headers-in request))
 
@@ -167,10 +174,9 @@
 (defmethod http:request-host ((request tbnl-request))
   (acceptor-address (request-acceptor request)))
 
-(defmethod http::request-if-match ((request tbnl-request))
-  (loop for (name . value) in (http:request-headers request)
-    when (eq :if-match name)
-    collect value))
+(defmethod http:request-if-match ((request tbnl-request))
+  (let ((if-match (header-in :if-match request)))
+    (when if-match (split "\\s*,\\s*" if-match))))
 
 (defmethod http:request-if-modified-since ((request tbnl-request))
   (let ((date (header-in :if-modified-since request)))
@@ -226,7 +232,8 @@
       (http:parse-rfc1123 date))))
 
 (defmethod http:request-uri ((request request))
-  (request-uri request))
+  "the tbnl value is just the path"
+  (concatenate 'string "http://" (http:request-host request) (request-uri request)))
 
 (defmethod http:write-request-header ((request request) stream)
   (format stream "~:@(~a~) ~A HTTP/1.1~C~C"
@@ -399,16 +406,21 @@
       ;; use as the base stream either the original socket stream or, if the connector
       ;; supports ssl, a wrapped stream for ssl support
       (let* ((acceptor-stream (initialize-connection-stream acceptor socket-stream))
-             (*hunchentoot-stream* acceptor-stream)) ; provide the dynamic binding
+             (*hunchentoot-stream* acceptor-stream) ; provide the dynamic binding
+             (loop-result nil))
           ;; establish http condition handlers and an error handler which mapps to internal-error
           (handler-bind
             (;; declared conditions are handled according to their report implementation
              (http:condition (lambda (c)
-                               (when *reply*  ;; can happen while reply is being parsed
+                               (when *reply*  ;; can happen while request is being parsed
                                  (http:send-condition *reply* c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code *reply*)))
-                               (http:log-error "process-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (when (typep c 'http:error) ;; ensure syslog
+                                 (http:log-error "process-connection: condition signaled in http response: [~a][~a] ~a "
+                                                 (type-of c)
+                                                 *request*
+                                                 c))
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
                                ;;(dotimes (x 100) (write-char #\. (http:response-content-stream *reply*)))
@@ -419,17 +431,21 @@
                                (return-from process-connection
                                  (values nil c nil)))))
             (handler-bind
-              ;; establish an additional level to permit a general handler which maps to http:condition
+              ;; establish an additional level to permit a general error handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
                (http:condition (lambda (c)
                                  (signal c)))
-               ;; a connection error is suppressed by returning from the connection handler.
+               ;; a connection error is reported to the application, but subsequently suppressed by returning from the connection handler.
                ;; this does not try to continue as any stream's socket
-               (usocket:connection-aborted-error (lambda (c) 
+               (usocket:connection-aborted-error (lambda (c)
+                                                   (http:handle-condition acceptor c)
                                                    (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                                    (return-from process-connection nil)))
-               #+sbcl  ;; caused by a broken pipe
+               #+sbcl
+               ;; caused by a broken pipe
+               ;; handled in the same way as socket errors
                (sb-int:simple-stream-error (lambda (c)
+                                             (http:handle-condition acceptor c)
                                              (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
                (bt:timeout (lambda (c)
@@ -448,12 +464,27 @@
                         ;; re-signal to the acceptor's general handler
                         (http:internal-error "process-connection: unhandled error in http response: [~a] ~a" (type-of c) c))))
             
-              (loop
+              (setf loop-result
+              (catch 'hunchentoot::handler-done 
+                    ;; something or other in hunchentoot code decided to give up
+                    ;; maybe while constructing the request, maybe when actually done.
+                    ;;
+                  (loop
                 (let ((*close-hunchentoot-stream* t))
                   (when (acceptor-shutdown-p acceptor)
                     (return))
                   (multiple-value-bind (headers-in method url-string protocol)
-                                       (get-request-data-with-timeout *hunchentoot-stream*)
+                                       (handler-case (get-request-data-with-timeout *hunchentoot-stream*)
+                                         (error (c)
+                                           ;; if the request is unreadable, respond and return
+                                           (format acceptor-stream "HTTP/1.1 400 ~A~C~C~C~C~A~C~C"
+                                                   (reason-phrase 400)
+                                                   #\Return #\Linefeed  #\Return #\Linefeed
+                                                   c
+                                                    #\Return #\Linefeed)
+                                           (finish-output acceptor-stream)
+                                           (return-from process-connection
+                                             (values nil c nil))))
                     ;; check if there was a request at all
                     (unless method
                       (return))
@@ -508,7 +539,13 @@
                     ;; synchronize on the underlying stream
                     (finish-output acceptor-stream)
                     (when *close-hunchentoot-stream*
-                      (return)))))))
+                      (return)))))
+                    socket-stream))
+              (unless (eq socket-stream loop-result)
+                ;; something was thrown
+                (http:log-warn "process-connection: thrown out of handler: ~s" loop-result)
+                ;; cannot. there is no reply bound (http:bad-request "Unspecified issue.")
+                (finish-output acceptor-stream))))
         (close acceptor-stream :abort t)
         (setq socket-stream nil))
       (when socket-stream
@@ -795,7 +832,8 @@
                                  (http:send-condition reply c)
                                  ;; log the condition as request completion
                                  (acceptor-log-access acceptor :return-code (http:response-status-code reply)))
-                               (http:log-error "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (when (typep c 'http:error) ;; should not be
+                                 (http:log-error "process-asynchronous-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
              ;; if some other error reaches here, log and ignore it.
@@ -918,7 +956,8 @@
                                (http:send-condition reply c)
                                ;; log the condition as request completion
                                (acceptor-log-access acceptor :return-code (http:response-status-code *reply*))
-                               (http:log-error "process-asynchronous-connection: http error in http response: [~a] ~a" (type-of c) c)
+                               (when (typep c 'http:error)
+                                 (http:log-error "process-asynchronous-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                (return-from process-asynchronous-connection
                                  (values nil c nil))))
              ;; if some other error reaches here, log and ignore it.
