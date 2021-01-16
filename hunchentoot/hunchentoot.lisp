@@ -449,8 +449,7 @@
                                              (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
                (bt:timeout (lambda (c)
-                             (declare (ignore c))
-                             (http:log-notice "process-connection: request data timed out")
+                             (http:log-notice "process-connection: request timeout: ~a" c)
                              (http:request-timeout )))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
@@ -850,6 +849,7 @@
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
                (bt:timeout (lambda (c)
+                             (http:log-error "process-asynchronous-connection: request timeout: ~a" c)
                              (http:request-timeout )))
                (error (lambda (c)
                         (http:handle-condition acceptor c)
