@@ -448,9 +448,12 @@
                                              (http:handle-condition acceptor c)
                                              (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
+               #+(or) ;; if the request is not bound, request-timeout does not work. perform normal handling
                (bt:timeout (lambda (c)
                              (http:log-notice "process-connection: request timeout: ~a" c)
-                             (http:request-timeout )))
+                             (if (boundp '*request*)
+                                 (http:request-timeout )
+                                 (signal c))))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
