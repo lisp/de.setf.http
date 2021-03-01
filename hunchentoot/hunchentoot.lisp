@@ -117,9 +117,16 @@
 (defmethod http:request-auth-token ((request request))
   ;; return either the explicit auth-token or the just-user-name authorization header
   (or (get-parameter "auth_token" request)
-      (multiple-value-bind (user-name password) (authorization request)
+      (multiple-value-bind (user-name password) (http:request-authentication request)
         (when (and user-name (or (null password) (equal password "")))
-          user-name))))
+          user-name))
+      (let* ((authorization (header-in :authorization request))
+             (start (and authorization
+                         (> (length authorization) 6)
+                         (string-equal "Bearer" authorization :end2 6)
+                         (scan "\\S" authorization :start 6))))
+        (when start
+          (subseq authorization start)))))
 
 (defmethod http:request-authentication ((request request))
   (handler-case (authorization request)
