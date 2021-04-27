@@ -465,7 +465,11 @@ invoke the respective content writer on the arguments from the triggering call."
                (reference-stream (chunked-stream-stream stream)))
           (loop for char across header-string
             for char-code = (char-code char)
-            do (write-byte char-code reference-stream))
+            if (> char-code 255) ;; must url-encode
+            do (let ((url-encoded (tbnl:url-encode (make-string 1 :initial-element char))))
+                 (loop for char across url-encoded
+                   do (write-byte (char-code char) reference-stream)))
+            else do (write-byte char-code reference-stream))
           (close header-stream)
           header-string)))))
 
