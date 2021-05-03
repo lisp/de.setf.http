@@ -442,6 +442,21 @@ invoke the respective content writer on the arguments from the triggering call."
 
 ;;; output
 
+(defun url-encode (string)
+  (let ((result (make-array (length string) :element-type 'character :fill-pointer 0 :adjustable t)))
+    (loop for c across string
+          for ci = (char-int c)
+          if (and (< ci 127)
+                  (/= ci #.(char-code #\newline))  ;; added 
+                  (/= ci #.(char-code #\'))  ;; added 
+                  (= 0 (sbit puri::*reserved-characters* ci)))
+          do (vector-push-extend c result)
+          else do (multiple-value-bind (q r) (truncate ci 16)
+                    (vector-push-extend #\% result)
+                    (vector-push-extend (elt puri::*escaped-encoding* q) result)
+                    (vector-push-extend (elt puri::*escaped-encoding* r) result)))
+    result))
+
 (defgeneric stream-clear-header-output (stream)
   (:documentation "Reset the header buffer stream to accept new specifications
    by retrieving its string. Return the string to indicate success, but return
@@ -466,7 +481,7 @@ invoke the respective content writer on the arguments from the triggering call."
           (loop for char across header-string
             for char-code = (char-code char)
             if (> char-code 255) ;; must url-encode
-            do (let ((url-encoded (tbnl:url-encode (make-string 1 :initial-element char))))
+            do (let ((url-encoded (url-encode (make-string 1 :initial-element char))))
                  (loop for char across url-encoded
                    do (write-byte (char-code char) reference-stream)))
             else do (write-byte char-code reference-stream))
