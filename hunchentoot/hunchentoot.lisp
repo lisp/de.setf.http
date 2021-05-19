@@ -190,6 +190,11 @@
     (when date
       (http:parse-rfc1123 date))))
 
+(defmethod http:request-if-unmodified-since ((request tbnl-request))
+  (let ((date (header-in :if-unmodified-since request)))
+    (when date
+      (http:parse-rfc1123 date))))
+
 (defmethod http:request-if-none-match ((request tbnl-request))
   (let ((if-match (header-in :if-none-match request)))
     (when if-match (split "\\s*,\\s*" if-match))))

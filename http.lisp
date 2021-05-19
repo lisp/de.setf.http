@@ -642,7 +642,7 @@
   (:method ((request http:request) etag time)
     (let ((if-match (http:request-if-match request))
           (if-modified-since (http:request-if-modified-since request))
-          (if-unmodified-since (http:request-unmodified-since request)))
+          (if-unmodified-since (http:request-if-unmodified-since request)))
       (and (or (null if-match)
                (find etag if-match :test #'equalp)
                (find "*" if-match :test #'equalp))
@@ -660,7 +660,7 @@
     (let ((if-match (http:request-if-match request))
           (if-none-match (http:request-if-none-match request))
           (if-modified-since (http:request-if-modified-since request))
-          (if-unmodified-since (http:request-unmodified-since request)))
+          (if-unmodified-since (http:request-if-unmodified-since request)))
       (and (or (null if-match)
                (find etag if-match :test #'equalp)
                (find "*" if-match :test #'equalp))
@@ -723,6 +723,9 @@
   )
 
 (defgeneric http:request-if-modified-since (request)
+  )
+
+(defgeneric http:request-if-unmodified-since (request)
   )
 
 (defgeneric http:request-keep-alive-p (request)
@@ -804,9 +807,6 @@
 (defgeneric http:request-session-id (request)
   (:documentation
     "Given a request, return a session id, if present."))
-
-(defgeneric http:request-unmodified-since (request)
-  )
 
 (defgeneric http:request-uri (request)
   (:documentation "Return the absolute uri, that is protocol puls path, as a string")
