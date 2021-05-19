@@ -242,11 +242,6 @@
   (cookie-in (session-cookie-name (request-acceptor request))
              request))
 
-(defmethod http:request-unmodified-since ((request request))
-  (let ((date (header-in :unmodified-since request)))
-    (when date
-      (http:parse-rfc1123 date))))
-
 (defmethod http:request-uri ((request request))
   "the tbnl value is just the path"
   (concatenate 'string "http://" (http:request-host request) (request-uri request)))
