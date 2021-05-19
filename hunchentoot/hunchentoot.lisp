@@ -190,6 +190,10 @@
     (when date
       (http:parse-rfc1123 date))))
 
+(defmethod http:request-if-none-match ((request tbnl-request))
+  (let ((if-match (header-in :if-none-match request)))
+    (when if-match (split "\\s*,\\s*" if-match))))
+
 (defmethod http:request-keep-alive-p ((request tbnl-request))
   (keep-alive-p request))
 

@@ -157,6 +157,7 @@
            :request-host
            :request-if-match
            :request-if-modified-since
+           :request-if-none-match
            :request-is-interactive
            :request-keep-alive-p
            :request-media-type

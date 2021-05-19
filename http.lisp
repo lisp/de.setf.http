@@ -658,11 +658,14 @@
     - the modification time is not after unmodified-since") 
   (:method ((request http:request) etag time)
     (let ((if-match (http:request-if-match request))
+          (if-none-match (http:request-if-none-match request))
           (if-modified-since (http:request-if-modified-since request))
           (if-unmodified-since (http:request-unmodified-since request)))
       (and (or (null if-match)
                (find etag if-match :test #'equalp)
                (find "*" if-match :test #'equalp))
+           (or (null if-none-match)
+               (not (find etag if-match :test #'equalp)))
            (or (null if-modified-since)
                (> time if-modified-since))
            (or (null if-unmodified-since)
@@ -714,6 +717,9 @@
   )
 
 (defgeneric http:request-if-match (request)
+  )
+
+(defgeneric http:request-if-none-match (request)
   )
 
 (defgeneric http:request-if-modified-since (request)
@@ -1779,6 +1785,8 @@ obsolete mechanism which was in terms of the encode methods
   )
 
 (defgeneric (setf http:response-date) (timestamp response)
+  (:method ((timestamp string) (response http:response))
+    (setf (http:response-date response) timestamp))
   (:method ((timestamp integer) (response http:response))
     (setf (http:response-date response) (http:encode-rfc1123 timestamp))))
 
@@ -1795,6 +1803,8 @@ obsolete mechanism which was in terms of the encode methods
       (when request (http:request-keep-alive-p request)))))
 
 (defgeneric (setf http:response-last-modified) (timestamp response)
+  (:method ((timestamp string) (response http:response))
+    (setf (http:response-last-modified response) timestamp))
   (:method ((timestamp integer) (response http:response))
     (setf (http:response-last-modified response) (http:encode-rfc1123 timestamp))))
 
