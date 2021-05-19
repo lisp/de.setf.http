@@ -651,6 +651,23 @@
            (or (null if-unmodified-since)
                (> time if-unmodified-since))))))
 
+(defgeneric http:request-constraints-satisfied-p (request etag time)
+  (:documentation "return true if any request
+    - etag specifies the current revision
+    - the modification time is after any modified-since
+    - the modification time is not after unmodified-since") 
+  (:method ((request http:request) etag time)
+    (let ((if-match (http:request-if-match request))
+          (if-modified-since (http:request-if-modified-since request))
+          (if-unmodified-since (http:request-unmodified-since request)))
+      (and (or (null if-match)
+               (find etag if-match :test #'equalp)
+               (find "*" if-match :test #'equalp))
+           (or (null if-modified-since)
+               (> time if-modified-since))
+           (or (null if-unmodified-since)
+               (<= time if-unmodified-since))))))
+
 (defgeneric http:request-content-stream (request)
   )
 

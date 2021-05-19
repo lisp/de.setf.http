@@ -145,6 +145,7 @@
            :request-body
            :request-cache-matched-p
            :request-class
+           :request-constraints-satisfied-p
            :request-content-length
            :request-content-stream
            :request-content-type-header
