@@ -1181,8 +1181,9 @@
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
                                                                               '(:options ,@(loop for (key nil) on primary-by-method by #'cddr collect key))))))
                               ;; otherwise, it is not implemented
-                              (t (http:not-implemented "method (~s) not among those implemented for resource (~s . ~s)"
+                              (t (http:not-implemented "method (~s x ~s) not among those implemented for resource (~s . ~s)"
                                                        (http:request-method http:*request*)
+                                                       (http:request-accept-type http:*request*)
                                                        (http:request-uri http:*request*)
                                                        ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
          ;; wrap the decoding an content generation steps with a mechanism to encode the result.
