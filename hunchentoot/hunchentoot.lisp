@@ -117,9 +117,16 @@
 (defmethod http:request-auth-token ((request request))
   ;; return either the explicit auth-token or the just-user-name authorization header
   (or (get-parameter "auth_token" request)
-      (multiple-value-bind (user-name password) (authorization request)
+      (multiple-value-bind (user-name password) (http:request-authentication request)
         (when (and user-name (or (null password) (equal password "")))
-          user-name))))
+          user-name))
+      (let* ((authorization (header-in :authorization request))
+             (start (and authorization
+                         (> (length authorization) 6)
+                         (string-equal "Bearer" authorization :end2 6)
+                         (scan "\\S" authorization :start 6))))
+        (when start
+          (subseq authorization start)))))
 
 (defmethod http:request-authentication ((request request))
   (handler-case (authorization request)
@@ -183,6 +190,15 @@
     (when date
       (http:parse-rfc1123 date))))
 
+(defmethod http:request-if-unmodified-since ((request tbnl-request))
+  (let ((date (header-in :if-unmodified-since request)))
+    (when date
+      (http:parse-rfc1123 date))))
+
+(defmethod http:request-if-none-match ((request tbnl-request))
+  (let ((if-match (header-in :if-none-match request)))
+    (when if-match (split "\\s*,\\s*" if-match))))
+
 (defmethod http:request-keep-alive-p ((request tbnl-request))
   (keep-alive-p request))
 
@@ -225,11 +241,6 @@
 (defmethod http:request-session-id ((request request))
   (cookie-in (session-cookie-name (request-acceptor request))
              request))
-
-(defmethod http:request-unmodified-since ((request request))
-  (let ((date (header-in :unmodified-since request)))
-    (when date
-      (http:parse-rfc1123 date))))
 
 (defmethod http:request-uri ((request request))
   "the tbnl value is just the path"
@@ -451,6 +462,12 @@
                                              (http:handle-condition acceptor c)
                                              (http:log-error "process-connection: [~a] ~a" (type-of c) c)
                                              (return-from process-connection nil)))
+               #+(or) ;; if the request is not bound, request-timeout does not work. perform normal handling
+               (bt:timeout (lambda (c)
+                             (http:log-notice "process-connection: request timeout: ~a" c)
+                             (if (boundp '*request*)
+                                 (http:request-timeout )
+                                 (signal c))))
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
@@ -473,7 +490,7 @@
                   (when (acceptor-shutdown-p acceptor)
                     (return))
                   (multiple-value-bind (headers-in method url-string protocol)
-                                       (handler-case (get-request-data *hunchentoot-stream*)
+                                       (handler-case (get-request-data-with-timeout *hunchentoot-stream*)
                                          (error (c)
                                            ;; if the request is unreadable, respond and return
                                            (format acceptor-stream "HTTP/1.1 400 ~A~C~C~C~C~A~C~C"
@@ -799,25 +816,32 @@
      (declare (dynamic-extent #',op))
      (call-with-open-request-stream #',op ,location ,@args))))
 
+(defparameter *request-data-timeout* 10)
+
 (defun get-request-data-no-continue (stream)
   "Reads incoming headers as get-request-data, but ignore continue indications."
-  (with-character-stream-semantics
-   (let ((first-line (read-initial-request-line stream)))
-     (when first-line
-       (assert (every #'printable-ascii-char-p first-line) ()
-               "Non-ASCII character in request line ~A" stream)
-       (destructuring-bind (&optional method url-string protocol)
-           (split "\\s+" first-line :limit 3)
-         (assert url-string ()
-           "No url in request line ~A" first-line)
-         (when *header-stream*
-           (format *header-stream* "~A~%" first-line))
-         (let ((headers (and protocol (read-http-headers stream *header-stream*))))
-           (unless protocol (setq protocol "HTTP/0.9"))
-           (values headers
-                   (as-keyword method)
-                   url-string
-                   (as-keyword (trim-whitespace protocol)))))))))
+  (bt:with-timeout (*request-data-timeout*)
+    (with-character-stream-semantics
+        (let ((first-line (read-initial-request-line stream)))
+          (when first-line
+            (assert (every #'printable-ascii-char-p first-line) ()
+                    "Non-ASCII character in request line ~A" stream)
+            (destructuring-bind (&optional method url-string protocol)
+                                (split "\\s+" first-line :limit 3)
+              (assert url-string ()
+                      "No url in request line ~A" first-line)
+              (when *header-stream*
+                (format *header-stream* "~A~%" first-line))
+              (let ((headers (and protocol (read-http-headers stream *header-stream*))))
+                (unless protocol (setq protocol "HTTP/0.9"))
+                (values headers
+                        (as-keyword method)
+                        url-string
+                        (as-keyword (trim-whitespace protocol))))))))))
+
+(defun get-request-data-with-timeout (stream)
+  (bt:with-timeout (*request-data-timeout*)
+    (get-request-data stream)))
 
 (defgeneric process-asynchronous-connection (acceptor source destination &key if-exists transfer-encoding)
   (:documentation "Given acceptor, an http:acceptor, and connenction which is split
@@ -876,6 +900,9 @@
                ;; while any other error is handled as per acceptor, where the default implementation
                ;; will be to log and re-signal as an http:internal-error, but other mapping are possible
                ;; as well as declining to handle in which the condition is re-signaled as an internal error
+               (bt:timeout (lambda (c)
+                             (http:log-error "process-asynchronous-connection: request timeout: ~a" c)
+                             (http:request-timeout )))
                (error (lambda (c)
                         (http:handle-condition acceptor c)
                         ;; if it remains unhandled, then resignal as an internal error

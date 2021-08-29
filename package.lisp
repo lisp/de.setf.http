@@ -145,6 +145,7 @@
            :request-body
            :request-cache-matched-p
            :request-class
+           :request-constraints-satisfied-p
            :request-content-length
            :request-content-stream
            :request-content-type-header
@@ -156,10 +157,13 @@
            :request-host
            :request-if-match
            :request-if-modified-since
+           :request-if-unmodified-since
+           :request-if-none-match
            :request-is-interactive
            :request-keep-alive-p
            :request-media-type
            :request-method
+           :request-modified-since
            :request-negotiated-character-encoding
            :request-negotiated-content-encoding
            :request-origin
@@ -177,7 +181,6 @@
            :request-session-id
            :request-session-cookie-name
            :request-timeout
-           :request-unmodified-since
            :request-uri
            :request-uri-host-name
            :request-uri-too-long

@@ -642,7 +642,7 @@
   (:method ((request http:request) etag time)
     (let ((if-match (http:request-if-match request))
           (if-modified-since (http:request-if-modified-since request))
-          (if-unmodified-since (http:request-unmodified-since request)))
+          (if-unmodified-since (http:request-if-unmodified-since request)))
       (and (or (null if-match)
                (find etag if-match :test #'equalp)
                (find "*" if-match :test #'equalp))
@@ -650,6 +650,26 @@
                (<= time if-modified-since))
            (or (null if-unmodified-since)
                (> time if-unmodified-since))))))
+
+(defgeneric http:request-constraints-satisfied-p (request etag time)
+  (:documentation "return true if any request
+    - etag specifies the current revision
+    - the modification time is after any modified-since
+    - the modification time is not after unmodified-since") 
+  (:method ((request http:request) etag time)
+    (let ((if-match (http:request-if-match request))
+          (if-none-match (http:request-if-none-match request))
+          (if-modified-since (http:request-if-modified-since request))
+          (if-unmodified-since (http:request-if-unmodified-since request)))
+      (and (or (null if-match)
+               (find etag if-match :test #'equalp)
+               (find "*" if-match :test #'equalp))
+           (or (null if-none-match)
+               (not (find etag if-match :test #'equalp)))
+           (or (null if-modified-since)
+               (> time if-modified-since))
+           (or (null if-unmodified-since)
+               (<= time if-unmodified-since))))))
 
 (defgeneric http:request-content-stream (request)
   )
@@ -699,7 +719,13 @@
 (defgeneric http:request-if-match (request)
   )
 
+(defgeneric http:request-if-none-match (request)
+  )
+
 (defgeneric http:request-if-modified-since (request)
+  )
+
+(defgeneric http:request-if-unmodified-since (request)
   )
 
 (defgeneric http:request-keep-alive-p (request)
@@ -781,9 +807,6 @@
 (defgeneric http:request-session-id (request)
   (:documentation
     "Given a request, return a session id, if present."))
-
-(defgeneric http:request-unmodified-since (request)
-  )
 
 (defgeneric http:request-uri (request)
   (:documentation "Return the absolute uri, that is protocol puls path, as a string")
@@ -1158,8 +1181,9 @@
                                   `((:options (http:respond-to-option-request ,function (http:request) (http:response)
                                                                               '(:options ,@(loop for (key nil) on primary-by-method by #'cddr collect key))))))
                               ;; otherwise, it is not implemented
-                              (t (http:not-implemented "method (~s) not among those implemented for resource (~s . ~s)"
+                              (t (http:not-implemented "method (~s x ~s) not among those implemented for resource (~s . ~s)"
                                                        (http:request-method http:*request*)
+                                                       (http:request-accept-type http:*request*)
                                                        (http:request-uri http:*request*)
                                                        ',(loop for (key nil) on primary-by-method by #'cddr collect key)))))
          ;; wrap the decoding an content generation steps with a mechanism to encode the result.
@@ -1339,9 +1363,12 @@
     (let ((media-type (or (http:effective-response-media-type function resource request nil)
                           (mime:mime-type (http:function-default-accept-header function)))))
       (setf (http:request-accept-type request) media-type)
+      (unless (mime:mime-type-charset media-type)
+        (setf (mime:mime-type-charset media-type) :utf-8))
       (setf (http:response-media-type response)
             (http:response-compute-media-type request response media-type
-                                              :charset (or (mime:mime-type-charset media-type) :utf-8)))
+                                              :charset (mime:mime-type-charset media-type)))
+      (log-accept-specification resource request response)
       (funcall function resource request response content-type media-type)))
 
   ;; specialize on resource-function as its fields are required to compute the accept header and thereby response effective method
@@ -1356,16 +1383,28 @@
              (setf (http:request-accept-type request) media-type)
              (unless (mime:mime-type-charset media-type)
                (setf (mime:mime-type-charset media-type) :utf-8))
-             (setf (http:response-media-type response) media-type)
+             (setf (http:response-media-type response)
+                   (http:response-compute-media-type request response media-type
+                                                     :charset (mime:mime-type-charset media-type)))
+             (log-accept-specification resource request response)
              (funcall function resource request response content-type media-type))
             ((member (http:request-method request) '(:patch :put :post :delete))
              ;; if the method expects no response, use text/plain as place holder
              (setf (http:request-accept-type request)
                    (setf (http:response-media-type response) mime:text/plain))
+             (unless (mime:mime-type-charset media-type)
+               (setf (mime:mime-type-charset media-type) :utf-8))
+             (log-accept-specification resource request response)
              (funcall function resource request response content-type mime:text/plain))
             (t
              (http::not-acceptable "Media type (~s) not implemented." accept-header))))))
 
+(defun log-accept-specification (resource request response)
+  (http:log-debug "accepting ~a: (~a)->(~a)->(~a)"
+                  resource
+                  (http:request-accept-header request)
+                  (http:request-accept-type request)
+                  (http:response-media-type response)))
 
 (:documentation "media type computation"
  "GIven a resource function which implements some set of response encodings and the weighted accept header
@@ -1750,6 +1789,8 @@ obsolete mechanism which was in terms of the encode methods
   )
 
 (defgeneric (setf http:response-date) (timestamp response)
+  (:method ((timestamp string) (response http:response))
+    (setf (http:response-date response) timestamp))
   (:method ((timestamp integer) (response http:response))
     (setf (http:response-date response) (http:encode-rfc1123 timestamp))))
 
@@ -1766,6 +1807,8 @@ obsolete mechanism which was in terms of the encode methods
       (when request (http:request-keep-alive-p request)))))
 
 (defgeneric (setf http:response-last-modified) (timestamp response)
+  (:method ((timestamp string) (response http:response))
+    (setf (http:response-last-modified response) timestamp))
   (:method ((timestamp integer) (response http:response))
     (setf (http:response-last-modified response) (http:encode-rfc1123 timestamp))))
 
