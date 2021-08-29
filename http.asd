@@ -17,14 +17,16 @@
                :chunga                  ; direct for the cgi version
                :trivial-gray-streams    ; likewise
                #+sbcl :sb-cltl2
-               :com.b9.puri.puri-ppcre  ; for user agent strings
-               :net.common-lisp.cffi    ; for syslog
+	       ;; asdf w/o hierarchival names :com.b9.puri.puri-ppcre  ; for user agent strings
+	       :puri-ppcre  ; for user agent strings
+               ;; asdf w/o :net.common-lisp.cffi    ; for syslog
+	       :cffi    ; for syslog
                )
   :description
   "a modulor CLOS framework to implement HTTP with concrete implementations
    for hunchentoot and cl-fastcgi"
   :serial t
-  :version "0.01.01"
+  :version "0.1.1"
   :components ((:file "package")
                (:file "parameters")
                (:file "utilities")
