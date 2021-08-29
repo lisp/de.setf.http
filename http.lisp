@@ -1354,9 +1354,9 @@
     (let ((media-type (http:effective-response-media-type function resource request accept-header)))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
-             (setf (http:response-media-type response)
-                   (http:response-compute-media-type request response media-type
-                                                     :charset (or (mime:mime-type-charset media-type) :utf-8)))
+             (unless (mime:mime-type-charset media-type)
+               (setf (mime:mime-type-charset media-type) :utf-8))
+             (setf (http:response-media-type response) media-type)
              (funcall function resource request response content-type media-type))
             ((member (http:request-method request) '(:patch :put :post :delete))
              ;; if the method expects no response, use text/plain as place holder
@@ -1741,6 +1741,9 @@ obsolete mechanism which was in terms of the encode methods
     (setf (http:response-content-type-header response) (mime:mime-type-namestring type))))
 
 (defgeneric http:response-content-type-header (response)
+  )
+
+(defgeneric http:response-etag (response)
   )
 
 (defgeneric (setf http:response-etag) (tag response)

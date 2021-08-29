@@ -299,6 +299,9 @@
 (defmethod (setf http:response-date) ((http-date string) (response tbnl-response))
   (setf (header-out :date response) http-date))
 
+(defmethod http:response-etag ((response tbnl-response))
+  (header-out :etag response))
+
 (defmethod (setf http:response-etag) ((tag string) (response tbnl-response))
   (setf (header-out :etag response) tag))
 
@@ -679,41 +682,73 @@
     (and (stringp object) (cl-ppcre:scan scanner object))))
 
 (defgeneric call-with-open-response-stream (operator location &rest args)
+  (:documentation 
+   "Invoke the given operator on a stream which contains the response to a request
+    with a dynamic binding for a *reply* which binds the response headers
+    If location is a pathname, a file stream is passed and subsequently closed.
+    If it is an http url, delegate to drakma:http-request.
+    The content argument furnish the request content as a function to be invoked on the
+    request stream or as a the character string content itself.")
+
   (:method (operator (location pathname) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (flet ((plist-difference (plist keys)
-             (loop for (key value) on plist by #'cddr
-               unless (member key keys)
-               collect key and
-               collect value)))
-      (setf args (plist-difference args '(:content-type :method))))
-    (let ((stream nil) (abort t))
-      (ensure-directories-exist location)
-      (unwind-protect (progn (setf stream (apply #'open location
-                                                 :direction :output
-                                                 :if-exists :error
-                                                 :if-does-not-exist :create
-                                                 :element-type :default
-                                                 args))
-                        (funcall operator stream)
-                        (setf abort nil))
-        (when stream (close stream :abort abort)))))
+    (with-open-file (stream location :direction :input :external-format :default)
+      (apply #'call-with-open-response-stream operator stream args)))
+
   (:method (operator (location puri:uri) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
-    (let ((response (apply #'drakma:http-request location :content operator :protocol :HTTP/1.1
-                           :want-stream t args)))
-      (when (and (streamp response) (open-stream-p response))
-        (close response))))
+    (multiple-value-bind (stream status headers effective-uri)
+                         ;; if content is among the arguments, it is used to generate the body
+                         (apply #'drakma:http-request location :want-stream t args)
+      (declare (ignore effective-uri))
+      (unwind-protect (let ((*reply* (http::make-response 'reply
+                                                          :server-protocol :HTTP/1.1 ; protocol
+                                                          :content-stream stream)))
+                        (setf (slot-value *reply* 'return-code) status)
+                        (setf (slot-value *reply* 'headers-out) headers)
+                        (setf (slot-value *reply* 'content-type) (or (header-out "Content-Type") "text/plain"))
+                        (funcall operator stream))
+        (when (and (streamp stream) (open-stream-p stream))
+          (close stream)))))
+
+  (:method (operator (location stream) &rest args)
+    (declare (ignore args))
+    ;; parse and collect the response headers. stream must be binary input
+    (destructuring-bind (protocol status status-text)
+                        (drakma::read-status-line location *header-stream*)
+      (declare (ignore status-text))
+      (let ((headers (read-http-headers location *header-stream*))
+            (*reply* (http::make-response 'reply
+                                          :server-protocol protocol
+                                          :content-stream location)))
+        (setf (slot-value *reply* 'return-code) status)
+        (setf (slot-value *reply* 'headers-out) headers)
+        (setf (slot-value *reply* 'content-type) (or (header-out "Content-Type") "text/plain"))
+        (funcall operator location))))
+
   (:method (operator (location string) &rest args)
+    "Given a string, if it looks like an http uri, handle it as one.
+    Otherwise, wrap it with a binary reader stream and read that stream."
     (declare (dynamic-extent args)
              (dynamic-extent operator))
     (if (is-http-uri location)
+        ;; delgate to the http method
         (apply #'call-with-open-response-stream operator (puri:uri location) args)
-        (apply #'call-with-open-response-stream operator (pathname location) args))))
+        ;; decode it as the content
+        (let ((stream (make-instance 'DE.SETF.UTILITY.IMPLEMENTATION::VECTOR-INPUT-STREAM
+                        :vector (map 'vector #'char-code location))))
+          (apply 'call-with-open-response-stream operator stream args)))))
+
 
 (defgeneric call-with-open-request-stream (operator location &rest args)
+  (:documentation
+   "Invoke the given operator on a stream to which the content of
+    a request is to be written.
+    If the location is a pathname, a file stream is passed and subsequently closed.
+    If it is an http url, delegate to drakma:http-request to obtain the stream.
+    Return the response content as a string.")
   (:method (operator (location pathname) &rest args)
     (declare (dynamic-extent args)
              (dynamic-extent operator))
@@ -725,6 +760,7 @@
       (setf args (plist-difference args '(:accept :method))))
     (let ((stream nil) (abort t))
       (ensure-directories-exist location)
+      ;; effect with-open-file, but with constructed arguments
       (unwind-protect (progn (setf stream (apply #'open location
                                                  :direction :input
                                                  :if-does-not-exist :error
@@ -755,6 +791,8 @@
      (call-with-open-response-stream #',op ,location ,@args))))
 
 (defmacro with-open-request-stream ((stream-var location &rest args) &body body)
+  "Invoke the body in a context in which the stream variable is bound to the request stream.
+  Return the response content as a string"
   (let ((op (gensym "CWORS-")))
   `(flet ((,op (,stream-var)
             ,@body))
