@@ -720,10 +720,10 @@
                          ;; if content is among the arguments, it is used to generate the body
                          (apply #'drakma:http-request location :want-stream t args)
       (declare (ignore effective-uri))
-      (unwind-protect (let ((*reply* (http::make-response 'reply
+      (unwind-protect (let ((*reply* (http::make-response 'tbnl-response
                                                           :server-protocol :HTTP/1.1 ; protocol
                                                           :content-stream stream)))
-                        (setf (slot-value *reply* 'return-code) status)
+                        (setf (return-code *reply*) status)
                         (setf (slot-value *reply* 'headers-out) headers)
                         (setf (slot-value *reply* 'content-type) (or (header-out "Content-Type") "text/plain"))
                         (funcall operator stream))
@@ -737,7 +737,7 @@
                         (drakma::read-status-line location *header-stream*)
       (declare (ignore status-text))
       (let ((headers (read-http-headers location *header-stream*))
-            (*reply* (http::make-response 'reply
+            (*reply* (http::make-response 'tbnl-response
                                           :server-protocol protocol
                                           :content-stream location)))
         (setf (slot-value *reply* 'return-code) status)

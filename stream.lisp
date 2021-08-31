@@ -325,8 +325,8 @@ invoke the respective content writer on the arguments from the triggering call."
 
 (defmethod stream-binary-reader ((stream stream))
   ;; just return a read-byte wrapper which transforms eof into nil
-  (flet ((binary-stream-reader (stream)
-           (let ((byte (read-byte stream nil nil)))
+  (flet ((binary-stream-reader (stream &optional (eof-p nil) (eof-value nil))
+           (let ((byte (read-byte stream eof-p eof-value)))
              (when (integerp byte)
                byte))))
     (values #'binary-stream-reader
