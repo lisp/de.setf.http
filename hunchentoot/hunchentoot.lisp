@@ -33,7 +33,7 @@
                              (QUERY-STRING (QUERY-STRING from))
                              (SESSION (SESSION from))
                              (AUX-DATA (AUX-DATA from))
-                             (RAW-POST-DATA (RAW-POST-DATA from)))
+                             (RAW-POST-DATA (slot-value from 'RAW-POST-DATA)))
   (declare (ignore args))
   (setf (slot-value to 'COOKIES-IN) COOKIES-IN)
   (setf (slot-value to 'GET-PARAMETERS) GET-PARAMETERS)
