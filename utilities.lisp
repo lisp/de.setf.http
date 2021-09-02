@@ -226,17 +226,20 @@
       (setf length most-positive-fixnum))
 
     (cond ((plusp length)
-           ;; do not listen. that does a read-char-no-hang which leaves a state which read-byte does not handle (listen input-stream))
+           ;; do not listen.
+           ;; that does a read-char-no-hang which leaves a state which read-byte does not handle (listen input-stream))
+           ;; on a completed ssl stream, it will have been closed, which signals an error
            (let* ((count 0))
              (declare (type fixnum count length))
              (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
                (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
                  (loop for byte = (funcall reader reader-arg)
-                   while byte
-                   do (funcall writer writer-arg byte)
-                   until (>= (incf count) length))))
-             (when (listen input-stream)
-               (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+                   do (cond (byte
+                             (when (> (incf count) length)
+                               (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+                             (funcall writer writer-arg byte))
+                            (t
+                             (return))))))
              count))
           (t
            0)))

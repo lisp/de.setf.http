@@ -88,6 +88,9 @@
 ;;;
 ;;; request
 
+(defmethod (setf tbnl:headers-in) ((headers list) (request tbnl::tbnl-request))
+  (setf (slot-value request 'tbnl::headers-in) headers))
+
 (defmethod http:request-acceptor ((request tbnl-request))
   (request-acceptor request))
 
