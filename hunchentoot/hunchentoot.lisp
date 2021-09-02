@@ -18,7 +18,7 @@
 (defclass tbnl-request (http:request request)
   ())
 
-(def-copy-instance-slots request
+(de.setf.utility:def-copy-instance-slots request
   (ACCEPTOR HEADERS-IN METHOD URI
             SERVER-PROTOCOL LOCAL-ADDR LOCAL-PORT
             REMOTE-ADDR REMOTE-PORT CONTENT-STREAM
