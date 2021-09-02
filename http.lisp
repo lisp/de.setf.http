@@ -136,6 +136,18 @@
      The base implementation must provide access to headers and the content
      stream"))
 
+(def-copy-instance-slots http:request
+  (response agent session-cookie-name  media-type negotiated-content-encoding))
+
+(defmethod initialize-clone ((from http:request) (to http:request) &rest args
+                             &key
+                             (method (get-request-method from))
+                             (accept-type (http:request-accept-type from)))
+  (declare (ignore args))
+  (setf (slot-value to 'method) method)
+  (setf (slot-value to 'accept-type) accept-type)
+  (call-next-method))
+
 
 (defclass http:resource ()
   ((request

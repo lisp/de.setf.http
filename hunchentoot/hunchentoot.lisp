@@ -18,6 +18,34 @@
 (defclass tbnl-request (http:request request)
   ())
 
+(def-copy-instance-slots request
+  (ACCEPTOR HEADERS-IN METHOD URI
+            SERVER-PROTOCOL LOCAL-ADDR LOCAL-PORT
+            REMOTE-ADDR REMOTE-PORT CONTENT-STREAM
+            ))
+
+(defmethod initialize-clone ((from request) (to request) &rest args
+                             &key
+                             (COOKIES-IN (COOKIES-IN from))
+                             (GET-PARAMETERS (GET-PARAMETERS from))
+                             (POST-PARAMETERS (POST-PARAMETERS from))
+                             (script-name (script-name from))
+                             (QUERY-STRING (QUERY-STRING from))
+                             (SESSION (SESSION from))
+                             (AUX-DATA (AUX-DATA from))
+                             (RAW-POST-DATA (RAW-POST-DATA from)))
+  (declare (ignore args))
+  (setf (slot-value to 'COOKIES-IN) COOKIES-IN)
+  (setf (slot-value to 'GET-PARAMETERS) GET-PARAMETERS)
+  (setf (slot-value to 'POST-PARAMETERS) POST-PARAMETERS)
+  (setf (slot-value to 'script-name) script-name)
+  (setf (slot-value to 'QUERY-STRING) QUERY-STRING)
+  (setf (SESSION to) SESSION)
+  (setf (AUX-DATA to) AUX-DATA)
+  (setf (slot-value to 'RAW-POST-DATA) RAW-POST-DATA)
+  (call-next-method))
+
+
 (defclass tbnl-response (http:response reply)
   ())
 
@@ -700,6 +728,7 @@
                                        (:GREEDY-REPETITION 0 NIL :EVERYTHING)
                                        :end-anchor)))))
     (and (stringp object) (cl-ppcre:scan scanner object))))
+
 
 (defgeneric call-with-open-response-stream (operator location &rest args)
   (:documentation 
