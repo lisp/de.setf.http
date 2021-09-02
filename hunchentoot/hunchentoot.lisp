@@ -753,7 +753,7 @@
                          (apply #'drakma:http-request location :want-stream t args)
       (declare (ignore effective-uri))
       (unwind-protect (let ((*reply* (http::make-response 'tbnl-response
-                                                          :server-protocol :HTTP/1.1 ; protocol
+                                                          :server-protocol :HTTP/1.1 ; should have been used
                                                           :content-stream stream)))
                         (setf (return-code *reply*) status)
                         (setf (slot-value *reply* 'headers-out) headers)

@@ -12,6 +12,7 @@
 (asdf:defsystem :de.setf.http
   :depends-on (:de.setf.utility.mime
                :de.setf.utility.codecs
+               :de.setf.utility.clos
                :closer-mop
                :cl-ppcre
                :chunga                  ; direct for the cgi version
