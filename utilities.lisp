@@ -237,7 +237,8 @@
                    do (cond (byte
                              (when (> (incf count) length)
                                (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
-                             (funcall writer writer-arg byte))
+                             (funcall writer writer-arg byte)
+                             (when (= count length) (return)))
                             (t
                              (return))))))
              count))
