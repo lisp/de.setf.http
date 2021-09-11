@@ -181,7 +181,8 @@
   (header-in :content-type request))
 
 (defmethod http:request-header ((request tbnl-request) key)
-  (header-in key request))
+  (let ((entry (assoc* key (headers-in request))))
+    (values (rest entry) (not (null entry)))))
 
 (defmethod (setf http:request-header) (value (request tbnl-request) key)
   (with-slots (headers-in) request
@@ -191,9 +192,6 @@
   (with-slots (headers-in) request
     (setf headers-in (remove (assoc key (headers-in request) :test #'string-equal)
                              headers-in))))
-
-(defmethod http:request-headers ((request tbnl-request))
-  (headers-in request))
 
 (defmethod (setf http:request-headers) ((value list) (request tbnl-request))
   (with-slots (headers-in) request

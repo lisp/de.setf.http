@@ -700,7 +700,8 @@
 
 (defgeneric http:request-header (request key)
   (:method ((headers list) key)
-    (rest (assoc key headers :test #'string-equal))))
+    (let ((entry (assoc key headers :test #'string-equal)))
+      (values (rest entry) (not (null entry))))))
 
 (defgeneric (setf http:request-header) (value request key)
   )
