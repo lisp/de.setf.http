@@ -17,4 +17,5 @@
   "Integrates hunchenoot as the concrete implementation for de.setf.http"
   :serial t
   :components ((:file "hunchentoot")
+               (:file "chunga")
                ))
