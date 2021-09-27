@@ -1906,9 +1906,10 @@ obsolete mechanism which was in terms of the encode methods
     for request processing once the headers have been sent to report
     error detainls as the response body.")
   (:method ((condition http:condition) (response t))
-    ;; (format *trace-output*  "~%~a~%~a~%" (get-response-content-stream response) condition)
     ;; the headers are followed by cr-lf. just terminate this with the same.
     ;; the condition does its own eol formatting
+    ;(setf (slot-value (get-response-content-stream response) 'chunga::real-stream)
+    ;      (make-broadcast-stream *trace-output* (chunga::chunked-stream-stream (get-response-content-stream response))))
     (format (get-response-content-stream response) "~a~C~C" condition #\Return #\Linefeed)))
 
 
@@ -1928,6 +1929,10 @@ obsolete mechanism which was in terms of the encode methods
     ;; when the headers are still pending, stage an error report as the new headers
     ;; and write the condition report as the content.
     ;; if the headers are already gone, just append to the content and terminate the processing
+    (let ((body (with-output-to-string (stream)
+                  (format stream "~a~C~C"
+                          condition #\Return #\Linefeed))))
+      (setf (http:response-content-length response) (length body)))
     (handler-case
         (progn (when (http:clear-headers response)
                  (http:report-condition-headers condition response)

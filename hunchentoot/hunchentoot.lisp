@@ -704,7 +704,7 @@
             (t
              (write-header-line (as-capitalized-string :connection) "Close" header-stream)
              ))
-      (setf (http:response-close-stream-p response) keep-alive-p))
+      (setf (http:response-close-stream-p response) (not keep-alive-p)))
     
     ;; now the cookies
     (loop for (nil . cookie) in (cookies-out response)
