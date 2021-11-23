@@ -464,7 +464,7 @@
                                (when (typep c 'http:error) ;; ensure syslog
                                  (http:log-error "process-connection: condition signaled in http response: [~a][~a] ~a "
                                                  (type-of c)
-                                                 *request*
+                                                 (when (boundp '*request*) *request*)
                                                  c))
                                ;;(describe *reply*)
                                ;;(describe (http:response-content-stream *reply*))
@@ -477,8 +477,9 @@
                                  (values nil c nil)))))
             (handler-bind
               ;; establish an additional level to permit a general error handler which maps to http:condition
-              (;; at this level decline to handle http:condition, to cause it to pass one level up
+              (;; at this level resignal http:condition, to cause it to pass one level up
                (http:condition (lambda (c)
+                                 (http:handle-condition acceptor c) ;; to clean up tasks
                                  (signal c)))
                ;; a connection error is reported to the application, but subsequently suppressed by returning from the connection handler.
                ;; this does not try to continue as any stream's socket
@@ -544,13 +545,17 @@
                                                         ;; with the initial character encoding set to ascii
                                                         :content-stream output-stream))
                            (input-stream (make-instance 'http:input-stream :real-stream *hunchentoot-stream*))
-                           (*request* (http:make-request acceptor
-                                                         :socket socket
-                                                         :headers-in headers-in
-                                                         :content-stream input-stream
-                                                         :method method
-                                                         :uri url-string
-                                                         :server-protocol protocol))
+                           (*request* (let ((request
+                                             (catch 'hunchentoot::handler-done
+                                               (ignore-errors (http:make-request acceptor
+                                                                                 :socket socket
+                                                                                 :headers-in headers-in
+                                                                                 :content-stream input-stream
+                                                                                 :method method
+                                                                                 :uri url-string
+                                                                                 :server-protocol protocol)))))
+                                        (or request
+                                          (http:bad-request "failed to parse: ~a" url-string))))
                            (http:*request* *request*)
                            (http:*response* *reply*)
                            (*tmp-files* nil)
@@ -640,7 +645,8 @@
                             client-header-stream))
          (headers-out (headers-out response))
          (content-length (rest (assoc :content-length headers-out)))
-         (head-request-p (eq :head (request-method (http:response-request response))))
+         (head-request-p (and (http:response-request response)
+                              (eq :head (request-method (http:response-request response)))))
          (server nil)
          (date nil)
          (status-code (http:response-status-code response))
