@@ -226,17 +226,21 @@
       (setf length most-positive-fixnum))
 
     (cond ((plusp length)
-           ;; do not listen. that does a read-char-no-hang which leaves a state which read-byte does not handle (listen input-stream))
+           ;; do not listen.
+           ;; that does a read-char-no-hang which leaves a state which read-byte does not handle (listen input-stream))
+           ;; on a completed ssl stream, it will have been closed, which signals an error
            (let* ((count 0))
              (declare (type fixnum count length))
              (multiple-value-bind (reader reader-arg) (stream-binary-reader input-stream)
                (multiple-value-bind (writer writer-arg) (stream-binary-writer output-stream)
                  (loop for byte = (funcall reader reader-arg)
-                   while byte
-                   do (funcall writer writer-arg byte)
-                   until (>= (incf count) length))))
-             (when (listen input-stream)
-               (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+                   do (cond (byte
+                             (when (> (incf count) length)
+                               (http:request-entity-too-large "Limit of ~d bytes exceeded." length))
+                             (funcall writer writer-arg byte)
+                             (when (= count length) (return)))
+                            (t
+                             (return))))))
              count))
           (t
            0)))
@@ -298,7 +302,7 @@
              (multiple-value-bind (reader reader-arg) (stream-reader input-stream)
                (loop (multiple-value-bind (char size)
                                           (funcall reader reader-arg)
-                       (declare (type fixnum size))
+                       (declare (type fixnum size))  ;; @ eof should be 0
                        (unless char (return))
                        (when (>= character-count (length content))
                          (setf content (adjust-array content (list (+ (length content) 1024)))))
@@ -312,6 +316,23 @@
                         (< character-count (length content)))
                (setf content (adjust-array content (list character-count))))
              (values byte-count content)))
+          (t
+           (when (adjustable-array-p content)
+             (setf content (adjust-array content 0)))
+           0)))
+
+  ;; for convenience use. in a request, it is wrapped and copied with a decoder, above
+  (:method ((input-stream de.setf.utility.implementation::vector-input-stream) (content string) &key length)
+    (unless (and length (= length (length content)))
+      (assert (adjustable-array-p content) ()
+              "Destination sequence must either of the specified length or be adjustable for chunked content: ~a."
+              (type-of content))
+      (setf length most-positive-fixnum))
+    (cond ((plusp length)
+           (loop for byte = (stream-read-byte input-stream)
+             while (integerp byte)
+             do (vector-push-extend (code-char byte) content))
+           (values (length content) content))
           (t
            (when (adjustable-array-p content)
              (setf content (adjust-array content 0)))

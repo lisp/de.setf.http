@@ -142,15 +142,19 @@
       (multiple-value-bind (decoder encoder sizer)
                            (compute-charset-codecs media-type)
         (flet ((sized-decoder (get-byte source)
-                 (let ((char (funcall decoder get-byte source)))
-                   (if char
-                       (values char (funcall sizer char))
-                       (values nil 0))))
+                 (flet ((_get-byte (arg)
+                          (funcall get-byte arg nil nil)))
+                   (let ((char (funcall decoder #'_get-byte source)))
+                     (if char
+                         (values char (funcall sizer char))
+                         (values nil 0)))))
                (constant-size-decoder (get-byte source)
-                 (let ((char (funcall decoder get-byte source)))
-                   (if char
-                       (values char sizer)
-                       (values nil 0))))
+                 (flet ((_get-byte (arg)
+                          (funcall get-byte arg nil nil)))
+                   (let ((char (funcall decoder #'_get-byte source)))
+                     (if char
+                         (values char sizer)
+                         (values nil 0)))))
                (sized-encoder (char put-byte destination)
                  (values (funcall encoder char put-byte destination)
                          (funcall sizer char)))
@@ -321,8 +325,8 @@ invoke the respective content writer on the arguments from the triggering call."
 
 (defmethod stream-binary-reader ((stream stream))
   ;; just return a read-byte wrapper which transforms eof into nil
-  (flet ((binary-stream-reader (stream)
-           (let ((byte (read-byte stream nil nil)))
+  (flet ((binary-stream-reader (stream &optional (eof-p nil) (eof-value nil))
+           (let ((byte (read-byte stream eof-p eof-value)))
              (when (integerp byte)
                byte))))
     (values #'binary-stream-reader

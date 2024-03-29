@@ -28,7 +28,7 @@
 
 (defclass http:acceptor ()
   ((http:dispatch-function
-    :initform nil :initarg and-function
+    :initform nil :initarg :dispatch-function
     :reader http:acceptor-dispatch-function
     :writer setf-acceptor-dispatch-function
     :documentation
@@ -135,6 +135,18 @@
      implementation with slots support generic protocol mechanisms.
      The base implementation must provide access to headers and the content
      stream"))
+
+(def-copy-instance-slots http:request
+  (response agent session-cookie-name  media-type negotiated-content-encoding))
+
+(defmethod initialize-clone ((from http:request) (to http:request) &rest args
+                             &key
+                             (method (get-request-method from))
+                             (accept-type (http:request-accept-type from)))
+  (declare (ignore args))
+  (setf (slot-value to 'method) method)
+  (setf (slot-value to 'accept-type) accept-type)
+  (call-next-method))
 
 
 (defclass http:resource ()
@@ -1364,7 +1376,7 @@
                           (mime:mime-type (http:function-default-accept-header function)))))
       (setf (http:request-accept-type request) media-type)
       (unless (mime:mime-type-charset media-type)
-               (setf (mime:mime-type-charset media-type) :utf-8))
+        (setf (mime:mime-type-charset media-type) :utf-8))
       (setf (http:response-media-type response)
             (http:response-compute-media-type request response media-type
                                               :charset (mime:mime-type-charset media-type)))
@@ -1782,6 +1794,9 @@ obsolete mechanism which was in terms of the encode methods
 (defgeneric http:response-content-type-header (response)
   )
 
+(defgeneric http:response-etag (response)
+  )
+
 (defgeneric (setf http:response-etag) (tag response)
   )
 
@@ -1891,9 +1906,10 @@ obsolete mechanism which was in terms of the encode methods
     for request processing once the headers have been sent to report
     error detainls as the response body.")
   (:method ((condition http:condition) (response t))
-    ;; (format *trace-output*  "~%~a~%~a~%" (get-response-content-stream response) condition)
     ;; the headers are followed by cr-lf. just terminate this with the same.
     ;; the condition does its own eol formatting
+    ;(setf (slot-value (get-response-content-stream response) 'chunga::real-stream)
+    ;      (make-broadcast-stream *trace-output* (chunga::chunked-stream-stream (get-response-content-stream response))))
     (format (get-response-content-stream response) "~a~C~C" condition #\Return #\Linefeed)))
 
 
@@ -1913,6 +1929,10 @@ obsolete mechanism which was in terms of the encode methods
     ;; when the headers are still pending, stage an error report as the new headers
     ;; and write the condition report as the content.
     ;; if the headers are already gone, just append to the content and terminate the processing
+    (let ((body (with-output-to-string (stream)
+                  (format stream "~a~C~C"
+                          condition #\Return #\Linefeed))))
+      (setf (http:response-content-length response) (length body)))
     (handler-case
         (progn (when (http:clear-headers response)
                  (http:report-condition-headers condition response)
