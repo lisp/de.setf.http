@@ -9,6 +9,9 @@
   (:export tbnl-request
            tbnl-response))
 
+(defparameter *reply* nil
+  "provide a global value for possible reference in error handlers")
+
 ;;; hunchentoot adaptations and extensions to integrate generic request management
 
 (defgeneric taskmaster-report-tasks (taskmaster)
