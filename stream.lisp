@@ -280,7 +280,7 @@ invoke the respective content writer on the arguments from the triggering call."
 ;;;
 ;;; input
 
-(defun chunked-stream-read-byte (stream)
+(defun chunked-stream-read-byte (stream &optional eofp eof)
   ;; transliterated from stream-read-byte (chunked-input-stream)
   "Reads one byte from STREAM.  Checks the chunk buffer first, if
    input chunking is enabled.  Re-fills buffer is necessary."
@@ -290,7 +290,7 @@ invoke the respective content writer on the arguments from the triggering call."
            (with-slots (chunga::input-buffer chunga::input-index) stream
              (prog1 (aref chunga::input-buffer chunga::input-index)
                (incf chunga::input-index)))))
-        ((read-byte (chunked-stream-stream stream) nil nil))
+        ((read-byte (chunked-stream-stream stream) eofp eof))
         (t
          nil)))
 

@@ -821,7 +821,7 @@
     "Given a request, return a session id, if present."))
 
 (defgeneric http:request-uri (request)
-  (:documentation "Return the absolute uri, that is protocol puls path, as a string")
+  (:documentation "Return the absolute uri, that is protocol plus path, as a string")
   )
 
 (defgeneric http:request-uri-host-name (request)
