@@ -255,6 +255,7 @@
            :stream-media-type
            :switching-protocols
            :temporary-redirect
+           :too-many-requests
            :unauthorized
            :unsupported-media-type
            :use-proxy

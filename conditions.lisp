@@ -270,6 +270,10 @@
   ((code :initform 417 :allocation :class)
    (text :initform "Expectation Failed" :allocation :class)))
 
+(def-condition http:too-many-requests (http:error)
+  ((code :initform 429 :allocation :class)
+   (text :initform "Too Many Requests" :allocation :class)))
+
 (def-condition http:internal-error (http:error)
   ((code :initform 500 :allocation :class)
    (text :initform "Internal Server Error" :allocation :class)
