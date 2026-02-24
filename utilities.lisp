@@ -174,6 +174,7 @@
         (if types
             (sort types #'> :key #'mime::mime-type-quality)
             (http:not-acceptable "Unacceptable accept ranges: '~a'" header)))
+    (http:not-acceptable (c) (error c))
     (error (c)
            (http:bad-request "Invalid accept header: ~a" c))))
 

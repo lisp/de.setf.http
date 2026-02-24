@@ -1393,6 +1393,7 @@
     (let ((media-type (http:effective-response-media-type function resource request accept-header)))
       (cond (media-type
              (setf (http:request-accept-type request) media-type)
+             ;; 20260224: nb. strict graphql conformance requires that application/graphql+json be left alone
              (unless (mime:mime-type-charset media-type)
                (setf (mime:mime-type-charset media-type) :utf-8))
              (setf (http:response-media-type response)
