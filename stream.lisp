@@ -280,28 +280,36 @@ invoke the respective content writer on the arguments from the triggering call."
 ;;;
 ;;; input
 
-(defun chunked-stream-read-byte (stream &optional eofp eof)
+(defun chunked-stream-read-byte (stream &optional eof-p eof-arg)
   ;; transliterated from stream-read-byte (chunked-input-stream)
   "Reads one byte from STREAM.  Checks the chunk buffer first, if
    input chunking is enabled.  Re-fills buffer is necessary."
   (cond ((chunked-stream-input-chunking-p stream)
-         (when (or (chunga::chunked-input-available-p stream)
-                   (chunga::fill-buffer stream))
-           (with-slots (chunga::input-buffer chunga::input-index) stream
-             (prog1 (aref chunga::input-buffer chunga::input-index)
-               (incf chunga::input-index)))))
-        ((read-byte (chunked-stream-stream stream) eofp eof))
+         (cond ((or (chunga::chunked-input-available-p stream)
+                    (chunga::fill-buffer stream))
+                (with-slots (chunga::input-buffer chunga::input-index) stream
+                  (prog1 (aref chunga::input-buffer chunga::input-index)
+                    (incf chunga::input-index))))
+               (eof-p
+                (error 'end-of-file :stream stream))
+               (t
+                eof-arg)))
+        ((read-byte (chunked-stream-stream stream) eof-p eof-arg))
         (t
          nil)))
 
-(defun always-chunked-stream-read-byte (stream)
+(defun always-chunked-stream-read-byte (stream &optional eof-p eof-arg)
   "Reads one byte from STREAM. Always checks the chunk buffer first.
    Re-fills buffer is necessary."
-  (when (or (chunga::chunked-input-available-p stream)
-            (chunga::fill-buffer stream))
-    (with-slots (chunga::input-buffer chunga::input-index) stream
-      (prog1 (aref chunga::input-buffer chunga::input-index)
-        (incf chunga::input-index)))))
+  (cond ((or (chunga::chunked-input-available-p stream)
+             (chunga::fill-buffer stream))
+         (with-slots (chunga::input-buffer chunga::input-index) stream
+           (prog1 (aref chunga::input-buffer chunga::input-index)
+             (incf chunga::input-index))))
+        (eof-p
+                (error 'end-of-file :stream stream))
+               (t
+                eof-arg)))
 
 
 (defmethod stream-reader ((stream http:input-stream))

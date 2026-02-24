@@ -927,12 +927,12 @@
                                (when (typep c 'http:error) ;; should not be
                                  (http:log-error "process-asynchronous-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                (return-from process-asynchronous-connection
-                                 (values nil c nil))))
+                                 (values request reply c))))
              ;; if some other error reaches here, log and ignore it.
              (error (lambda (c)
                       (http:log-error "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
                       (return-from process-asynchronous-connection
-                        (values nil c nil)))))
+                         (values request reply c)))))
           (handler-bind
               ;; establish an additional level to permit a general handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
@@ -1052,12 +1052,12 @@
                                (when (typep c 'http:error)
                                  (http:log-error "process-asynchronous-connection: condition signaled in http response: [~a] ~a" (type-of c) c))
                                (return-from process-asynchronous-connection
-                                 (values nil c nil))))
+                                 (values *request* *reply* c))))
              ;; if some other error reaches here, log and ignore it.
              (error (lambda (c)
                       (http:log-error "process-asynchronous-connection: error in http response: [~a] ~a" (type-of c) c)
                       (return-from process-asynchronous-connection
-                        (values nil c nil)))))
+                        (values *request* *reply* c)))))
           (handler-bind
               ;; establish an additional level to permit a general handler which maps to http:condition
               (;; at this level decline to handle http:condition, to cause it to pass one level up
